@@ -501,16 +501,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					Stats:   stats,
 				})
 			}
-
 		case "content":
 			if selectedBook == "" || bookProgress == nil {
 				continue
 			}
-
 			if currentVerseIndex >= len(bookVerses) {
 				continue
 			}
-
 			v := bookVerses[currentVerseIndex]
 			user := cleanString(strings.TrimSpace(msg.Content))
 			correct := cleanString(strings.TrimSpace(v.Text))
@@ -528,7 +525,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if user == correct {
 				runtimeStats.CorrectChars += len(correct)
 				runtimeStats.CharsTyped += len(user)
-				bookProgress.CurrentVerse++
+
+				// Only advance CurrentVerse if we're at or past it
+				if currentVerseIndex >= bookProgress.CurrentVerse {
+					bookProgress.CurrentVerse = currentVerseIndex + 1
+				}
 				bookProgress.CorrectEntries++
 
 				elapsed := time.Since(runtimeStats.StartTime).Minutes()
@@ -547,6 +548,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
+				// Update progress percentage
+				if bookProgress.TotalVerses > 0 {
+					allProgress[selectedBook] = (bookProgress.CurrentVerse * 100) / bookProgress.TotalVerses
+				}
+
 				stats := &Stats{
 					BookProgress: *bookProgress,
 					RuntimeStats: runtimeStats,
@@ -554,20 +560,31 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
 				conn.WriteJSON(Message{Type: "stats", Stats: stats})
+				conn.WriteJSON(Message{Type: "progress_update", Progress: allProgress})
 
-				// Send next verse
-				if bookProgress.CurrentVerse < len(bookVerses) {
-					next := bookVerses[bookProgress.CurrentVerse]
+				// Auto-advance to next verse
+				currentVerseIndex++
+				if currentVerseIndex < len(bookVerses) {
+					next := bookVerses[currentVerseIndex]
+
+					// Check if favorited
+					isFav, _ := isFavorite(ctx, uid, next)
+
 					conn.WriteJSON(Message{
-						Type:    "verse",
-						Content: next.Text,
-						Verse:   next,
-						Number:  bookProgress.CurrentVerse + 1,
-						Total:   len(bookVerses),
-						Stats:   stats,
+						Type:       "verse",
+						Content:    next.Text,
+						Verse:      next,
+						Number:     currentVerseIndex + 1,
+						Total:      len(bookVerses),
+						Stats:      stats,
+						IsFavorite: isFav,
 					})
 				} else {
-					conn.WriteJSON(Message{Type: "complete", Content: "All done!", Stats: stats})
+					conn.WriteJSON(Message{
+						Type:    "complete",
+						Content: fmt.Sprintf("Congratulations! You've completed %s!", selectedBook),
+						Stats:   stats,
+					})
 				}
 			} else {
 				bookProgress.Mistakes++
