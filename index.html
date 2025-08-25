@@ -22,7 +22,8 @@
 <div id="messages"></div>
 
 <script>
-const ws = new WebSocket(`wss://${location.host}/ws`);
+const protocol = location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(`${protocol}://${location.host}/ws`);
 const verseEl = document.getElementById('verse');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send');
