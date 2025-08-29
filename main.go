@@ -7,4 +7,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/gorilla/websocket"
 )
