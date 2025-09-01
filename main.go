@@ -26,6 +26,11 @@ func (g *Game) CurrentVerse() VerseItem {
 	return g.Verses[g.Index]
 }
 
+func (g *Game) Advance() {
+	g.Index++
+	g.Stats.CurrentVerse = g.Index
+}
+
 type Stats struct {
 	StartTime      time.Time `json:"startTime"`
 	CharsTyped     int       `json:"charsTyped"`
