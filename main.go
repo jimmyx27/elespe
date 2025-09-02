@@ -18,4 +18,6 @@ var upgrader = websocket.Upgrader{
 type Message struct {
 	Type    string `json:"type"`
 	Content string `json:"content"`
+	Verse   string `json:"verse,omitempty"`
+	Number  int    `json:"number, omitempty"`
 }
