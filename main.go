@@ -19,6 +19,6 @@ type Message struct {
 	Type    string `json:"type"`
 	Content string `json:"content"`
 	Verse   string `json:"verse,omitempty"`
-	Number  int    `json:"number, omitempty"`
+	Number  int    `json:"number,omitempty"`
 	Total   int    `json:total,omitempty"`
 }
