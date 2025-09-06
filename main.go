@@ -22,3 +22,10 @@ type Message struct {
 	Number  int    `json:"number,omitempty"`
 	Total   int    `json:"total,omitempty"`
 }
+
+func LoadVerses(file string) ([]string, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+}
