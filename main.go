@@ -28,4 +28,9 @@ func LoadVerses(file string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	var verses []string
+	if err := json.Unmarshal(data, &verses); err != nil {
+		return nil, err
+	}
+	return verses, nil
 }
