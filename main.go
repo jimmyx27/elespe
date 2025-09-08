@@ -34,3 +34,45 @@ func LoadVerses(file string) ([]string, error) {
 	}
 	return verses, nil
 }
+
+func handleWebSockst(w http.ResponseWriter, r *http.Request, verses []string) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("WebSocker upgrade error: %v", err)
+		return
+	}
+	defer conn.Close()
+	log.Printf("Client connected: %s", r.RemoteAddr)
+
+	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//"})
+
+	for i, verse := range verses {
+		conn.WriteJSON(Message{
+			Type:    "verse",
+			Content: fmt.Sprintf("Verse: %d%d", i+1, len(verses)),
+			Verse:   verse,
+			Number:  i + 1,
+			Total:   len(verses),
+		})
+
+		for {
+			var msg Message
+			if err := conn.ReadJSON(&msg); err != nil {
+				log.Printf("Read error: %v", err)
+				return
+			}
+			userInput := strings.TrimSpace(msg.Content)
+			if strings.ToLower(userInput) == "quit" {
+				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
+				return
+			}
+			if userInput == verse {
+				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
+				break
+			} else {
+				conn.WriteJSON(Message{Type: "wrong", Content: "wrong"})
+			}
+		}
+	}
+	conn.WriteJSON(Message{Type: "complete", Content: "complete"})
+}
