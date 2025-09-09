@@ -35,7 +35,7 @@ func LoadVerses(file string) ([]string, error) {
 	return verses, nil
 }
 
-func handleWebSockst(w http.ResponseWriter, r *http.Request, verses []string) {
+func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocker upgrade error: %v", err)
@@ -75,4 +75,27 @@ func handleWebSockst(w http.ResponseWriter, r *http.Request, verses []string) {
 		}
 	}
 	conn.WriteJSON(Message{Type: "complete", Content: "complete"})
+}
+
+func main() {
+	verses, err := LoadVerses("verses.json")
+	if err != nil {
+		log.Fatalf("Error loading verses: %v", err)
+	}
+	if len(verses) == 0 {
+		log.Fatal("No verses found")
+	}
+	http.Handle("/", http.FileServer(http.Dir(".")))
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		handleWebSocket(w, r, verses)
+	})
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Server start on port %s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("Server error: %v", err)
+	}
 }
