@@ -1,4 +1,4 @@
-// TODO(jim) The wpm is busted and the progress is only saving chars typed and mistakes. It should save the current verse. Progress bar is also not moving.
+// TODO(jim) The wpm is busted and the progress is only saving chars typed and mistakes. It should save the current verse. Progress bar is also not moving. Also want bookname.
 package main
 
 import (
@@ -15,6 +15,12 @@ import (
 )
 
 var sessions = make(map[string]*Stats)
+
+type Game struct {
+	Verses []VerseItem
+	Stats  *Stats
+	Index  int
+}
 
 type Stats struct {
 	StartTime      time.Time `json:"startTime"`
