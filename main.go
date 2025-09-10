@@ -22,6 +22,10 @@ type Game struct {
 	Index  int
 }
 
+func (g *Game) CurrentVerse() VerseItem {
+	return g.Verses[g.Index]
+}
+
 type Stats struct {
 	StartTime      time.Time `json:"startTime"`
 	CharsTyped     int       `json:"charsTyped"`
