@@ -86,7 +86,7 @@ func main() {
 		log.Fatal("No verses found")
 	}
 	http.Handle("/", http.FileServer(http.Dir(".")))
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/wss", func(w http.ResponseWriter, r *http.Request) {
 		handleWebSocket(w, r, verses)
 	})
 
