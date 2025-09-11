@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verse Typing Game</title>
+<style>
+  body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
+  #verse { font-weight: bold; margin-bottom: 1rem; }
+  #messages { margin-top: 1rem; }
+  input { padding: 0.5rem; width: 100%; }
+  button { margin-top: 0.5rem; padding: 0.5rem 1rem; }
+  .correct { color: green; }
+  .wrong { color: red; }
+</style>
+</head>
+<body>
+<h1>Verse Typing Game</h1>
+<div id="verse">Connecting...</div>
+<input id="input" type="text" placeholder="Type here..." autofocus />
+<button id="send">Send</button>
+<div id="messages"></div>
+
+<script>
+const ws = new WebSocket(`ws://${location.host}/ws`);
+const verseEl = document.getElementById('verse');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const messagesEl = document.getElementById('messages');
+
+ws.onopen = () => {
+  verseEl.textContent = "Connected! Waiting for first verse...";
+};
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+
+  switch(msg.type) {
+    case "verse":
+      verseEl.textContent = msg.content + (msg.verse ? `\n${msg.verse}` : "");
+      break;
+    case "correct":
+      appendMessage("✓ " + msg.content, "correct");
+      inputEl.value = "";
+      break;
+    case "wrong":
+      appendMessage("✗ " + msg.content, "wrong");
+      break;
+    case "complete":
+      appendMessage(msg.content, "correct");
+      verseEl.textContent = "All done!";
+      break;
+    case "response":
+      appendMessage(msg.content, "");
+      break;
+  }
+};
+
+sendBtn.onclick = () => sendMessage();
+inputEl.addEventListener("keydown", e => { if(e.key === "Enter") sendMessage(); });
+
+function sendMessage() {
+  const text = inputEl.value.trim();
+  if(text === "") return;
+  ws.send(JSON.stringify({ content: text }));
+}
+
+function appendMessage(text, cls) {
+  const p = document.createElement("p");
+  p.textContent = text;
+  if(cls) p.className = cls;
+  messagesEl.appendChild(p);
+}
+</script>
+</body>
+</html>
+
