@@ -49,7 +49,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	for i, verse := range verses {
 		conn.WriteJSON(Message{
 			Type:    "verse",
-			Content: fmt.Sprintf("Verse: %d%d", i+1, len(verses)),
+			Content: fmt.Sprintf("Verse: %d/%d", i+1, len(verses)),
 			Verse:   verse,
 			Number:  i + 1,
 			Total:   len(verses),
