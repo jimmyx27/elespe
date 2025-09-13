@@ -15,6 +15,35 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+type Data struct {
+	Metadata Metadata `json:"metadata"`
+	Verses   []Verse  `json:"verses"`
+}
+
+type Metadata struct {
+	Name               string `json:"name"`
+	ShortName          string `json:"shortname"`
+	Module             string `json:"module"`
+	Year               int    `json:"year"`
+	Publisher          string `json:"publisher"`
+	Owner              string `json:"owner"`
+	Description        string `json:"description"`
+	Lang               string `json:"lang"`
+	LangShort          string `json:"lang_short"`
+	Copyright          string `json:"copyright"`
+	CopyrightStatement string `json:"copyright_statement"`
+	URL                string `json:"url"`
+	CitationLimit      int    `json:"citation_limit"`
+	Restrict           bool   `json:"restrict"`
+	Italics            bool   `json:"italics"`
+	Strongs            bool   `json:"strongs"`
+	RedLetter          bool   `json:"red_letter"`
+	Paragraph          bool   `json:"paragraph"`
+	Official           bool   `json:"official"`
+	Research           bool   `json:"research"`
+	ModuleVersion      string `json:"module_version"`
+}
+
 type Message struct {
 	Type    string `json:"type"`
 	Content string `json:"content"`
