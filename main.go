@@ -170,6 +170,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	if uid == "" {
 		uid = fmt.Sprintf("%d", time.Now().UnixNano())
 	}
+	sessMu.RLock()
 	stats, ok := sessions[uid]
 	if !ok {
 		stats = &Stats{
