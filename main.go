@@ -12,7 +12,10 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		return origin == "https://elespe.onrender.com"
+	},
 }
 
 type Data struct {
@@ -44,6 +47,14 @@ type Metadata struct {
 	ModuleVersion      string `json:"module_version"`
 }
 
+type Verse struct {
+	BookName string `json:"book_name"`
+	Book     int    `json:"book"`
+	Chapter  int    `json:"chapter"`
+	Verse    int    `json:"verse"`
+	Text     string `json:"text"`
+}
+
 type Message struct {
 	Type    string `json:"type"`
 	Content string `json:"content"`
@@ -52,16 +63,34 @@ type Message struct {
 	Total   int    `json:"total,omitempty"`
 }
 
-func LoadVerses(file string) ([]string, error) {
-	data, err := os.ReadFile(file)
+var bible Data
+
+func loadData() error {
+	bytes, err := os.ReadFile("kjv.json")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var verses []string
-	if err := json.Unmarshal(data, &verses); err != nil {
-		return nil, err
+	return json.Unmarshal(bytes, &bible)
+}
+
+//func LoadVerses(file string) ([]string, error) {
+//	data, err := os.ReadFile(file)
+//	if err != nil {
+//		return nil, err
+//	}
+//	var verses []string
+//	if err := json.Unmarshal(data, &verses); err != nil {
+//		return nil, err
+//	}
+//	return verses, nil
+//}
+
+func ExtractVerseTexts(bible Data) []string {
+	verses := make([]string, 0, len(bible.Verses))
+	for _, v := range bible.Verses {
+		verses = append(verses, v.Text)
 	}
-	return verses, nil
+	return verses
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
@@ -73,7 +102,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	defer conn.Close()
 	log.Printf("Client connected: %s", r.RemoteAddr)
 
-	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//"})
+	if err := conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//"}); err != nil {
+		log.Printf("Write error: %v", err)
+		return
+	}
 
 	for i, verse := range verses {
 		conn.WriteJSON(Message{
@@ -107,13 +139,17 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 }
 
 func main() {
-	verses, err := LoadVerses("verses.json")
-	if err != nil {
-		log.Fatalf("Error loading verses: %v", err)
+	//verses, err := LoadVerses("verses.json")
+	//if err != nil {
+	//	log.Fatalf("Error loading verses: %v", err)
+	//}
+	if err := loadData(); err != nil {
+		log.Fatal(err)
 	}
-	if len(verses) == 0 {
-		log.Fatal("No verses found")
-	}
+	verses := ExtractVerseTexts(bible)
+	//if len(verses) == 0 {
+	//	log.Fatal("No verses found")
+	//}
 	http.Handle("/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		handleWebSocket(w, r, verses)
