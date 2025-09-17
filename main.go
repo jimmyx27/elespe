@@ -27,23 +27,23 @@ type Metadata struct {
 	Name               string `json:"name"`
 	ShortName          string `json:"shortname"`
 	Module             string `json:"module"`
-	Year               int    `json:"year"`
+	Year               string `json:"year"`
 	Publisher          string `json:"publisher"`
 	Owner              string `json:"owner"`
 	Description        string `json:"description"`
 	Lang               string `json:"lang"`
 	LangShort          string `json:"lang_short"`
-	Copyright          string `json:"copyright"`
+	Copyright          int    `json:"copyright"`
 	CopyrightStatement string `json:"copyright_statement"`
 	URL                string `json:"url"`
 	CitationLimit      int    `json:"citation_limit"`
-	Restrict           bool   `json:"restrict"`
-	Italics            bool   `json:"italics"`
-	Strongs            bool   `json:"strongs"`
-	RedLetter          bool   `json:"red_letter"`
-	Paragraph          bool   `json:"paragraph"`
-	Official           bool   `json:"official"`
-	Research           bool   `json:"research"`
+	Restrict           int    `json:"restrict"`
+	Italics            int    `json:"italics"`
+	Strongs            int    `json:"strongs"`
+	RedLetter          int    `json:"red_letter"`
+	Paragraph          int    `json:"paragraph"`
+	Official           int    `json:"official"`
+	Research           int    `json:"research"`
 	ModuleVersion      string `json:"module_version"`
 }
 
