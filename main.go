@@ -11,11 +11,19 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+func checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
+		return true
+	}
+	return origin == "https://elespe.onrender.com"
+}
+
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		return origin == "https://elespe.onrender.com"
-	},
+	CheckOrigin: checkOrigin,
 }
 
 type Data struct {
