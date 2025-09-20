@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/gorilla/websocket"
 )
@@ -81,6 +82,15 @@ func loadData() error {
 	return json.Unmarshal(bytes, &bible)
 }
 
+func cleanString(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || r == '\u00B6' {
+			return -1
+		}
+		return r
+	}, s)
+}
+
 //func LoadVerses(file string) ([]string, error) {
 //	data, err := os.ReadFile(file)
 //	if err != nil {
@@ -130,12 +140,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 				log.Printf("Read error: %v", err)
 				return
 			}
-			userInput := strings.TrimSpace(msg.Content)
+			userInput := cleanString(strings.TrimSpace(msg.Content))
+			verseText := cleanString(verse)
 			if strings.ToLower(userInput) == "quit" {
 				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
 				return
 			}
-			if userInput == verse {
+			if userInput == verseText {
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
 				break
 			} else {
