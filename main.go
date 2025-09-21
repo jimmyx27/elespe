@@ -7,10 +7,25 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/gorilla/websocket"
 )
+
+type Stats struct {
+	StartTime      time.Time `json:"-"`
+	CharsTyped     int       `json:"charsTyped"`
+	Mistakes       int       `json:"mistakes"`
+	CorrectEntries int       `json:"correct"`
+	WPM            int       `json:"wpm"`
+}
+
+type WSMessage struct {
+	Type    string `json:"type"`
+	Content string `json:"content,omitempty"`
+	Stats   *Stats `json:"stats,omitempty"`
+}
 
 func checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
@@ -84,7 +99,11 @@ func loadData() error {
 
 func cleanString(s string) string {
 	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) || r == '\u00B6' {
+		if unicode.IsControl(r) {
+			return -1
+		}
+
+		if r == '\u00B6' || r == '\u2029' || r == '\u2028' {
 			return -1
 		}
 		return r
@@ -106,7 +125,7 @@ func cleanString(s string) string {
 func ExtractVerseTexts(bible Data) []string {
 	verses := make([]string, 0, len(bible.Verses))
 	for _, v := range bible.Verses {
-		verses = append(verses, v.Text)
+		verses = append(verses, cleanString(v.Text))
 	}
 	return verses
 }
@@ -120,9 +139,37 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	defer conn.Close()
 	log.Printf("Client connected: %s", r.RemoteAddr)
 
+	stats := &Stats{
+		StartTime: time.Now(),
+	}
 	if err := conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//"}); err != nil {
 		log.Printf("Write error: %v", err)
 		return
+	}
+
+	for {
+		msgType, msg, err := conn.ReadMessage()
+		if err != nil {
+			log.Println("read error:", err)
+			return
+		}
+		stats.CharsTyped += len(msg)
+
+		elapsed := time.Since(stats.StartTime).Minutes()
+		if elapsed > 0 {
+			stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
+		}
+
+		response := WSMessage{
+			Type:    "response",
+			Content: string(msg),
+			Stats:   stats,
+		}
+
+		if err := conn.WriteJSON(response); err != nil {
+			log.Println("write error:", err)
+			return
+		}
 	}
 
 	for i, verse := range verses {
@@ -141,12 +188,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 				return
 			}
 			userInput := cleanString(strings.TrimSpace(msg.Content))
-			verseText := cleanString(verse)
+			cverse := cleanString(strings.TrimSpace(verse))
 			if strings.ToLower(userInput) == "quit" {
 				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
 				return
 			}
-			if userInput == verseText {
+			if userInput == cverse {
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
 				break
 			} else {
