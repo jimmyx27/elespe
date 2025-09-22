@@ -142,35 +142,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	stats := &Stats{
 		StartTime: time.Now(),
 	}
-	if err := conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//"}); err != nil {
-		log.Printf("Write error: %v", err)
-		return
-	}
-
-	for {
-		msgType, msg, err := conn.ReadMessage()
-		if err != nil {
-			log.Println("read error:", err)
-			return
-		}
-		stats.CharsTyped += len(msg)
-
-		elapsed := time.Since(stats.StartTime).Minutes()
-		if elapsed > 0 {
-			stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
-		}
-
-		response := WSMessage{
-			Type:    "response",
-			Content: string(msg),
-			Stats:   stats,
-		}
-
-		if err := conn.WriteJSON(response); err != nil {
-			log.Println("write error:", err)
-			return
-		}
-	}
+	conn.WriteJSON(WSMessage{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
 
 	for i, verse := range verses {
 		conn.WriteJSON(Message{
@@ -188,20 +160,30 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 				return
 			}
 			userInput := cleanString(strings.TrimSpace(msg.Content))
+			stats.CharsTyped += len(userInput)
 			cverse := cleanString(strings.TrimSpace(verse))
 			if strings.ToLower(userInput) == "quit" {
 				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
 				return
 			}
 			if userInput == cverse {
+				stats.CorrectEntries++
+				elapsed := time.Since(stats.StartTime).Minutes()
+				if elapsed > 0 {
+					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
+				}
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
+				conn.WriteJSON(WSMessage{Type: "stats", Stats: stats})
 				break
 			} else {
+				stats.Mistakes++
 				conn.WriteJSON(Message{Type: "wrong", Content: "wrong"})
+				conn.WriteJSON(WSMessage{Type: "stats", Stats: stats})
 			}
 		}
 	}
 	conn.WriteJSON(Message{Type: "complete", Content: "complete"})
+	conn.WriteJSON(WSMessage{Type: "stats", Stats: stats})
 }
 
 func main() {
