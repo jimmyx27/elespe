@@ -17,6 +17,7 @@
 <body>
 		<h1>Praise the Sun! \\[T]//</h1>
 <div id="verse">Connecting...</div>
+<div id="stats"><p>WPM: <span id="wpm">0</span></p><p>Chars typed: <span id="chars">0</span></p><p>Mistakes: <span id="mistakes">0</span></p></div>
 <input id="input" type="text" placeholder="Type here..." autofocus />
 <button id="send">Send</button>
 <div id="messages"></div>
@@ -35,6 +36,12 @@ ws.onopen = () => {
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
+
+	if (msg.type === "stats" && msg.stats) {
+		document.getElementById("wpm").textContent = msg.stats.wpm;
+		document.getElementById("chars").textContent = msg.stats.charsTyped;
+		document.getElementById("mistakes").textContent = msg.stats.mistakes;
+	}
 
   switch(msg.type) {
     case "verse":
