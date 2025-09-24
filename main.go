@@ -161,6 +161,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 			}
 			userInput := cleanString(strings.TrimSpace(msg.Content))
 			stats.CharsTyped += len(userInput)
+			elapsed := time.Since(stats.StartTime).Minutes()
 			cverse := cleanString(strings.TrimSpace(verse))
 			if strings.ToLower(userInput) == "quit" {
 				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
@@ -168,11 +169,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 			}
 			if userInput == cverse {
 				stats.CorrectEntries++
-				elapsed := time.Since(stats.StartTime).Minutes()
 				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
 				}
-				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
+				conn.WriteJSON(Message{Type: "correct", Content: "correct", Verse: verse})
 				conn.WriteJSON(WSMessage{Type: "stats", Stats: stats})
 				break
 			} else {
