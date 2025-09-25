@@ -21,12 +21,6 @@ type Stats struct {
 	WPM            int       `json:"wpm"`
 }
 
-type WSMessage struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	Stats   *Stats `json:"stats,omitempty"`
-}
-
 func checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
@@ -85,6 +79,7 @@ type Message struct {
 	Verse   string `json:"verse,omitempty"`
 	Number  int    `json:"number,omitempty"`
 	Total   int    `json:"total,omitempty"`
+	Stats   *Stats `json:"stats,omitempty"`
 }
 
 var bible Data
@@ -110,18 +105,6 @@ func cleanString(s string) string {
 	}, s)
 }
 
-//func LoadVerses(file string) ([]string, error) {
-//	data, err := os.ReadFile(file)
-//	if err != nil {
-//		return nil, err
-//	}
-//	var verses []string
-//	if err := json.Unmarshal(data, &verses); err != nil {
-//		return nil, err
-//	}
-//	return verses, nil
-//}
-
 func ExtractVerseTexts(bible Data) []string {
 	verses := make([]string, 0, len(bible.Verses))
 	for _, v := range bible.Verses {
@@ -142,7 +125,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	stats := &Stats{
 		StartTime: time.Now(),
 	}
-	conn.WriteJSON(WSMessage{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
+	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
 
 	for i, verse := range verses {
 		conn.WriteJSON(Message{
@@ -151,6 +134,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 			Verse:   verse,
 			Number:  i + 1,
 			Total:   len(verses),
+			Stats:   stats,
 		})
 
 		for {
@@ -172,32 +156,23 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
 				}
-				conn.WriteJSON(Message{Type: "correct", Content: "correct", Verse: verse})
-				conn.WriteJSON(WSMessage{Type: "stats", Stats: stats})
+				conn.WriteJSON(Message{Type: "correct", Content: "correct", Verse: verse, Stats: stats})
+				conn.WriteJSON(Message{Type: "stats", Stats: stats})
 				break
 			} else {
 				stats.Mistakes++
-				conn.WriteJSON(Message{Type: "wrong", Content: "wrong"})
-				conn.WriteJSON(WSMessage{Type: "stats", Stats: stats})
+				conn.WriteJSON(Message{Type: "wrong", Content: "wrong", Stats: stats})
 			}
 		}
 	}
-	conn.WriteJSON(Message{Type: "complete", Content: "complete"})
-	conn.WriteJSON(WSMessage{Type: "stats", Stats: stats})
+	conn.WriteJSON(Message{Type: "complete", Content: "complete", Stats: stats})
 }
 
 func main() {
-	//verses, err := LoadVerses("verses.json")
-	//if err != nil {
-	//	log.Fatalf("Error loading verses: %v", err)
-	//}
 	if err := loadData(); err != nil {
 		log.Fatal(err)
 	}
 	verses := ExtractVerseTexts(bible)
-	//if len(verses) == 0 {
-	//	log.Fatal("No verses found")
-	//}
 	http.Handle("/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		handleWebSocket(w, r, verses)
