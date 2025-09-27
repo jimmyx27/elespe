@@ -13,12 +13,16 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var sessions = make(map[string]*Stats)
+
 type Stats struct {
 	StartTime      time.Time `json:"-"`
 	CharsTyped     int       `json:"charsTyped"`
 	Mistakes       int       `json:"mistakes"`
 	CorrectEntries int       `json:"correct"`
 	WPM            int       `json:"wpm"`
+	CurrentVerse   int       `json:"currentVerse"`
+	TotalVerses    int       `json:"totalVerses"`
 }
 
 func checkOrigin(r *http.Request) bool {
@@ -82,6 +86,12 @@ type Message struct {
 	Stats   *Stats `json:"stats,omitempty"`
 }
 
+type Session struct {
+	Conn   *websocket.Conn
+	Stats  *Stats
+	Verses []string
+}
+
 var bible Data
 
 func loadData() error {
@@ -122,9 +132,18 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	defer conn.Close()
 	log.Printf("Client connected: %s", r.RemoteAddr)
 
+	uid := r.URL.Query().Get("uid")
+	if uid == "" {
+		uid = fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	stats, ok := sessions[uid]
+	if !ok {
 	stats := &Stats{
 		StartTime: time.Now(),
+			CurrentVerse: 0,
+			TotalVerses: len(verses),
 	}
+		sessions[uid] = stats
 	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
 
 	for i, verse := range verses {
@@ -153,6 +172,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 			}
 			if userInput == cverse {
 				stats.CorrectEntries++
+					stats.CurrentVerse = i + 1
 				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
 				}
