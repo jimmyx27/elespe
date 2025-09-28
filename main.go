@@ -92,6 +92,17 @@ type Session struct {
 	Verses []string
 }
 
+func saveSessions() {
+	bytes, _ := json.MarshalIndent(sessions, "", " ")
+	os.WriteFile("sessions.json", bytes, 0644)
+}
+
+func loadSessions() {
+	if data, err := os.ReadFile("sessions.json"); err == nil {
+		json.Unmarshal(data, &sessions)
+	}
+}
+
 var bible Data
 
 func loadData() error {
@@ -138,12 +149,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	}
 	stats, ok := sessions[uid]
 	if !ok {
-	stats := &Stats{
-		StartTime: time.Now(),
+		stats = &Stats{
+			StartTime:    time.Now(),
 			CurrentVerse: 0,
-			TotalVerses: len(verses),
+			TotalVerses:  len(verses),
+		}
 	}
-		sessions[uid] = stats
+	sessions[uid] = stats
 	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
 
 	for i, verse := range verses {
@@ -172,16 +184,18 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 			}
 			if userInput == cverse {
 				stats.CorrectEntries++
-					stats.CurrentVerse = i + 1
+				stats.CurrentVerse = i + 1
 				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
 				}
 				conn.WriteJSON(Message{Type: "correct", Content: "correct", Verse: verse, Stats: stats})
 				conn.WriteJSON(Message{Type: "stats", Stats: stats})
+				saveSessions()
 				break
 			} else {
 				stats.Mistakes++
 				conn.WriteJSON(Message{Type: "wrong", Content: "wrong", Stats: stats})
+				saveSessions()
 			}
 		}
 	}
@@ -189,6 +203,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 }
 
 func main() {
+	loadSessions()
+	defer saveSessions()
 	if err := loadData(); err != nil {
 		log.Fatal(err)
 	}
