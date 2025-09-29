@@ -50,7 +50,9 @@ ws.onmessage = (event) => {
 		document.getElementById("chars").textContent = msg.stats.charsTyped;
 		document.getElementById("mistakes").textContent = msg.stats.mistakes;
 	
-		const percent = (msg.stats.CurrentVerse / msg.stats.TotalVerses) * 100;
+		rawProgress = msg.stats.CurrentVerse / msg.stats.TotalVerses;
+		exaggerationFactor = 20;
+		percent = Math.min(Math.sqrt(rawProgress) * exaggerationFactor, 1) * 100;
 		document.getElementById("progress").value = percent;
 	}
 
