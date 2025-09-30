@@ -37,6 +37,10 @@ const verseEl = document.getElementById('verse');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const messagesEl = document.getElementById('messages');
+progressEl = document.getElementById('progress')
+const wpmEl = document.getElementById('wpm');
+const charsEl = document.getElementById('chars');
+const mistakesEl = document.getElementById('mistakes');
 
 ws.onopen = () => {
   verseEl.textContent = "Connected! Waiting for first verse...";
@@ -46,14 +50,14 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
 	if (msg.type === "stats" && msg.stats) {
-		document.getElementById("wpm").textContent = msg.stats.wpm;
-		document.getElementById("chars").textContent = msg.stats.charsTyped;
-		document.getElementById("mistakes").textContent = msg.stats.mistakes;
+		wpmEl.textContent = msg.stats.wpm;
+		charsEl.textContent = msg.stats.charsTyped;
+		mistakesEl.textContent = msg.stats.mistakes;
 	
-		rawProgress = msg.stats.CurrentVerse / msg.stats.TotalVerses;
-		exaggerationFactor = 20;
-		percent = Math.min(Math.sqrt(rawProgress) * exaggerationFactor, 1) * 100;
-		document.getElementById("progress").value = percent;
+		const rawProgress = msg.stats.CurrentVerse / msg.stats.TotalVerses;
+		const exaggerationFactor = 15;
+		const percent = Math.min(rawProgress * exaggerationFactor, 1) * 100;
+		progressEl.value = percent;
 	}
 
   switch(msg.type) {
