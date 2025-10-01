@@ -1,3 +1,4 @@
+// TODO(jim) The wpm is busted and the progress is only saving chars typed and mistakes. It should save the current verse. Progress bar is also not moving.
 package main
 
 import (
@@ -16,28 +17,13 @@ import (
 var sessions = make(map[string]*Stats)
 
 type Stats struct {
-	StartTime      time.Time `json:"-"`
+	StartTime      time.Time `json:"startTime"`
 	CharsTyped     int       `json:"charsTyped"`
 	Mistakes       int       `json:"mistakes"`
 	CorrectEntries int       `json:"correct"`
 	WPM            int       `json:"wpm"`
 	CurrentVerse   int       `json:"currentVerse"`
 	TotalVerses    int       `json:"totalVerses"`
-}
-
-func checkOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return true
-	}
-	if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
-		return true
-	}
-	return origin == "https://elespe.onrender.com"
-}
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: checkOrigin,
 }
 
 type Data struct {
@@ -92,6 +78,23 @@ type Session struct {
 	Verses []string
 }
 
+var bible Data
+
+func checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
+		return true
+	}
+	return origin == "https://elespe.onrender.com"
+}
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: checkOrigin,
+}
+
 func saveSessions() {
 	bytes, _ := json.MarshalIndent(sessions, "", " ")
 	os.WriteFile("sessions.json", bytes, 0644)
@@ -99,11 +102,14 @@ func saveSessions() {
 
 func loadSessions() {
 	if data, err := os.ReadFile("sessions.json"); err == nil {
-		json.Unmarshal(data, &sessions)
+		var saved map[string]*Stats
+		if err := json.Unmarshal(data, &saved); err == nil {
+			for k, v := range saved {
+				sessions[k] = v
+			}
+		}
 	}
 }
-
-var bible Data
 
 func loadData() error {
 	bytes, err := os.ReadFile("kjv.json")
@@ -200,6 +206,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 		}
 	}
 	conn.WriteJSON(Message{Type: "complete", Content: "complete", Stats: stats})
+	saveSessions()
 }
 
 func main() {
