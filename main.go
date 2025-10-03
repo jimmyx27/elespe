@@ -172,6 +172,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 	}
 	sessMu.RLock()
 	stats, ok := sessions[uid]
+	sessMy.RUnlock()
 	if !ok {
 		stats = &Stats{
 			StartTime:    time.Now(),
@@ -179,7 +180,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []string) {
 			TotalVerses:  len(verses),
 		}
 	}
+
+	sessMu.Lock()
 	sessions[uid] = stats
+	sessMu.Unlock()
 	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
 
 	for i, verse := range verses {
