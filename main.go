@@ -43,6 +43,13 @@ type Stats struct {
 	TotalVerses    int       `json:"totalVerses"`
 }
 
+type StoredStats struct {
+	CharsTyped   int
+	Mistakes     int
+	CurrentVerse int
+	Correct      int
+}
+
 type Data struct {
 	Metadata Metadata `json:"metadata"`
 	Verses   []Verse  `json:"verses"`
