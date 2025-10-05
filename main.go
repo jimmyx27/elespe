@@ -16,7 +16,7 @@ import (
 )
 
 var sessions = make(map[string]*Stats)
-var sessMy sync.RWMutex
+var sessMu sync.RWMutex
 
 type Game struct {
 	Verses []VerseItem
