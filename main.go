@@ -87,6 +87,13 @@ type Verse struct {
 	Text     string `json:"text"`
 }
 
+type VerseItem struct {
+	Book    string
+	Chapter int
+	Verse   int
+	Text    string
+}
+
 type Message struct {
 	Type    string `json:"type"`
 	Content string `json:"content"`
