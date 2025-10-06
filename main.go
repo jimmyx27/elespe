@@ -15,42 +15,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var bible Data
 var sessions = make(map[string]*Stats)
 var sessMu sync.RWMutex
-
-type Game struct {
-	Verses []VerseItem
-	Stats  *Stats
-	Index  int
-}
-
-func (g *Game) CurrentVerse() VerseItem {
-	return g.Verses[g.Index]
-}
-
-func (g *Game) Advance() {
-	g.Index++
-	g.Stats.CurrentVerse = g.Index
-}
 
 type Stats struct {
 	StartTime      time.Time `json:"startTime"`
 	CharsTyped     int       `json:"charsTyped"`
-	CorrectChars   int       `json:"correctChars"`
 	Mistakes       int       `json:"mistakes"`
 	CorrectEntries int       `json:"correct"`
 	WPM            int       `json:"wpm"`
 	CurrentVerse   int       `json:"currentVerse"`
 	TotalVerses    int       `json:"totalVerses"`
 	Started        bool      `json:"started"`
-}
-
-type StoredStats struct {
-	CharsTyped   int
-	Mistakes     int
-	CurrentVerse int
-	Correct      int
 }
 
 type Data struct {
@@ -98,19 +74,15 @@ type VerseItem struct {
 }
 
 type Message struct {
-	Type    string    `json:"type"`
-	Content string    `json:"content"`
-	Verse   VerseItem `json:"verse,omitempty"`
-	Number  int       `json:"number,omitempty"`
-	Total   int       `json:"total,omitempty"`
-	Stats   *Stats    `json:"stats,omitempty"`
+	Type    string `json:"type"`
+	Content string `json:"content"`
+	Verse   string `json:"verse,omitempty"`
+	Number  int    `json:"number,omitempty"`
+	Total   int    `json:"total,omitempty"`
+	Stats   *Stats `json:"stats,omitempty"`
 }
 
-type Session struct {
-	Conn   *websocket.Conn
-	Stats  *Stats
-	Verses []string
-}
+var bible Data
 
 func checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
@@ -192,25 +164,24 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 	}
 	sessMu.RLock()
 	stats, ok := sessions[uid]
-	sessMu.RUnlock()
 	if !ok {
 		stats = &Stats{
 			StartTime:    time.Now(),
 			CurrentVerse: 0,
 			TotalVerses:  len(verses),
 		}
+		sessions[uid] = stats
 	}
 
-	sessMu.Lock()
-	sessions[uid] = stats
 	sessMu.Unlock()
 	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
 
-	for i, verse := range verses {
+	for i := stats.CurrentVerse; i < len(verses); i++ {
+		verse := verses[i]
 		conn.WriteJSON(Message{
 			Type:    "verse",
 			Content: fmt.Sprintf("Verse: %d/%d", i+1, len(verses)),
-			Verse:   verse,
+			Verse:   verse.Text,
 			Number:  i + 1,
 			Total:   len(verses),
 			Stats:   stats,
@@ -223,6 +194,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 				return
 			}
 			userInput := cleanString(strings.TrimSpace(msg.Content))
+			if !stats.Started {
+				stats.Started = true
+				stats.StartTime = time.Now()
+			}
 			stats.CharsTyped += len(userInput)
 			elapsed := time.Since(stats.StartTime).Minutes()
 			cverse := cleanString(strings.TrimSpace(verse.Text))
@@ -236,7 +211,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
 				}
-				conn.WriteJSON(Message{Type: "correct", Content: "correct", Verse: verse, Stats: stats})
+				conn.WriteJSON(Message{Type: "correct", Content: "correct", Verse: verse.Text, Stats: stats})
 				conn.WriteJSON(Message{Type: "stats", Stats: stats})
 				saveSessions()
 				break
