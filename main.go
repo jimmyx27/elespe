@@ -163,10 +163,15 @@ func cleanString(s string) string {
 	}, s)
 }
 
-func ExtractVerseTexts(bible Data) []string {
-	verses := make([]string, 0, len(bible.Verses))
+func ExtractVerseTexts(bible Data) []VerseItem {
+	verses := make([]VerseItem, 0, len(bible.Verses))
 	for _, v := range bible.Verses {
-		verses = append(verses, cleanString(v.Text))
+		verses = append(verses, VerseItem{
+			Book:    v.BookName,
+			Chapter: v.Chapter,
+			Verse:   v.Verse,
+			Text:    cleanString(v.Text),
+		})
 	}
 	return verses
 }
