@@ -95,12 +95,12 @@ type VerseItem struct {
 }
 
 type Message struct {
-	Type    string `json:"type"`
-	Content string `json:"content"`
-	Verse   string `json:"verse,omitempty"`
-	Number  int    `json:"number,omitempty"`
-	Total   int    `json:"total,omitempty"`
-	Stats   *Stats `json:"stats,omitempty"`
+	Type    string    `json:"type"`
+	Content string    `json:"content"`
+	Verse   VerseItem `json:"verse,omitempty"`
+	Number  int       `json:"number,omitempty"`
+	Total   int       `json:"total,omitempty"`
+	Stats   *Stats    `json:"stats,omitempty"`
 }
 
 type Session struct {
