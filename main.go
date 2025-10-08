@@ -21,7 +21,7 @@ var sessMu sync.RWMutex
 type Stats struct {
 	StartTime      time.Time `json:"startTime"`
 	CharsTyped     int       `json:"charsTyped"`
-	CorrectChars   int       `json:"correcChars"`
+	CorrectChars   int       `json:"correctChars"`
 	Mistakes       int       `json:"mistakes"`
 	CorrectEntries int       `json:"correct"`
 	WPM            int       `json:"wpm"`
