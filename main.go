@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var bible Data
 var sessions = make(map[string]*Stats)
 var sessMu sync.RWMutex
 
@@ -36,6 +37,7 @@ func (g *Game) Advance() {
 type Stats struct {
 	StartTime      time.Time `json:"startTime"`
 	CharsTyped     int       `json:"charsTyped"`
+	CorrectChars   int       `json:"correctChars"`
 	Mistakes       int       `json:"mistakes"`
 	CorrectEntries int       `json:"correct"`
 	WPM            int       `json:"wpm"`
@@ -108,8 +110,6 @@ type Session struct {
 	Stats  *Stats
 	Verses []string
 }
-
-var bible Data
 
 func checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
@@ -224,7 +224,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 			userInput := cleanString(strings.TrimSpace(msg.Content))
 			stats.CharsTyped += len(userInput)
 			elapsed := time.Since(stats.StartTime).Minutes()
-			cverse := cleanString(strings.TrimSpace(verse))
+			cverse := cleanString(strings.TrimSpace(verse.Text))
 			if strings.ToLower(userInput) == "quit" {
 				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
 				return
