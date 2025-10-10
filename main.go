@@ -43,6 +43,7 @@ type Stats struct {
 	WPM            int       `json:"wpm"`
 	CurrentVerse   int       `json:"currentVerse"`
 	TotalVerses    int       `json:"totalVerses"`
+	Started        bool      `json:"started"`
 }
 
 type StoredStats struct {
