@@ -75,12 +75,12 @@ type VerseItem struct {
 }
 
 type Message struct {
-	Type    string `json:"type"`
-	Content string `json:"content"`
-	Verse   string `json:"verse,omitempty"`
-	Number  int    `json:"number,omitempty"`
-	Total   int    `json:"total,omitempty"`
-	Stats   *Stats `json:"stats,omitempty"`
+	Type    string    `json:"type"`
+	Content string    `json:"content"`
+	Verse   VerseItem `json:"verse,omitempty"`
+	Number  int       `json:"number,omitempty"`
+	Total   int       `json:"total,omitempty"`
+	Stats   *Stats    `json:"stats,omitempty"`
 }
 
 var bible Data
@@ -181,8 +181,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 		verse := verses[i]
 		conn.WriteJSON(Message{
 			Type:    "verse",
-			Content: fmt.Sprintf("Verse: %d/%d", i+1, len(verses)),
-			Verse:   verse.Text,
+			Content: fmt.Sprintf("%s %d:%d (%d/%d)", verse.Book, verse.Chapter, verse.Verse, i+1, len(verses)),
+			Verse:   verse,
 			Number:  i + 1,
 			Total:   len(verses),
 			Stats:   stats,
@@ -195,25 +195,25 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 				return
 			}
 			userInput := cleanString(strings.TrimSpace(msg.Content))
-			if !stats.Started {
+			correctText := cleanString(strings.TrimSpace(verse.Text))
+			if !stats.Started && len(userInput) > 0 {
 				stats.Started = true
 				stats.StartTime = time.Now()
 			}
 			stats.CharsTyped += len(userInput)
-			elapsed := time.Since(stats.StartTime).Minutes()
-			cverse := cleanString(strings.TrimSpace(verse.Text))
 			if strings.ToLower(userInput) == "quit" {
 				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
 				return
 			}
-			if userInput == cverse {
+			if userInput == correctText {
+				stats.CorrectChars += len(correctText)
 				stats.CorrectEntries++
 				stats.CurrentVerse = i + 1
+				elapsed := time.Since(stats.StartTime).Minutes()
 				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
 				}
-				conn.WriteJSON(Message{Type: "correct", Content: "correct", Verse: verse.Text, Stats: stats})
-				conn.WriteJSON(Message{Type: "stats", Stats: stats})
+				conn.WriteJSON(Message{Type: "correct", Content: "correct", Stats: stats})
 				saveSessions()
 				break
 			} else {
