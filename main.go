@@ -106,13 +106,14 @@ func saveSessions() {
 }
 
 func loadSessions() {
-	if data, err := os.ReadFile("sessions.json"); err == nil {
-		var saved map[string]*Stats
-		if err := json.Unmarshal(data, &saved); err == nil {
-			for k, v := range saved {
-				sessions[k] = v
-			}
-		}
+	data, err := os.ReadFile("sessions.json")
+	if err != nil {
+		return
+	}
+	var saved map[string]*Stats
+	if err := json.Unmarshal(data, &saved); err != nil {
+		log.Printf("sessions corrupted, resetting: %v", err)
+		return
 	}
 }
 
