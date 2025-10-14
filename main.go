@@ -115,6 +115,9 @@ func loadSessions() {
 		log.Printf("sessions corrupted, resetting: %v", err)
 		return
 	}
+	sessMu.Lock()
+	defer sessMu.Unlock()
+	sessions = saved
 }
 
 func loadData() error {
@@ -149,6 +152,13 @@ func ExtractVerseTexts(bible Data) []VerseItem {
 		})
 	}
 	return verses
+}
+
+func sendStats(conn *websocket.Conn, stats *Stats) {
+	conn.WriteJSON(Message{
+		Type:  "stats",
+		Stats: stats,
+	})
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem) {
