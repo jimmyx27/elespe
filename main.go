@@ -224,12 +224,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
 				}
-				conn.WriteJSON(Message{Type: "correct", Content: "correct", Stats: stats})
+				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
+				sendStats(conn, stats)
 				saveSessions()
 				break
 			} else {
 				stats.Mistakes++
-				conn.WriteJSON(Message{Type: "wrong", Content: "wrong", Stats: stats})
+				conn.WriteJSON(Message{Type: "wrong", Content: "wrong"})
+				sendStats(conn, stats)
 				saveSessions()
 			}
 		}
