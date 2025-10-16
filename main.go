@@ -222,7 +222,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 				stats.CurrentVerse = i + 1
 				elapsed := time.Since(stats.StartTime).Minutes()
 				if elapsed > 0 {
-					stats.WPM = int(float64(stats.CharsTyped) / 5 / elapsed)
+					stats.WPM = int(float64(stats.CorrectChars) / 5 / elapsed)
 				}
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
 				sendStats(conn, stats)
