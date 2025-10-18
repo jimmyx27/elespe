@@ -62,7 +62,7 @@ ws.onmessage = (event) => {
 
   switch(msg.type) {
     case "verse":
-      verseEl.textContent = msg.content + (msg.verse ? `\n${msg.verse}` : "");
+								verseEl.textContent = msg.content + (msg.verse ? `\n${msg.verse.book} ${msg.verse.chapter}:${msg.verse.verse}\n${msg.verse.text}` : "");
       break;
     case "correct":
       appendMessage("✓ " + msg.content, "correct");
