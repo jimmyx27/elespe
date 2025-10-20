@@ -56,7 +56,7 @@ ws.onmessage = (event) => {
 	
 		const rawProgress = msg.stats.CurrentVerse / msg.stats.TotalVerses;
 		const exaggerationFactor = 15;
-		const percent = (msg.stats.CurrentVerse / msg.stats.totalVerses) * 100;
+		const percent = (msg.stats.CurrentVerse / msg.stats.TotalVerses) * 100;
 		progressEl.value = percent;
 	}
 
