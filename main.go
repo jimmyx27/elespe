@@ -178,7 +178,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 	stats, ok := sessions[uid]
 	if !ok {
 		stats = &Stats{
-			StartTime:    time.Now(),
+			//StartTime:    time.Now(),
 			CurrentVerse: 0,
 			TotalVerses:  len(verses),
 		}
@@ -236,6 +236,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 				sendStats(conn, stats)
 				saveSessions()
 			}
+			if time.Since(stats.LastTypedAt) > time.Second*2 {
+				stats.StartTime = time.Now()
+			}
+			stats.LastTypedAt = time.Now()
 		}
 	}
 	conn.WriteJSON(Message{Type: "complete", Content: "complete", Stats: stats})
