@@ -192,11 +192,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 		verse := verses[i]
 		conn.WriteJSON(Message{
 			Type:    "verse",
-			Content: fmt.Sprintf("%s %d:%d (%d/%d)", verse.Book, verse.Chapter, verse.Verse, i+1, len(verses)),
-			Verse:   verse,
-			Number:  i + 1,
-			Total:   len(verses),
-			Stats:   stats,
+			Content: verse.Text, //fmt.Sprintf("%s %d:%d (%d/%d)", verse.Book, verse.Chapter, verse.Verse, i+1, len(verses)),
+			Verse: VerseItem{
+				Book:    verse.Book,
+				Chapter: verse.Chapter,
+				Verse:   verse.Verse,
+			},
+			Number: i + 1,
+			Total:  len(verses),
+			Stats:  stats,
 		})
 
 		for {
