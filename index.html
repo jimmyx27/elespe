@@ -1,102 +1,133 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Praise the sun! \\[T]//</title>
-<style>
-  body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
-  #verse { font-weight: bold; margin-bottom: 1rem; }
-  #messages { margin-top: 1rem; }
-  input { padding: 0.5rem; width: 100%; }
-  button { margin-top: 0.5rem; padding: 0.5rem 1rem; }
-  #progress-container { margin: 1rem 0; }
-  progress { width: 100%; height: 1.5; }
-  .correct { color: green; }
-  .wrong { color: red; }
-</style>
-</head>
-<body>
-		<h1>Praise the Sun! \\[T]//</h1>
-<div id="verse">Connecting...</div>
-<div id="stats"><p>WPM: <span id="wpm">0</span></p><p>Chars typed: <span id="chars">0</span></p><p>Mistakes: <span id="mistakes">0</span></p></div>
-		<div id="progress-container"><progress id="progress" value="0" max="100"></progress></div>
-<input id="input" type="text" placeholder="Type here..." autofocus />
-<button id="send">Send</button>
-<div id="messages"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Praise the sun! \\[T]//</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 2rem;
+        max-width: 600px;
+        margin: auto;
+      }
+      #verse {
+        font-weight: bold;
+        margin-bottom: 1rem;
+      }
+      #messages {
+        margin-top: 1rem;
+      }
+      input {
+        padding: 0.5rem;
+        width: 100%;
+      }
+      button {
+        margin-top: 0.5rem;
+        padding: 0.5rem 1rem;
+      }
+      #progress-container {
+        margin: 1rem 0;
+      }
+      progress {
+        width: 100%;
+        height: 1.5;
+      }
+      .correct {
+        color: green;
+      }
+      .wrong {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Praise the Sun! \\[T]//</h1>
+    <div id="verse">Connecting...</div>
+    <div id="stats">
+      <p>WPM: <span id="wpm">0</span></p>
+      <p>Chars typed: <span id="chars">0</span></p>
+      <p>Mistakes: <span id="mistakes">0</span></p>
+    </div>
+    <div id="progress-container">
+      <progress id="progress" value="0" max="100"></progress>
+    </div>
+    <input id="input" type="text" placeholder="Type here..." autofocus />
+    <button id="send">Send</button>
+    <div id="messages"></div>
 
-<script>
-		let uid = localStorage.getItem("uid");
-		if (!uid) {
-			uid = Date.now().toString(36) + Math.random().toString(36).slice(2);
-			localStorage.setItem("uid", uid);
-		}
-const protocol = location.protocol === "https:" ? "wss" : "ws";
-		const ws = new WebSocket(`${protocol}://${location.host}/ws?uid=${uid}`);
-const verseEl = document.getElementById('verse');
-const inputEl = document.getElementById('input');
-const sendBtn = document.getElementById('send');
-const messagesEl = document.getElementById('messages');
-progressEl = document.getElementById('progress')
-const wpmEl = document.getElementById('wpm');
-const charsEl = document.getElementById('chars');
-const mistakesEl = document.getElementById('mistakes');
+    <script>
+      let uid = localStorage.getItem("uid");
+      if (!uid) {
+        uid = Date.now().toString(36) + Math.random().toString(36).slice(2);
+        localStorage.setItem("uid", uid);
+      }
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${protocol}://${location.host}/ws?uid=${uid}`);
+      const verseEl = document.getElementById("verse");
+      const inputEl = document.getElementById("input");
+      const sendBtn = document.getElementById("send");
+      const messagesEl = document.getElementById("messages");
+      progressEl = document.getElementById("progress");
+      const wpmEl = document.getElementById("wpm");
+      const charsEl = document.getElementById("chars");
+      const mistakesEl = document.getElementById("mistakes");
 
-ws.onopen = () => {
-  verseEl.textContent = "Connected! Waiting for first verse...";
-};
+      ws.onopen = () => {
+        verseEl.textContent = "Connected! Waiting for first verse...";
+      };
 
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
 
-	if (msg.type === "stats" && msg.stats) {
-		wpmEl.textContent = msg.stats.wpm;
-		charsEl.textContent = msg.stats.charsTyped;
-		mistakesEl.textContent = msg.stats.mistakes;
-	
-		const rawProgress = msg.stats.CurrentVerse / msg.stats.TotalVerses;
-		const exaggerationFactor = 15;
-		const percent = (msg.stats.CurrentVerse / msg.stats.TotalVerses) * 100;
-		progressEl.value = percent;
-	}
+        if (msg.type === "stats" && msg.stats) {
+          wpmEl.textContent = msg.stats.wpm;
+          charsEl.textContent = msg.stats.charsTyped;
+          mistakesEl.textContent = msg.stats.mistakes;
 
-  switch(msg.type) {
-    case "verse":
-								verseEl.textContent = msg.content + (msg.verse ? `\n${msg.verse.book} ${msg.verse.chapter}:${msg.verse.verse}\n${msg.verse.text}` : "");
-      break;
-    case "correct":
-      appendMessage("✓ " + msg.content, "correct");
-      inputEl.value = "";
-      break;
-    case "wrong":
-      appendMessage("✗ " + msg.content, "wrong");
-      break;
-    case "complete":
-      appendMessage(msg.content, "correct");
-      verseEl.textContent = "All done!";
-      break;
-    case "response":
-      appendMessage(msg.content, "");
-      break;
-  }
-};
+          const percent =
+            (msg.stats.CurrentVerse / msg.stats.TotalVerses) * 100;
+          progressEl.value = percent;
+        }
 
-sendBtn.onclick = () => sendMessage();
-inputEl.addEventListener("keydown", e => { if(e.key === "Enter") sendMessage(); });
+        switch (msg.type) {
+          case "verse":
+            verseEl.textContent = `${msg.verse.book} ${msg.verse.chapter}:${msg.verse.verse} (${msg.number}/${msg.total})\n\n${msg.content}`;
+            break;
+          case "correct":
+            appendMessage("✓ " + msg.content, "correct");
+            inputEl.value = "";
+            break;
+          case "wrong":
+            appendMessage("✗ " + msg.content, "wrong");
+            break;
+          case "complete":
+            appendMessage(msg.content, "correct");
+            verseEl.textContent = "All done!";
+            break;
+          case "response":
+            appendMessage(msg.content, "");
+            break;
+        }
+      };
 
-function sendMessage() {
-  const text = inputEl.value.trim();
-  if(text === "") return;
-  ws.send(JSON.stringify({ content: text }));
-}
+      sendBtn.onclick = () => sendMessage();
+      inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendMessage();
+      });
 
-function appendMessage(text, cls) {
-  const p = document.createElement("p");
-  p.textContent = text;
-  if(cls) p.className = cls;
-  messagesEl.appendChild(p);
-}
-</script>
-</body>
+      function sendMessage() {
+        const text = inputEl.value.trim();
+        if (text === "") return;
+        ws.send(JSON.stringify({ content: text }));
+      }
+
+      function appendMessage(text, cls) {
+        const p = document.createElement("p");
+        p.textContent = text;
+        if (cls) p.className = cls;
+        messagesEl.appendChild(p);
+      }
+    </script>
+  </body>
 </html>
-
