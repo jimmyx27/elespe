@@ -28,6 +28,7 @@ type Stats struct {
 	CurrentVerse   int       `json:"currentVerse"`
 	TotalVerses    int       `json:"totalVerses"`
 	Started        bool      `json:"started"`
+	LastTypedAt    time.Time `json:"lastTypedAt"`
 }
 
 type Data struct {
@@ -169,7 +170,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 	}
 	defer conn.Close()
 	log.Printf("Client connected: %s", r.RemoteAddr)
-
 	uid := r.URL.Query().Get("uid")
 	if uid == "" {
 		uid = fmt.Sprintf("%d", time.Now().UnixNano())
@@ -184,10 +184,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 		}
 		sessions[uid] = stats
 	}
-
 	sessMu.Unlock()
 	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
-
 	for i := stats.CurrentVerse; i < len(verses); i++ {
 		verse := verses[i]
 		conn.WriteJSON(Message{
