@@ -28,16 +28,13 @@
       }
       #progress-container {
         margin: 1rem 0;
+		background-color: grey;
       }
       progress {
-        width: 100%;
+
+        width: 1%;
         height: 1.5;
-      }
-      .correct {
-        color: green;
-      }
-      .wrong {
-        color: red;
+		background-color: black;
       }
     </style>
   </head>
@@ -50,7 +47,7 @@
       <p>Mistakes: <span id="mistakes">0</span></p>
     </div>
     <div id="progress-container">
-      <progress id="progress" value="0" max="100"></progress>
+      <progress id="progress" value="50" max="100"></progress>
     </div>
     <input id="input" type="text" placeholder="Type here..." autofocus />
     <button id="send">Send</button>
@@ -84,10 +81,7 @@
           wpmEl.textContent = msg.stats.wpm;
           charsEl.textContent = msg.stats.charsTyped;
           mistakesEl.textContent = msg.stats.mistakes;
-
-          const percent =
-            (msg.stats.CurrentVerse / msg.stats.TotalVerses) * 100;
-          progressEl.value = percent;
+          progressEl.value = 50;
         }
 
         switch (msg.type) {
