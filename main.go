@@ -68,20 +68,13 @@ type Verse struct {
 	Text     string `json:"text"`
 }
 
-type VerseItem struct {
-	Book    string
-	Chapter int
-	Verse   int
-	Text    string
-}
-
 type Message struct {
-	Type    string    `json:"type"`
-	Content string    `json:"content"`
-	Verse   VerseItem `json:"verse,omitempty"`
-	Number  int       `json:"number,omitempty"`
-	Total   int       `json:"total,omitempty"`
-	Stats   *Stats    `json:"stats,omitempty"`
+	Type    string `json:"type"`
+	Content string `json:"content"`
+	Verse   Verse  `json:"verse,omitempty"`
+	Number  int    `json:"number,omitempty"`
+	Total   int    `json:"total,omitempty"`
+	Stats   *Stats `json:"stats,omitempty"`
 }
 
 var bible Data
@@ -142,14 +135,15 @@ func cleanString(s string) string {
 	}, s)
 }
 
-func ExtractVerseTexts(bible Data) []VerseItem {
-	verses := make([]VerseItem, 0, len(bible.Verses))
+func ExtractVerseTexts(bible Data) []Verse {
+	verses := make([]Verse, 0, len(bible.Verses))
 	for _, v := range bible.Verses {
-		verses = append(verses, VerseItem{
-			Book:    v.BookName,
-			Chapter: v.Chapter,
-			Verse:   v.Verse,
-			Text:    cleanString(v.Text),
+		verses = append(verses, Verse{
+			BookName: v.BookName,
+			Book:     v.Book,
+			Chapter:  v.Chapter,
+			Verse:    v.Verse,
+			Text:     cleanString(v.Text),
 		})
 	}
 	return verses
@@ -162,7 +156,7 @@ func sendStats(conn *websocket.Conn, stats *Stats) {
 	})
 }
 
-func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem) {
+func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocker upgrade error: %v", err)
@@ -178,7 +172,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 	stats, ok := sessions[uid]
 	if !ok {
 		stats = &Stats{
-			//StartTime:    time.Now(),
+			StartTime:    time.Now(),
 			CurrentVerse: 0,
 			TotalVerses:  len(verses),
 		}
@@ -191,10 +185,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []VerseItem)
 		conn.WriteJSON(Message{
 			Type:    "verse",
 			Content: verse.Text, //fmt.Sprintf("%s %d:%d (%d/%d)", verse.Book, verse.Chapter, verse.Verse, i+1, len(verses)),
-			Verse: VerseItem{
-				Book:    verse.Book,
-				Chapter: verse.Chapter,
-				Verse:   verse.Verse,
+			Verse: Verse{
+				BookName: verse.BookName,
+				Book:     verse.Book,
+				Chapter:  verse.Chapter,
+				Verse:    verse.Verse,
 			},
 			Number: i + 1,
 			Total:  len(verses),
