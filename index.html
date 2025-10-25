@@ -27,19 +27,18 @@
         padding: 0.5rem 1rem;
       }
       #progress-container {
-        margin: 1rem 0;
+        margin: 2rem 0;
 		background-color: grey;
       }
       progress {
-
-        width: 1%;
-        height: 1.5;
+        width: 60%;
+        height: 5;
 		background-color: black;
       }
     </style>
   </head>
   <body>
-    <h1>Praise the Sun! \\[T]//</h1>
+    <h1>Praise the Sun! * \\[T]//</h1>
     <div id="verse">Connecting...</div>
     <div id="stats">
       <p>WPM: <span id="wpm">0</span></p>
@@ -81,12 +80,12 @@
           wpmEl.textContent = msg.stats.wpm;
           charsEl.textContent = msg.stats.charsTyped;
           mistakesEl.textContent = msg.stats.mistakes;
-          progressEl.value = 50;
+          progressEl.value = (msg.stats.currentVerse / msg.stats.totalVerses) % 100;
         }
 
         switch (msg.type) {
           case "verse":
-            verseEl.textContent = `${msg.verse.book} ${msg.verse.chapter}:${msg.verse.verse} (${msg.number}/${msg.total})\n\n${msg.content}`;
+			  verseEl.textContent = `${msg.verse.book_name}:${msg.verse.book} ${msg.stats.currentVerse}/${msg.total}\n\n${msg.content}`;
             break;
           case "correct":
             appendMessage("✓ " + msg.content, "correct");
