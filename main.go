@@ -1,4 +1,5 @@
 // TODO(jim) The wpm is busted and the progress is only saving chars typed and mistakes. It should save the current verse. Progress bar is also not moving. Also want bookname.
+// TODO(jim) dynamic error notification
 package main
 
 import (
@@ -18,17 +19,25 @@ import (
 var sessions = make(map[string]*Stats)
 var sessMu sync.RWMutex
 
+type PersistentStats struct {
+	CurrentVerse   int `json:"currentVerse"`
+	TotalVerses    int `json:"totalVerses"`
+	CorrectEntries int `json:"correct"`
+	Mistakes       int `json:"mistakes"`
+}
+
+type RuntimeStats struct {
+	StartTime    time.Time `json:"startTime"`
+	CharsTyped   int       `json:"charsTyped"`
+	CorrectChars int       `json:"correctChars"`
+	WPM          int       `json:"wpm"`
+	Started      bool      `json:"started"`
+	LastTypedAt  time.Time `json:"lastTypedAt"`
+}
+
 type Stats struct {
-	StartTime      time.Time `json:"startTime"`
-	CharsTyped     int       `json:"charsTyped"`
-	CorrectChars   int       `json:"correctChars"`
-	Mistakes       int       `json:"mistakes"`
-	CorrectEntries int       `json:"correct"`
-	WPM            int       `json:"wpm"`
-	CurrentVerse   int       `json:"currentVerse"`
-	TotalVerses    int       `json:"totalVerses"`
-	Started        bool      `json:"started"`
-	LastTypedAt    time.Time `json:"lastTypedAt"`
+	PersistentStats
+	RuntimeStats
 }
 
 type Data struct {
@@ -217,8 +226,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 				stats.CorrectChars += len(correctText)
 				stats.CorrectEntries++
 				stats.CurrentVerse = i + 1
-				elapsed := time.Since(stats.StartTime).Minutes()
-				if elapsed > 0 {
+				elapsed := time.Since(stats.StartTime).Seconds()
+				if elapsed > 1 {
 					stats.WPM = int(float64(stats.CorrectChars) / 5 / elapsed)
 				}
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
