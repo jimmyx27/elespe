@@ -252,6 +252,10 @@ func main() {
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		handleWebSocket(w, r, verses)
 	})
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("from: %s", r.RemoteAddr)
+		w.WriteHeader(http.StatusOK)
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
