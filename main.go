@@ -16,7 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var sessions = make(map[string]*Stats)
+var sessions = make(map[string]*PersistentStats)
 var sessMu sync.RWMutex
 
 type PersistentStats struct {
