@@ -104,6 +104,8 @@ var upgrader = websocket.Upgrader{
 }
 
 func saveSessions() {
+	sessMu.RLock()
+	defer sessMu.RUnlock()
 	bytes, _ := json.MarshalIndent(sessions, "", " ")
 	os.WriteFile("sessions.json", bytes, 0644)
 }
