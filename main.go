@@ -255,6 +255,7 @@ func main() {
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("from: %s", r.RemoteAddr)
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
 	})
 
 	port := os.Getenv("PORT")
