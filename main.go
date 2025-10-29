@@ -115,7 +115,7 @@ func loadSessions() {
 	if err != nil {
 		return
 	}
-	var saved map[string]*Stats
+	var saved map[string]*PersistentStats
 	if err := json.Unmarshal(data, &saved); err != nil {
 		log.Printf("sessions corrupted, resetting: %v", err)
 		return
