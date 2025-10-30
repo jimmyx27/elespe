@@ -180,14 +180,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 		uid = fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	sessMu.Lock()
-	stats, ok := sessions[uid]
+	pstats, ok := sessions[uid]
 	if !ok {
-		stats = &Stats{
-			StartTime:    time.Now(),
+		stats = &PersistentStats{
 			CurrentVerse: 0,
 			TotalVerses:  len(verses),
 		}
-		sessions[uid] = stats
+		sessions[uid] = pstats
+	}
+
+	stats := &Stats{
+		PersistentStats: *pstats,
+		RuntimeStats: RuntimeStats{
+			StartTime: time.Now(),
+		},
 	}
 	sessMu.Unlock()
 	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
