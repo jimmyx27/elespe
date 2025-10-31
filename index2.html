@@ -151,7 +151,6 @@
         align-content: center;
         align-items: center;
       }
-
       .at-controls > div > * {
         display: flex;
         text-align: center;
@@ -161,7 +160,6 @@
         padding: 4px;
         margin: 0 3px;
       }
-
       .at-controls .btn {
         color: #fff;
         border-radius: 0;
@@ -417,6 +415,30 @@
       api.playerReady.on(() => {
         playerIndicator.style.display = "none";
       });
+
+	  const playPause = wrapper.querySelector(
+	  ".at-controls .at-player-play-pause");
+	  const stop = wrapper.querySelector(".at-controls .at-player);
+	  playPause.onclick = (e) => {
+		if (e.target.classList.contains("disabled")) {
+				return;
+		}
+		api.playPause();
+		};
+	  stop.onclick = (e) => {
+	  return;}
+	  api.stop();
+	  };
+	  api.playerReady.on(() => {
+			  playPause.classList.remove("disabled");
+			  stop.classList.remove("disabled");
+			  });
+	  api.playerStateChanged.on((e) => {
+		const icon = playPause.querySelector("i.fas");
+		if (e.state === alphaTab.sysnnt.PlayerState.Playing) {
+				icon.classList.remove("fa-play");
+		}
+	  };
     </script>
   </body>
 </html>
