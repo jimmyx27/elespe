@@ -28,12 +28,12 @@
       }
       #progress-container {
         margin: 2rem 0;
-		background-color: grey;
+        background-color: grey;
       }
       progress {
         width: 60%;
         height: 5;
-		background-color: black;
+        background-color: black;
       }
     </style>
   </head>
@@ -53,6 +53,7 @@
     <div id="messages"></div>
 
     <script>
+      let currentVerseText = "";
       let uid = localStorage.getItem("uid");
       if (!uid) {
         uid = Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -80,12 +81,16 @@
           wpmEl.textContent = msg.stats.wpm;
           charsEl.textContent = msg.stats.charsTyped;
           mistakesEl.textContent = msg.stats.mistakes;
-          progressEl.value = (msg.stats.currentVerse / msg.stats.totalVerses) % 100;
+          progressEl.value =
+            (msg.stats.currentVerse / msg.stats.totalVerses) * 100;
         }
 
         switch (msg.type) {
           case "verse":
-			  verseEl.textContent = `${msg.verse.book_name}:${msg.verse.book} ${msg.stats.currentVerse}/${msg.total}\n\n${msg.content}`;
+            currentVerseText = msg.content;
+            verseEl.textContent = `${msg.verse.book_name}:${msg.verse.chapter} ${msg.stats.currentVerse}/${msg.total}\n\n${msg.content}`;
+            inputEl.value = "";
+            inputEl.style.backgroundColor = "";
             break;
           case "correct":
             appendMessage("✓ " + msg.content, "correct");
@@ -107,6 +112,24 @@
       sendBtn.onclick = () => sendMessage();
       inputEl.addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendMessage();
+      });
+      inputEl.addEventListener("input", () => {
+        const typed = inputEl.value;
+        const correct = currentVerseText;
+
+        let mismatch = false;
+
+        for (let i = 0; i < typed.length; i++) {
+          if (typed[i] !== correct[i]) {
+            mismatch = true;
+            break;
+          }
+        }
+        if (mismatch) {
+          inputEl.style.backgroundColor = "#ffdddd";
+        } else {
+          inputEl.style.backgroundColor = "#ddffdd";
+        }
       });
 
       function sendMessage() {
