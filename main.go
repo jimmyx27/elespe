@@ -182,7 +182,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 	sessMu.Lock()
 	pstats, ok := sessions[uid]
 	if !ok {
-		stats = &PersistentStats{
+		pstats = &PersistentStats{
 			CurrentVerse: 0,
 			TotalVerses:  len(verses),
 		}
@@ -197,7 +197,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 	}
 	sessMu.Unlock()
 	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
-	for i := stats.CurrentVerse; i < len(verses); i++ {
+	for i := pstats.CurrentVerse; i < len(verses); i++ {
 		verse := verses[i]
 		conn.WriteJSON(Message{
 			Type:    "verse",
@@ -225,7 +225,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 				stats.Started = true
 				stats.StartTime = time.Now()
 			}
-			stats.CharsTyped += len(userInput)
 			if strings.ToLower(userInput) == "quit" {
 				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
 				return
@@ -234,8 +233,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 				stats.CorrectChars += len(correctText)
 				stats.CorrectEntries++
 				stats.CurrentVerse = i + 1
-				elapsed := time.Since(stats.StartTime).Seconds()
-				if elapsed > 1 {
+				pstats.CurrentVerse = stats.CurrentVerse
+				stats.CharsTyped += len(userInput)
+				elapsed := time.Since(stats.StartTime).Minutes()
+				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CorrectChars) / 5 / elapsed)
 				}
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
@@ -247,9 +248,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 				conn.WriteJSON(Message{Type: "wrong", Content: "wrong"})
 				sendStats(conn, stats)
 				saveSessions()
-			}
-			if time.Since(stats.LastTypedAt) > time.Second*2 {
-				stats.StartTime = time.Now()
 			}
 			stats.LastTypedAt = time.Now()
 		}
