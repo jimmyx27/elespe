@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5"
 )
 
 var sessions = make(map[string]*PersistentStats)
@@ -257,6 +259,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 }
 
 func main() {
+	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(context.Background())
+	var version string
+	if err := conn.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
+		log.Fatalf("query failed: %v", err)
+	}
 	loadSessions()
 	defer saveSessions()
 	if err := loadData(); err != nil {
