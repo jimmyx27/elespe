@@ -426,6 +426,7 @@
 		api.playPause();
 		};
 	  stop.onclick = (e) => {
+	  if (e.target.classList.contains("disabled")) {
 	  return;}
 	  api.stop();
 	  };
