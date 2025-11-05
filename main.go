@@ -15,7 +15,7 @@ import (
 	"unicode"
 
 	"github.com/gorilla/websocket"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var sessions = make(map[string]*PersistentStats)
@@ -259,13 +259,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
 }
 
 func main() {
-	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
+	config, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("failed to connect: %v", err)
 	}
-	defer conn.Close(context.Background())
+	config.MaxConns = 2
+	config.MinConns = 0
+	config.MaxConnLifetime = time.Minute * 5
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		log.Fatal(err)
+	}
 	var version string
-	if err := conn.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
+	if err := pool.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
 		log.Fatalf("query failed: %v", err)
 	}
 	loadSessions()
