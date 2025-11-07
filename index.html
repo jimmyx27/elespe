@@ -1,149 +1,251 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Praise the sun! \\[T]//</title>
-    <style>
-      body {
-        font-family: sans-serif;
-        padding: 2rem;
-        max-width: 600px;
-        margin: auto;
-      }
-      #verse {
-        font-weight: bold;
-        margin-bottom: 1rem;
-      }
-      #messages {
-        margin-top: 1rem;
-      }
-      input {
-        padding: 0.5rem;
-        width: 100%;
-      }
-      button {
-        margin-top: 0.5rem;
-        padding: 0.5rem 1rem;
-      }
-      #progress-container {
-        margin: 2rem 0;
-        background-color: grey;
-      }
-      progress {
-        width: 60%;
-        height: 5;
-        background-color: black;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Praise the Sun! * \\[T]//</h1>
-    <div id="verse">Connecting...</div>
-    <div id="stats">
-      <p>WPM: <span id="wpm">0</span></p>
-      <p>Chars typed: <span id="chars">0</span></p>
-      <p>Mistakes: <span id="mistakes">0</span></p>
-    </div>
-    <div id="progress-container">
-      <progress id="progress" value="50" max="100"></progress>
-    </div>
-    <input id="input" type="text" placeholder="Type here..." autofocus />
-    <button id="send">Send</button>
-    <div id="messages"></div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Praise the Sun! \\[T]//</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f9f9f9;
+      padding: 2rem;
+      max-width: 700px;
+      margin: auto;
+      color: #333;
+    }
 
-    <script>
-      let currentVerseText = "";
-      let uid = localStorage.getItem("uid");
-      if (!uid) {
-        uid = Date.now().toString(36) + Math.random().toString(36).slice(2);
-        localStorage.setItem("uid", uid);
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      color: #444;
+    }
+
+    #verse {
+      font-weight: bold;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: #fff;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      white-space: pre-wrap;
+    }
+
+    #stats {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    #stats p {
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    #progress-container {
+      margin: 1rem 0;
+      background-color: #e0e0e0;
+      border-radius: 6px;
+      overflow: hidden;
+      height: 16px;
+    }
+
+    #progress {
+      width: 100%;
+      height: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    #progress::-webkit-progress-bar {
+      background-color: #e0e0e0;
+    }
+
+    #progress::-webkit-progress-value {
+      background-color: #4caf50;
+      transition: width 0.2s;
+    }
+
+    #messages {
+      margin-top: 1rem;
+      max-height: 150px;
+      overflow-y: auto;
+      background: #fff;
+      padding: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+
+    input, select, button {
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      transition: background-color 0.2s;
+    }
+
+    button {
+      cursor: pointer;
+      background: #4caf50;
+      color: white;
+      border: none;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    #bookSelect {
+      margin-top: 1rem;
+      width: 100%;
+    }
+
+    .correct {
+      color: green;
+    }
+
+    .wrong {
+      color: red;
+    }
+
+    .complete {
+      color: #444;
+      font-weight: bold;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Praise the Sun! * \\[T]//</h1>
+
+  <div id="verse">Connecting...</div>
+
+  <div id="stats">
+    <p>WPM: <span id="wpm">0</span></p>
+    <p>Chars typed: <span id="chars">0</span></p>
+    <p>Mistakes: <span id="mistakes">0</span></p>
+  </div>
+
+  <div id="progress-container">
+    <progress id="progress" value="0" max="100"></progress>
+  </div>
+
+  <select id="bookSelect"></select>
+
+  <input id="input" type="text" placeholder="Type here..." autofocus />
+  <button id="send">Send</button>
+
+  <div id="messages"></div>
+
+  <script>
+    let currentVerseText = "";
+    let uid = localStorage.getItem("uid");
+    if (!uid) {
+      uid = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      localStorage.setItem("uid", uid);
+    }
+
+    const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?uid=${uid}`);
+    const verseEl = document.getElementById("verse");
+    const inputEl = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+    const messagesEl = document.getElementById("messages");
+    const progressEl = document.getElementById("progress");
+    const wpmEl = document.getElementById("wpm");
+    const charsEl = document.getElementById("chars");
+    const mistakesEl = document.getElementById("mistakes");
+    const bookSelect = document.getElementById("bookSelect");
+
+    ws.onopen = () => {
+      verseEl.textContent = "Connected! Waiting for first verse...";
+    };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === "books") {
+        bookSelect.innerHTML = "";
+        msg.books.forEach((b) => {
+          const opt = document.createElement("option");
+          opt.value = b;
+          opt.textContent = b;
+          bookSelect.appendChild(opt);
+        });
+		if (msg.books.length > 0) {
+				bookSelect.value = msg.books[0];
+		ws.send(JSON.stringify({ type: "select_book", content: bookSelect.value }));
+					}
       }
-      const protocol = location.protocol === "https:" ? "wss" : "ws";
-      const ws = new WebSocket(`${protocol}://${location.host}/ws?uid=${uid}`);
-      const verseEl = document.getElementById("verse");
-      const inputEl = document.getElementById("input");
-      const sendBtn = document.getElementById("send");
-      const messagesEl = document.getElementById("messages");
-      progressEl = document.getElementById("progress");
-      const wpmEl = document.getElementById("wpm");
-      const charsEl = document.getElementById("chars");
-      const mistakesEl = document.getElementById("mistakes");
 
-      ws.onopen = () => {
-        verseEl.textContent = "Connected! Waiting for first verse...";
-      };
+      if (msg.type === "verse") {
+        currentVerseText = msg.content;
+        verseEl.textContent = `${msg.verse.book_name} ${msg.verse.chapter}:${msg.verse.verse} (${msg.number}/${msg.total})\n\n${msg.content}`;
+        inputEl.value = "";
+        inputEl.style.backgroundColor = "";
+      }
 
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
+      if (msg.type === "stats" && msg.stats) {
+        wpmEl.textContent = msg.stats.wpm;
+        charsEl.textContent = msg.stats.charsTyped;
+        mistakesEl.textContent = msg.stats.mistakes;
+        progressEl.max = msg.stats.totalVerses;
+        progressEl.value = msg.stats.currentVerse;
+      }
 
-        if (msg.type === "stats" && msg.stats) {
-          wpmEl.textContent = msg.stats.wpm;
-          charsEl.textContent = msg.stats.charsTyped;
-          mistakesEl.textContent = msg.stats.mistakes;
-          progressEl.value =
-            (msg.stats.currentVerse / msg.stats.totalVerses) * 100;
+      if (msg.type === "correct") {
+        appendMessage("✓ " + msg.content, "correct");
+        inputEl.value = "";
+      }
+
+      if (msg.type === "wrong") {
+        appendMessage("✗ " + msg.content, "wrong");
+      }
+
+      if (msg.type === "complete") {
+        appendMessage(msg.content, "complete");
+        verseEl.textContent = "All done!";
+      }
+    };
+
+    bookSelect.onchange = () => {
+      ws.send(JSON.stringify({ type: "select_book", content: bookSelect.value }));
+    };
+
+    sendBtn.onclick = () => sendMessage();
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    inputEl.addEventListener("input", () => {
+      const typed = inputEl.value;
+      const correct = currentVerseText;
+      let mismatch = false;
+      for (let i = 0; i < typed.length; i++) {
+        if (typed[i] !== correct[i]) {
+          mismatch = true;
+          break;
         }
-
-        switch (msg.type) {
-          case "verse":
-            currentVerseText = msg.content;
-            verseEl.textContent = `${msg.verse.book_name}:${msg.verse.chapter} ${msg.stats.currentVerse}/${msg.total}\n\n${msg.content}`;
-            inputEl.value = "";
-            inputEl.style.backgroundColor = "";
-            break;
-          case "correct":
-            appendMessage("✓ " + msg.content, "correct");
-            inputEl.value = "";
-            break;
-          case "wrong":
-            appendMessage("✗ " + msg.content, "wrong");
-            break;
-          case "complete":
-            appendMessage(msg.content, "correct");
-            verseEl.textContent = "All done!";
-            break;
-          case "response":
-            appendMessage(msg.content, "");
-            break;
-        }
-      };
-
-      sendBtn.onclick = () => sendMessage();
-      inputEl.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") sendMessage();
-      });
-      inputEl.addEventListener("input", () => {
-        const typed = inputEl.value;
-        const correct = currentVerseText;
-
-        let mismatch = false;
-
-        for (let i = 0; i < typed.length; i++) {
-          if (typed[i] !== correct[i]) {
-            mismatch = true;
-            break;
-          }
-        }
-        if (mismatch) {
-          inputEl.style.backgroundColor = "#ffdddd";
-        } else {
-          inputEl.style.backgroundColor = "#ddffdd";
-        }
-      });
-
-      function sendMessage() {
-        const text = inputEl.value.trim();
-        if (text === "") return;
-        ws.send(JSON.stringify({ content: text }));
       }
+      inputEl.style.backgroundColor = mismatch ? "#ffdddd" : "#ddffdd";
+    });
 
-      function appendMessage(text, cls) {
-        const p = document.createElement("p");
-        p.textContent = text;
-        if (cls) p.className = cls;
-        messagesEl.appendChild(p);
-      }
-    </script>
-  </body>
+    function sendMessage() {
+      const text = inputEl.value.trim();
+      if (text) ws.send(JSON.stringify({ type: "content", content: text }));
+    }
+
+    function appendMessage(text, cls) {
+      const p = document.createElement("p");
+      p.textContent = text;
+      if (cls) p.className = cls;
+      messagesEl.appendChild(p);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  </script>
+</body>
 </html>
