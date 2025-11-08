@@ -1,5 +1,3 @@
-// TODO(jim) The wpm is busted and the progress is only saving chars typed and mistakes. It should save the current verse. Progress bar is also not moving. Also want bookname.
-// TODO(jim) dynamic error notification
 package main
 
 import (
@@ -21,11 +19,15 @@ import (
 var sessions = make(map[string]*PersistentStats)
 var sessMu sync.RWMutex
 
-type PersistentStats struct {
+type BookProgress struct {
 	CurrentVerse   int `json:"currentVerse"`
 	TotalVerses    int `json:"totalVerses"`
 	CorrectEntries int `json:"correct"`
 	Mistakes       int `json:"mistakes"`
+}
+
+type PersistentStats struct {
+	Books map[string]*BookProgress `json:"books"`
 }
 
 type RuntimeStats struct {
@@ -34,41 +36,11 @@ type RuntimeStats struct {
 	CorrectChars int       `json:"correctChars"`
 	WPM          int       `json:"wpm"`
 	Started      bool      `json:"started"`
-	LastTypedAt  time.Time `json:"lastTypedAt"`
 }
 
 type Stats struct {
 	PersistentStats
 	RuntimeStats
-}
-
-type Data struct {
-	Metadata Metadata `json:"metadata"`
-	Verses   []Verse  `json:"verses"`
-}
-
-type Metadata struct {
-	Name               string `json:"name"`
-	ShortName          string `json:"shortname"`
-	Module             string `json:"module"`
-	Year               string `json:"year"`
-	Publisher          string `json:"publisher"`
-	Owner              string `json:"owner"`
-	Description        string `json:"description"`
-	Lang               string `json:"lang"`
-	LangShort          string `json:"lang_short"`
-	Copyright          int    `json:"copyright"`
-	CopyrightStatement string `json:"copyright_statement"`
-	URL                string `json:"url"`
-	CitationLimit      int    `json:"citation_limit"`
-	Restrict           int    `json:"restrict"`
-	Italics            int    `json:"italics"`
-	Strongs            int    `json:"strongs"`
-	RedLetter          int    `json:"red_letter"`
-	Paragraph          int    `json:"paragraph"`
-	Official           int    `json:"official"`
-	Research           int    `json:"research"`
-	ModuleVersion      string `json:"module_version"`
 }
 
 type Verse struct {
@@ -88,28 +60,51 @@ type Message struct {
 	Stats   *Stats `json:"stats,omitempty"`
 }
 
-var bible Data
+var bible struct {
+	Verses []Verse `json:"verses"`
+}
+var versesByBook map[string][]Verse
 
-func checkOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return true
-	}
-	if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
-		return true
-	}
-	return origin == "https://elespe.onrender.com"
+// ---- utils ----
+
+func cleanString(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		if r == '\u00B6' || r == '\u2029' || r == '\u2028' {
+			return -1
+		}
+		return r
+	}, s)
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: checkOrigin,
+func groupVersesByBook(verses []Verse) {
+	versesByBook = make(map[string][]Verse)
+	for _, v := range verses {
+		versesByBook[v.BookName] = append(versesByBook[v.BookName], v)
+	}
 }
+
+func getBookProgress(pstats *PersistentStats, book string, total int) *BookProgress {
+	if pstats.Books == nil {
+		pstats.Books = make(map[string]*BookProgress)
+	}
+	bp, ok := pstats.Books[book]
+	if !ok {
+		bp = &BookProgress{CurrentVerse: 0, TotalVerses: total}
+		pstats.Books[book] = bp
+	}
+	return bp
+}
+
+// ---- persistence ----
 
 func saveSessions() {
 	sessMu.RLock()
 	defer sessMu.RUnlock()
-	bytes, _ := json.MarshalIndent(sessions, "", " ")
-	os.WriteFile("sessions.json", bytes, 0644)
+	b, _ := json.MarshalIndent(sessions, "", " ")
+	os.WriteFile("sessions.json", b, 0644)
 }
 
 func loadSessions() {
@@ -123,171 +118,173 @@ func loadSessions() {
 		return
 	}
 	sessMu.Lock()
-	defer sessMu.Unlock()
 	sessions = saved
+	sessMu.Unlock()
 }
 
-func loadData() error {
-	bytes, err := os.ReadFile("kjv.json")
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(bytes, &bible)
-}
+// ---- websocket ----
 
-func cleanString(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return -1
-		}
+var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 
-		if r == '\u00B6' || r == '\u2029' || r == '\u2028' {
-			return -1
-		}
-		return r
-	}, s)
-}
-
-func ExtractVerseTexts(bible Data) []Verse {
-	verses := make([]Verse, 0, len(bible.Verses))
-	for _, v := range bible.Verses {
-		verses = append(verses, Verse{
-			BookName: v.BookName,
-			Book:     v.Book,
-			Chapter:  v.Chapter,
-			Verse:    v.Verse,
-			Text:     cleanString(v.Text),
-		})
-	}
-	return verses
-}
-
-func sendStats(conn *websocket.Conn, stats *Stats) {
-	conn.WriteJSON(Message{
-		Type:  "stats",
-		Stats: stats,
-	})
-}
-
-func handleWebSocket(w http.ResponseWriter, r *http.Request, verses []Verse) {
+func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocker upgrade error: %v", err)
+		log.Println("Upgrade error:", err)
 		return
 	}
 	defer conn.Close()
-	log.Printf("Client connected: %s", r.RemoteAddr)
+
 	uid := r.URL.Query().Get("uid")
 	if uid == "" {
 		uid = fmt.Sprintf("%d", time.Now().UnixNano())
 	}
+
+	// load or create session
 	sessMu.Lock()
 	pstats, ok := sessions[uid]
 	if !ok {
-		pstats = &PersistentStats{
-			CurrentVerse: 0,
-			TotalVerses:  len(verses),
-		}
+		pstats = &PersistentStats{Books: make(map[string]*BookProgress)}
 		sessions[uid] = pstats
 	}
-
-	stats := &Stats{
-		PersistentStats: *pstats,
-		RuntimeStats: RuntimeStats{
-			StartTime: time.Now(),
-		},
-	}
+	stats := &Stats{PersistentStats: *pstats, RuntimeStats: RuntimeStats{StartTime: time.Now()}}
 	sessMu.Unlock()
-	conn.WriteJSON(Message{Type: "verse", Content: "Praise the sun! \\\\[T]//", Stats: stats})
-	for i := pstats.CurrentVerse; i < len(verses); i++ {
-		verse := verses[i]
-		conn.WriteJSON(Message{
-			Type:    "verse",
-			Content: verse.Text, //fmt.Sprintf("%s %d:%d (%d/%d)", verse.Book, verse.Chapter, verse.Verse, i+1, len(verses)),
-			Verse: Verse{
-				BookName: verse.BookName,
-				Book:     verse.Book,
-				Chapter:  verse.Chapter,
-				Verse:    verse.Verse,
-			},
-			Number: i + 1,
-			Total:  len(verses),
-			Stats:  stats,
-		})
 
-		for {
-			var msg Message
-			if err := conn.ReadJSON(&msg); err != nil {
-				log.Printf("Read error: %v", err)
-				return
+	// send book list
+	books := make([]string, 0, len(versesByBook))
+	for b := range versesByBook {
+		books = append(books, b)
+	}
+	conn.WriteJSON(map[string]any{"type": "books", "books": books})
+
+	// track selected book
+	var selectedBook string
+	var bookProgress *BookProgress
+	var bookVerses []Verse
+	for {
+		var msg Message
+		if err := conn.ReadJSON(&msg); err != nil {
+			log.Println("Read error:", err)
+			return
+		}
+
+		switch msg.Type {
+		case "select_book":
+			selectedBook = msg.Content
+			bookVerses = versesByBook[selectedBook]
+			bookProgress = getBookProgress(pstats, selectedBook, len(bookVerses))
+
+			// send first verse in this book
+			i := bookProgress.CurrentVerse
+			if i < len(bookVerses) {
+				v := bookVerses[i]
+				conn.WriteJSON(Message{
+					Type:    "verse",
+					Content: v.Text,
+					Verse:   v,
+					Number:  i + 1,
+					Total:   len(bookVerses),
+					Stats:   stats,
+				})
 			}
-			userInput := cleanString(strings.TrimSpace(msg.Content))
-			correctText := cleanString(strings.TrimSpace(verse.Text))
-			if !stats.Started && len(userInput) > 0 {
+
+		case "content":
+			if selectedBook == "" || bookProgress == nil {
+				continue
+			}
+			i := bookProgress.CurrentVerse
+			if i >= len(bookVerses) {
+				continue
+			}
+			v := bookVerses[i]
+			user := cleanString(strings.TrimSpace(msg.Content))
+			correct := cleanString(strings.TrimSpace(v.Text))
+
+			if !stats.Started && len(user) > 0 {
 				stats.Started = true
 				stats.StartTime = time.Now()
 			}
-			if strings.ToLower(userInput) == "quit" {
-				conn.WriteJSON(Message{Type: "response", Content: "GoodBye"})
+
+			if strings.ToLower(user) == "quit" {
+				conn.WriteJSON(Message{Type: "response", Content: "Goodbye"})
 				return
 			}
-			if userInput == correctText {
-				stats.CorrectChars += len(correctText)
-				stats.CorrectEntries++
-				stats.CurrentVerse = i + 1
-				pstats.CurrentVerse = stats.CurrentVerse
-				stats.CharsTyped += len(userInput)
+
+			if user == correct {
+				stats.CorrectChars += len(correct)
+				stats.CharsTyped += len(user)
+				bookProgress.CurrentVerse++
+				bookProgress.CorrectEntries++
 				elapsed := time.Since(stats.StartTime).Minutes()
 				if elapsed > 0 {
 					stats.WPM = int(float64(stats.CorrectChars) / 5 / elapsed)
 				}
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
-				sendStats(conn, stats)
+				conn.WriteJSON(Message{Type: "stats", Stats: stats})
 				saveSessions()
-				break
+
+				// send next verse
+				if bookProgress.CurrentVerse < len(bookVerses) {
+					next := bookVerses[bookProgress.CurrentVerse]
+					conn.WriteJSON(Message{
+						Type:    "verse",
+						Content: next.Text,
+						Verse:   next,
+						Number:  bookProgress.CurrentVerse + 1,
+						Total:   len(bookVerses),
+						Stats:   stats,
+					})
+				} else {
+					conn.WriteJSON(Message{Type: "complete", Content: "All done!", Stats: stats})
+				}
+
 			} else {
-				stats.Mistakes++
+				bookProgress.Mistakes++
 				conn.WriteJSON(Message{Type: "wrong", Content: "wrong"})
-				sendStats(conn, stats)
+				conn.WriteJSON(Message{Type: "stats", Stats: stats})
 				saveSessions()
 			}
-			stats.LastTypedAt = time.Now()
 		}
 	}
-	conn.WriteJSON(Message{Type: "complete", Content: "complete", Stats: stats})
-	saveSessions()
 }
+
+// ---- main ----
 
 func main() {
 	config, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
 	if err != nil {
-		log.Fatalf("failed to connect: %v", err)
+		log.Fatal("Failed to connect to the database: %v", err)
 	}
 	config.MaxConns = 2
 	config.MinConns = 0
 	config.MaxConnLifetime = time.Minute * 5
-
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	var version string
+	if err := pool.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
+		log.Fatalf("Query failed %v", err)
+	}
+	log.Println("Connected to:", version)
+	loadSessions()
+	defer saveSessions()
+
+	// load bible
+	data, err := os.ReadFile("kjv.json")
 	if err != nil {
 		log.Fatal(err)
 	}
-	var version string
-	if err := pool.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
-		log.Fatalf("query failed: %v", err)
-	}
-	loadSessions()
-	defer saveSessions()
-	if err := loadData(); err != nil {
+	if err := json.Unmarshal(data, &bible); err != nil {
 		log.Fatal(err)
 	}
-	verses := ExtractVerseTexts(bible)
+
+	verses := make([]Verse, 0, len(bible.Verses))
+	for _, v := range bible.Verses {
+		v.Text = cleanString(v.Text)
+		verses = append(verses, v)
+	}
+	groupVersesByBook(verses)
+
 	http.Handle("/", http.FileServer(http.Dir(".")))
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		handleWebSocket(w, r, verses)
-	})
+	http.HandleFunc("/ws", handleWebSocket)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("from: %s", r.RemoteAddr)
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
 
@@ -295,8 +292,6 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	log.Printf("Server start on port %s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatalf("Server error: %v", err)
-	}
+	log.Printf("Server starting on port %s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
