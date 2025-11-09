@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 
@@ -16,18 +15,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var sessions = make(map[string]*PersistentStats)
-var sessMu sync.RWMutex
+var pool *pgxpool.Pool
 
 type BookProgress struct {
 	CurrentVerse   int `json:"currentVerse"`
 	TotalVerses    int `json:"totalVerses"`
 	CorrectEntries int `json:"correct"`
 	Mistakes       int `json:"mistakes"`
-}
-
-type PersistentStats struct {
-	Books map[string]*BookProgress `json:"books"`
 }
 
 type RuntimeStats struct {
@@ -39,7 +33,7 @@ type RuntimeStats struct {
 }
 
 type Stats struct {
-	PersistentStats
+	BookProgress
 	RuntimeStats
 }
 
@@ -63,7 +57,131 @@ type Message struct {
 var bible struct {
 	Verses []Verse `json:"verses"`
 }
+
 var versesByBook map[string][]Verse
+
+// ---- Database functions ----
+
+func initDB() error {
+	ctx := context.Background()
+
+	// Create tables
+	schema := `
+	CREATE TABLE IF NOT EXISTS users (
+		uid TEXT PRIMARY KEY,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS book_progress (
+		id SERIAL PRIMARY KEY,
+		uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+		book_name TEXT NOT NULL,
+		current_verse INT DEFAULT 0,
+		total_verses INT NOT NULL,
+		correct_entries INT DEFAULT 0,
+		mistakes INT DEFAULT 0,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(uid, book_name)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_book_progress_uid ON book_progress(uid);
+	CREATE INDEX IF NOT EXISTS idx_book_progress_book ON book_progress(uid, book_name);
+
+	CREATE TABLE IF NOT EXISTS typing_sessions (
+		id SERIAL PRIMARY KEY,
+		uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+		book_name TEXT NOT NULL,
+		started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		ended_at TIMESTAMP,
+		chars_typed INT DEFAULT 0,
+		correct_chars INT DEFAULT 0,
+		wpm INT DEFAULT 0
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_typing_sessions_uid ON typing_sessions(uid);
+	`
+
+	_, err := pool.Exec(ctx, schema)
+	return err
+}
+
+func ensureUser(ctx context.Context, uid string) error {
+	_, err := pool.Exec(ctx, `
+		INSERT INTO users (uid, last_active) 
+		VALUES ($1, CURRENT_TIMESTAMP)
+		ON CONFLICT (uid) DO UPDATE SET last_active = CURRENT_TIMESTAMP
+	`, uid)
+	return err
+}
+
+func getBookProgress(ctx context.Context, uid, bookName string, totalVerses int) (*BookProgress, error) {
+	var bp BookProgress
+
+	err := pool.QueryRow(ctx, `
+		SELECT current_verse, total_verses, correct_entries, mistakes
+		FROM book_progress
+		WHERE uid = $1 AND book_name = $2
+	`, uid, bookName).Scan(&bp.CurrentVerse, &bp.TotalVerses, &bp.CorrectEntries, &bp.Mistakes)
+
+	if err != nil {
+		// No progress found, create new entry
+		_, err = pool.Exec(ctx, `
+			INSERT INTO book_progress (uid, book_name, total_verses)
+			VALUES ($1, $2, $3)
+		`, uid, bookName, totalVerses)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &BookProgress{
+			CurrentVerse:   0,
+			TotalVerses:    totalVerses,
+			CorrectEntries: 0,
+			Mistakes:       0,
+		}, nil
+	}
+
+	return &bp, nil
+}
+
+func updateBookProgress(ctx context.Context, uid, bookName string, bp *BookProgress) error {
+	_, err := pool.Exec(ctx, `
+		UPDATE book_progress
+		SET current_verse = $3,
+			correct_entries = $4,
+			mistakes = $5,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE uid = $1 AND book_name = $2
+	`, uid, bookName, bp.CurrentVerse, bp.CorrectEntries, bp.Mistakes)
+
+	return err
+}
+
+func createTypingSession(ctx context.Context, uid, bookName string) (int, error) {
+	var sessionID int
+	err := pool.QueryRow(ctx, `
+		INSERT INTO typing_sessions (uid, book_name)
+		VALUES ($1, $2)
+		RETURNING id
+	`, uid, bookName).Scan(&sessionID)
+
+	return sessionID, err
+}
+
+func updateTypingSession(ctx context.Context, sessionID int, stats *RuntimeStats) error {
+	_, err := pool.Exec(ctx, `
+		UPDATE typing_sessions
+		SET chars_typed = $2,
+			correct_chars = $3,
+			wpm = $4,
+			ended_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+	`, sessionID, stats.CharsTyped, stats.CorrectChars, stats.WPM)
+
+	return err
+}
 
 // ---- utils ----
 
@@ -86,42 +204,6 @@ func groupVersesByBook(verses []Verse) {
 	}
 }
 
-func getBookProgress(pstats *PersistentStats, book string, total int) *BookProgress {
-	if pstats.Books == nil {
-		pstats.Books = make(map[string]*BookProgress)
-	}
-	bp, ok := pstats.Books[book]
-	if !ok {
-		bp = &BookProgress{CurrentVerse: 0, TotalVerses: total}
-		pstats.Books[book] = bp
-	}
-	return bp
-}
-
-// ---- persistence ----
-
-func saveSessions() {
-	sessMu.RLock()
-	defer sessMu.RUnlock()
-	b, _ := json.MarshalIndent(sessions, "", " ")
-	os.WriteFile("sessions.json", b, 0644)
-}
-
-func loadSessions() {
-	data, err := os.ReadFile("sessions.json")
-	if err != nil {
-		return
-	}
-	var saved map[string]*PersistentStats
-	if err := json.Unmarshal(data, &saved); err != nil {
-		log.Printf("sessions corrupted, resetting: %v", err)
-		return
-	}
-	sessMu.Lock()
-	sessions = saved
-	sessMu.Unlock()
-}
-
 // ---- websocket ----
 
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
@@ -136,30 +218,33 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	uid := r.URL.Query().Get("uid")
 	if uid == "" {
-		uid = fmt.Sprintf("%d", time.Now().UnixNano())
+		uid = fmt.Sprintf("user_%d", time.Now().UnixNano())
 	}
 
-	// load or create session
-	sessMu.Lock()
-	pstats, ok := sessions[uid]
-	if !ok {
-		pstats = &PersistentStats{Books: make(map[string]*BookProgress)}
-		sessions[uid] = pstats
-	}
-	stats := &Stats{PersistentStats: *pstats, RuntimeStats: RuntimeStats{StartTime: time.Now()}}
-	sessMu.Unlock()
+	ctx := context.Background()
 
-	// send book list
+	// Ensure user exists
+	if err := ensureUser(ctx, uid); err != nil {
+		log.Printf("Error ensuring user: %v", err)
+		return
+	}
+
+	// Initialize runtime stats
+	runtimeStats := RuntimeStats{StartTime: time.Now()}
+	var sessionID int
+
+	// Send book list
 	books := make([]string, 0, len(versesByBook))
 	for b := range versesByBook {
 		books = append(books, b)
 	}
 	conn.WriteJSON(map[string]any{"type": "books", "books": books})
 
-	// track selected book
+	// Track selected book
 	var selectedBook string
 	var bookProgress *BookProgress
 	var bookVerses []Verse
+
 	for {
 		var msg Message
 		if err := conn.ReadJSON(&msg); err != nil {
@@ -171,12 +256,31 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case "select_book":
 			selectedBook = msg.Content
 			bookVerses = versesByBook[selectedBook]
-			bookProgress = getBookProgress(pstats, selectedBook, len(bookVerses))
 
-			// send first verse in this book
+			// Load progress from database
+			bookProgress, err = getBookProgress(ctx, uid, selectedBook, len(bookVerses))
+			if err != nil {
+				log.Printf("Error loading progress: %v", err)
+				continue
+			}
+
+			// Create new typing session
+			sessionID, err = createTypingSession(ctx, uid, selectedBook)
+			if err != nil {
+				log.Printf("Error creating session: %v", err)
+			}
+
+			// Reset runtime stats for new session
+			runtimeStats = RuntimeStats{StartTime: time.Now()}
+
+			// Send first verse
 			i := bookProgress.CurrentVerse
 			if i < len(bookVerses) {
 				v := bookVerses[i]
+				stats := &Stats{
+					BookProgress: *bookProgress,
+					RuntimeStats: runtimeStats,
+				}
 				conn.WriteJSON(Message{
 					Type:    "verse",
 					Content: v.Text,
@@ -191,17 +295,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if selectedBook == "" || bookProgress == nil {
 				continue
 			}
+
 			i := bookProgress.CurrentVerse
 			if i >= len(bookVerses) {
 				continue
 			}
+
 			v := bookVerses[i]
 			user := cleanString(strings.TrimSpace(msg.Content))
 			correct := cleanString(strings.TrimSpace(v.Text))
 
-			if !stats.Started && len(user) > 0 {
-				stats.Started = true
-				stats.StartTime = time.Now()
+			if !runtimeStats.Started && len(user) > 0 {
+				runtimeStats.Started = true
+				runtimeStats.StartTime = time.Now()
 			}
 
 			if strings.ToLower(user) == "quit" {
@@ -210,19 +316,36 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if user == correct {
-				stats.CorrectChars += len(correct)
-				stats.CharsTyped += len(user)
+				runtimeStats.CorrectChars += len(correct)
+				runtimeStats.CharsTyped += len(user)
 				bookProgress.CurrentVerse++
 				bookProgress.CorrectEntries++
-				elapsed := time.Since(stats.StartTime).Minutes()
+
+				elapsed := time.Since(runtimeStats.StartTime).Minutes()
 				if elapsed > 0 {
-					stats.WPM = int(float64(stats.CorrectChars) / 5 / elapsed)
+					runtimeStats.WPM = int(float64(runtimeStats.CorrectChars) / 5 / elapsed)
 				}
+
+				// Update database
+				if err := updateBookProgress(ctx, uid, selectedBook, bookProgress); err != nil {
+					log.Printf("Error updating progress: %v", err)
+				}
+
+				if sessionID > 0 {
+					if err := updateTypingSession(ctx, sessionID, &runtimeStats); err != nil {
+						log.Printf("Error updating session: %v", err)
+					}
+				}
+
+				stats := &Stats{
+					BookProgress: *bookProgress,
+					RuntimeStats: runtimeStats,
+				}
+
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
 				conn.WriteJSON(Message{Type: "stats", Stats: stats})
-				saveSessions()
 
-				// send next verse
+				// Send next verse
 				if bookProgress.CurrentVerse < len(bookVerses) {
 					next := bookVerses[bookProgress.CurrentVerse]
 					conn.WriteJSON(Message{
@@ -236,12 +359,28 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				} else {
 					conn.WriteJSON(Message{Type: "complete", Content: "All done!", Stats: stats})
 				}
-
 			} else {
 				bookProgress.Mistakes++
+				runtimeStats.CharsTyped += len(user)
+
+				// Update database
+				if err := updateBookProgress(ctx, uid, selectedBook, bookProgress); err != nil {
+					log.Printf("Error updating progress: %v", err)
+				}
+
+				if sessionID > 0 {
+					if err := updateTypingSession(ctx, sessionID, &runtimeStats); err != nil {
+						log.Printf("Error updating session: %v", err)
+					}
+				}
+
+				stats := &Stats{
+					BookProgress: *bookProgress,
+					RuntimeStats: runtimeStats,
+				}
+
 				conn.WriteJSON(Message{Type: "wrong", Content: "wrong"})
 				conn.WriteJSON(Message{Type: "stats", Stats: stats})
-				saveSessions()
 			}
 		}
 	}
@@ -250,23 +389,42 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 // ---- main ----
 
 func main() {
-	config, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
-	if err != nil {
-		log.Fatal("Failed to connect to the database: %v", err)
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL environment variable not set")
 	}
-	config.MaxConns = 2
-	config.MinConns = 0
-	config.MaxConnLifetime = time.Minute * 5
-	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+
+	config, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		log.Fatalf("Failed to parse database config: %v", err)
+	}
+
+	// Supabase-optimized connection pool settings
+	config.MaxConns = 5 // Supabase free tier has connection limits
+	config.MinConns = 1
+	config.MaxConnLifetime = time.Hour
+	config.MaxConnIdleTime = time.Minute * 30
+	config.HealthCheckPeriod = time.Minute
+
+	pool, err = pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer pool.Close()
+
 	var version string
 	if err := pool.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
-		log.Fatalf("Query failed %v", err)
+		log.Fatalf("Query failed: %v", err)
 	}
 	log.Println("Connected to:", version)
-	loadSessions()
-	defer saveSessions()
 
-	// load bible
+	// Initialize database schema
+	if err := initDB(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	log.Println("Database initialized")
+
+	// Load bible
 	data, err := os.ReadFile("kjv.json")
 	if err != nil {
 		log.Fatal(err)
