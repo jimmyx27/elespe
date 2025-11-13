@@ -400,8 +400,9 @@ func main() {
 	}
 
 	// Supabase-optimized connection pool settings
+	config.ConnConfig.StatementCacheCapacity = 0
 	config.MaxConns = 5 // Supabase free tier has connection limits
-	config.MinConns = 1
+	config.MinConns = 0
 	config.MaxConnLifetime = time.Hour
 	config.MaxConnIdleTime = time.Minute * 30
 	config.HealthCheckPeriod = time.Minute
