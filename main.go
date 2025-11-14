@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -400,7 +401,7 @@ func main() {
 	}
 
 	// Supabase-optimized connection pool settings
-	config.ConnConfig.StatementCacheCapacity = 0
+	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	config.MaxConns = 5 // Supabase free tier has connection limits
 	config.MinConns = 0
 	config.MaxConnLifetime = time.Hour
