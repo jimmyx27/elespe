@@ -191,7 +191,7 @@ func cleanString(s string) string {
 		if unicode.IsControl(r) {
 			return -1
 		}
-		if r == '\u00B6' || r == '\u2029' || r == '\u2028' || r == '\u2039' {
+		if r == '\u00B6' || r == '\u2029' || r == '\u2028' || r == '\u2039' || r == '\u203a' {
 			return -1
 		}
 		return r
