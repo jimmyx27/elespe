@@ -7,12 +7,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
 	"github.com/gorilla/websocket"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -47,12 +48,13 @@ type Verse struct {
 }
 
 type Message struct {
-	Type    string `json:"type"`
-	Content string `json:"content"`
-	Verse   Verse  `json:"verse,omitempty"`
-	Number  int    `json:"number,omitempty"`
-	Total   int    `json:"total,omitempty"`
-	Stats   *Stats `json:"stats,omitempty"`
+	Type    string   `json:"type"`
+	Content string   `json:"content"`
+	Verse   Verse    `json:"verse,omitempty"`
+	Number  int      `json:"number,omitempty"`
+	Total   int      `json:"total,omitempty"`
+	Stats   *Stats   `json:"stats,omitempty"`
+	Books   []string `json:"books,omitempty"`
 }
 
 var bible struct {
@@ -101,6 +103,20 @@ func initDB() error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_typing_sessions_uid ON typing_sessions(uid);
+
+	CREATE TABLE IF NOT EXISTS favorite_verses (
+		id SERIAL PRIMARY KEY,
+		uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+		book_name TEXT NOT NULL,
+		book INT NOT NULL,
+		chapter INT NOT NULL,
+		verse INT NOT NULL,
+		text TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(uid, book_name, chapter, verse)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_favorite_verses_uid ON favorite_verses(uid);
 	`
 
 	_, err := pool.Exec(ctx, schema)
@@ -184,6 +200,99 @@ func updateTypingSession(ctx context.Context, sessionID int, stats *RuntimeStats
 	return err
 }
 
+func getAllBookProgress(ctx context.Context, uid string) (map[string]int, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT book_name, current_verse, total_verses
+		FROM book_progress
+		WHERE uid = $1
+	`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	progress := make(map[string]int)
+	for rows.Next() {
+		var bookName string
+		var current, total int
+		if err := rows.Scan(&bookName, &current, &total); err != nil {
+			continue
+		}
+		if total > 0 {
+			progress[bookName] = (current * 100) / total
+		}
+	}
+
+	return progress, nil
+}
+
+func toggleFavorite(ctx context.Context, uid string, v Verse) (bool, error) {
+	// Check if already favorited
+	var exists bool
+	err := pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM favorite_verses 
+			WHERE uid = $1 AND book_name = $2 AND chapter = $3 AND verse = $4
+		)
+	`, uid, v.BookName, v.Chapter, v.Verse).Scan(&exists)
+
+	if err != nil {
+		return false, err
+	}
+
+	if exists {
+		// Remove from favorites
+		_, err = pool.Exec(ctx, `
+			DELETE FROM favorite_verses 
+			WHERE uid = $1 AND book_name = $2 AND chapter = $3 AND verse = $4
+		`, uid, v.BookName, v.Chapter, v.Verse)
+		return false, err
+	} else {
+		// Add to favorites
+		_, err = pool.Exec(ctx, `
+			INSERT INTO favorite_verses (uid, book_name, book, chapter, verse, text)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, uid, v.BookName, v.Book, v.Chapter, v.Verse, v.Text)
+		return true, err
+	}
+}
+
+func getFavorites(ctx context.Context, uid string) ([]Verse, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT book_name, book, chapter, verse, text
+		FROM favorite_verses
+		WHERE uid = $1
+		ORDER BY created_at DESC
+	`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var favorites []Verse
+	for rows.Next() {
+		var v Verse
+		if err := rows.Scan(&v.BookName, &v.Book, &v.Chapter, &v.Verse, &v.Text); err != nil {
+			continue
+		}
+		favorites = append(favorites, v)
+	}
+
+	return favorites, nil
+}
+
+func isFavorite(ctx context.Context, uid string, v Verse) (bool, error) {
+	var exists bool
+	err := pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM favorite_verses 
+			WHERE uid = $1 AND book_name = $2 AND chapter = $3 AND verse = $4
+		)
+	`, uid, v.BookName, v.Chapter, v.Verse).Scan(&exists)
+
+	return exists, err
+}
+
 // ---- utils ----
 
 func cleanString(s string) string {
@@ -191,7 +300,7 @@ func cleanString(s string) string {
 		if unicode.IsControl(r) {
 			return -1
 		}
-		if r == '\u00B6' || r == '\u2029' || r == '\u2028' || r == '\u2039' || r == '\u203a' {
+		if r == '\u00B6' || r == '\u2029' || r == '\u2028' {
 			return -1
 		}
 		return r
@@ -233,13 +342,26 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Initialize runtime stats
 	runtimeStats := RuntimeStats{StartTime: time.Now()}
 	var sessionID int
+	var currentVerseIndex int // Track which verse we're on (can jump around)
 
-	// Send book list
+	// Get all book progress for this user
+	allProgress, err := getAllBookProgress(ctx, uid)
+	if err != nil {
+		log.Printf("Error loading all progress: %v", err)
+		allProgress = make(map[string]int)
+	}
+
+	// Send book list with progress
 	books := make([]string, 0, len(versesByBook))
 	for b := range versesByBook {
 		books = append(books, b)
 	}
-	conn.WriteJSON(map[string]any{"type": "books", "books": books})
+	conn.WriteJSON(Message{
+		Type:     "books",
+		Content:  "",
+		Progress: allProgress,
+	})
+	conn.WriteJSON(map[string]any{"type": "books", "books": books, "progress": allProgress})
 
 	// Track selected book
 	var selectedBook string
@@ -254,14 +376,76 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		switch msg.Type {
+		case "get_favorites":
+			favorites, err := getFavorites(ctx, uid)
+			if err != nil {
+				log.Printf("Error getting favorites: %v", err)
+				conn.WriteJSON(Message{Type: "error", Content: "Failed to load favorites"})
+				continue
+			}
+			conn.WriteJSON(Message{Type: "favorites", Favorites: favorites})
+
+		case "toggle_favorite":
+			if selectedBook == "" || currentVerseIndex >= len(bookVerses) {
+				continue
+			}
+			v := bookVerses[currentVerseIndex]
+			isFav, err := toggleFavorite(ctx, uid, v)
+			if err != nil {
+				log.Printf("Error toggling favorite: %v", err)
+				conn.WriteJSON(Message{Type: "error", Content: "Failed to toggle favorite"})
+				continue
+			}
+			conn.WriteJSON(Message{Type: "favorite_toggled", IsFavorite: isFav})
+
+		case "jump_to_verse":
+			if selectedBook == "" || bookProgress == nil {
+				continue
+			}
+
+			// Parse verse number from content
+			var verseNum int
+			fmt.Sscanf(msg.Content, "%d", &verseNum)
+
+			if verseNum < 1 || verseNum > len(bookVerses) {
+				conn.WriteJSON(Message{Type: "error", Content: "Invalid verse number"})
+				continue
+			}
+
+			currentVerseIndex = verseNum - 1
+			v := bookVerses[currentVerseIndex]
+
+			// Check if favorited
+			isFav, _ := isFavorite(ctx, uid, v)
+
+			stats := &Stats{
+				BookProgress: *bookProgress,
+				RuntimeStats: runtimeStats,
+			}
+
+			conn.WriteJSON(Message{
+				Type:       "verse",
+				Content:    v.Text,
+				Verse:      v,
+				Number:     currentVerseIndex + 1,
+				Total:      len(bookVerses),
+				Stats:      stats,
+				IsFavorite: isFav,
+			})
+
 		case "select_book":
 			selectedBook = msg.Content
-			bookVerses = versesByBook[selectedBook]
+			bookVerses, exists := versesByBook[selectedBook]
+			if !exists {
+				conn.WriteJSON(Message{Type: "error", Content: "Book not found"})
+				continue
+			}
 
 			// Load progress from database
 			bookProgress, err = getBookProgress(ctx, uid, selectedBook, len(bookVerses))
 			if err != nil {
 				log.Printf("Error loading progress: %v", err)
+				conn.WriteJSON(Message{Type: "error", Content: "Failed to load progress"})
 				continue
 			}
 
@@ -274,20 +458,36 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			// Reset runtime stats for new session
 			runtimeStats = RuntimeStats{StartTime: time.Now()}
 
-			// Send first verse
-			i := bookProgress.CurrentVerse
-			if i < len(bookVerses) {
-				v := bookVerses[i]
+			// Send first verse (or current progress verse)
+			currentVerseIndex = bookProgress.CurrentVerse
+			if currentVerseIndex < len(bookVerses) {
+				v := bookVerses[currentVerseIndex]
+
+				// Check if favorited
+				isFav, _ := isFavorite(ctx, uid, v)
+
 				stats := &Stats{
 					BookProgress: *bookProgress,
 					RuntimeStats: runtimeStats,
 				}
 				conn.WriteJSON(Message{
-					Type:    "verse",
-					Content: v.Text,
-					Verse:   v,
-					Number:  i + 1,
-					Total:   len(bookVerses),
+					Type:       "verse",
+					Content:    v.Text,
+					Verse:      v,
+					Number:     currentVerseIndex + 1,
+					Total:      len(bookVerses),
+					Stats:      stats,
+					IsFavorite: isFav,
+				})
+			} else {
+				// Book is complete
+				stats := &Stats{
+					BookProgress: *bookProgress,
+					RuntimeStats: runtimeStats,
+				}
+				conn.WriteJSON(Message{
+					Type:    "complete",
+					Content: fmt.Sprintf("You've completed %s! Select a verse to practice or choose another book.", selectedBook),
 					Stats:   stats,
 				})
 			}
@@ -297,12 +497,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			i := bookProgress.CurrentVerse
-			if i >= len(bookVerses) {
+			if currentVerseIndex >= len(bookVerses) {
 				continue
 			}
 
-			v := bookVerses[i]
+			v := bookVerses[currentVerseIndex]
 			user := cleanString(strings.TrimSpace(msg.Content))
 			correct := cleanString(strings.TrimSpace(v.Text))
 
@@ -390,6 +589,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 // ---- main ----
 
 func main() {
+	// Validate required files exist
+	if _, err := os.Stat("kjv.json"); os.IsNotExist(err) {
+		log.Fatal("kjv.json not found - please ensure bible data file exists")
+	}
+
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL environment variable not set")
@@ -401,9 +605,8 @@ func main() {
 	}
 
 	// Supabase-optimized connection pool settings
-	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	config.MaxConns = 5 // Supabase free tier has connection limits
-	config.MinConns = 0
+	config.MinConns = 1
 	config.MaxConnLifetime = time.Hour
 	config.MaxConnIdleTime = time.Minute * 30
 	config.HealthCheckPeriod = time.Minute
@@ -445,6 +648,16 @@ func main() {
 	http.Handle("/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/ws", handleWebSocket)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		// Check database connection
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		if err := pool.Ping(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("database unavailable"))
+			return
+		}
+
 		w.Write([]byte("ok"))
 	})
 
@@ -452,6 +665,36 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	log.Printf("Server starting on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+
+	server := &http.Server{
+		Addr:         ":" + port,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	// Start server in goroutine
+	go func() {
+		log.Printf("Server starting on port %s", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	pool.Close()
+	log.Println("Server exited")
 }
