@@ -393,13 +393,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			v := bookVerses[currentVerseIndex]
-			isFav, err := toggleFavorite(ctx, uid, v)
+			isFavorite, err := toggleFavorite(ctx, uid, v)
 			if err != nil {
 				log.Printf("Error toggling favorite: %v", err)
 				conn.WriteJSON(Message{Type: "error", Content: "Failed to toggle favorite"})
 				continue
 			}
-			conn.WriteJSON(Message{Type: "favorite_toggled", IsFavorite: isFav})
+			conn.WriteJSON(Message{Type: "favorite_toggled", IsFavorite: isFavorite})
 
 		case "jump_to_verse":
 			if selectedBook == "" || bookProgress == nil {
