@@ -276,19 +276,21 @@
         bookSelect.innerHTML = "";
         bookProgress = msg.progress || {};
         
-        msg.books.forEach((b) => {
-          const opt = document.createElement("option");
-          opt.value = b;
+        if (msg.books && Array.isArray(msg.books)) {
+          msg.books.forEach((b) => {
+            const opt = document.createElement("option");
+            opt.value = b;
+            
+            const progress = bookProgress[b] || 0;
+            opt.textContent = `${b} (${progress}%)`;
+            
+            bookSelect.appendChild(opt);
+          });
           
-          const progress = bookProgress[b] || 0;
-          opt.textContent = `${b} (${progress}%)`;
-          
-          bookSelect.appendChild(opt);
-        });
-        
-        if (msg.books.length > 0) {
-          bookSelect.value = msg.books[0];
-          ws.send(JSON.stringify({ type: "select_book", content: bookSelect.value }));
+          if (msg.books.length > 0) {
+            bookSelect.value = msg.books[0];
+            ws.send(JSON.stringify({ type: "select_book", content: bookSelect.value }));
+          }
         }
       }
       
@@ -310,7 +312,10 @@
         
         updateFavoriteButton();
         
-        verseEl.innerHTML = `${msg.verse.book_name} ${msg.verse.chapter}:${msg.verse.verse} (${msg.number}/${msg.total})<br><br>${msg.content}`;
+        // Clear verse element and set text content
+        verseEl.textContent = `${msg.verse.book_name} ${msg.verse.chapter}:${msg.verse.verse} (${msg.number}/${msg.total})\n\n${msg.content}`;
+        
+        // Re-append the favorite button
         verseEl.appendChild(favoriteBtn);
         
         inputEl.value = "";
@@ -395,8 +400,11 @@
     }
     
     favoriteBtn.onclick = (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      ws.send(JSON.stringify({ type: "toggle_favorite" }));
+      if (currentVerse && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "toggle_favorite" }));
+      }
     };
     
     bookSelect.onchange = () => {
@@ -438,7 +446,12 @@
     
     function sendMessage() {
       const text = inputEl.value.trim();
-      if (text) ws.send(JSON.stringify({ type: "content", content: text }));
+      console.log("Sending message:", text);
+      console.log("Expected text:", currentVerseText);
+      console.log("Match:", text === currentVerseText);
+      if (text && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "content", content: text }));
+      }
     }
     
     function appendMessage(text, cls) {
@@ -450,4 +463,4 @@
     }
   </script>
 </body>
-</html>
+</html><!doctype html>
