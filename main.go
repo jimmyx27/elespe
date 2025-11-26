@@ -48,16 +48,13 @@ type Verse struct {
 }
 
 type Message struct {
-	Type       string         `json:"type"`
-	Content    string         `json:"content"`
-	Verse      Verse          `json:"verse,omitempty"`
-	Number     int            `json:"number,omitempty"`
-	Total      int            `json:"total,omitempty"`
-	Stats      *Stats         `json:"stats,omitempty"`
-	Books      []string       `json:"books,omitempty"`
-	Progress   map[string]int `json:"progress,omitempty"`
-	Favorites  []Verse        `json:"favorites,omitempty"`
-	IsFavorite bool           `json:"isFavorite,omitempty"`
+	Type    string   `json:"type"`
+	Content string   `json:"content"`
+	Verse   Verse    `json:"verse,omitempty"`
+	Number  int      `json:"number,omitempty"`
+	Total   int      `json:"total,omitempty"`
+	Stats   *Stats   `json:"stats,omitempty"`
+	Books   []string `json:"books,omitempty"`
 }
 
 var bible struct {
@@ -359,12 +356,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for b := range versesByBook {
 		books = append(books, b)
 	}
-	conn.WriteJSON(Message{
+
+	// Send as single unified message
+	type BooksMessage struct {
+		Type     string         `json:"type"`
+		Books    []string       `json:"books"`
+		Progress map[string]int `json:"progress"`
+	}
+
+	conn.WriteJSON(BooksMessage{
 		Type:     "books",
-		Content:  "",
+		Books:    books,
 		Progress: allProgress,
 	})
-	conn.WriteJSON(map[string]any{"type": "books", "books": books, "progress": allProgress})
 
 	// Track selected book
 	var selectedBook string
@@ -393,13 +397,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			v := bookVerses[currentVerseIndex]
-			isFavorite, err := toggleFavorite(ctx, uid, v)
+			isFav, err := toggleFavorite(ctx, uid, v)
 			if err != nil {
 				log.Printf("Error toggling favorite: %v", err)
 				conn.WriteJSON(Message{Type: "error", Content: "Failed to toggle favorite"})
 				continue
 			}
-			conn.WriteJSON(Message{Type: "favorite_toggled", IsFavorite: isFavorite})
+			conn.WriteJSON(Message{Type: "favorite_toggled", IsFavorite: isFav})
 
 		case "jump_to_verse":
 			if selectedBook == "" || bookProgress == nil {
