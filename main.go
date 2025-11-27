@@ -48,13 +48,16 @@ type Verse struct {
 }
 
 type Message struct {
-	Type    string   `json:"type"`
-	Content string   `json:"content"`
-	Verse   Verse    `json:"verse,omitempty"`
-	Number  int      `json:"number,omitempty"`
-	Total   int      `json:"total,omitempty"`
-	Stats   *Stats   `json:"stats,omitempty"`
-	Books   []string `json:"books,omitempty"`
+	Type       string         `json:"type"`
+	Content    string         `json:"content"`
+	Verse      Verse          `json:"verse,omitempty"`
+	Number     int            `json:"number,omitempty"`
+	Total      int            `json:"total,omitempty"`
+	Stats      *Stats         `json:"stats,omitempty"`
+	Books      []string       `json:"books,omitempty"`
+	Progress   map[string]int `json"progress,omitempty"`
+	Favorites  []Verse        `json"favorites,omitempty"`
+	IsFavorite bool           `json"isFavorite,omitempty"`
 }
 
 var bible struct {
