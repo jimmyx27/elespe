@@ -620,6 +620,7 @@ func main() {
 	config.MaxConnLifetime = time.Hour
 	config.MaxConnIdleTime = time.Minute * 30
 	config.HealthCheckPeriod = time.Minute
+	config.ConnConfig.StatementCacheCapacity = 0 // ADD THIS LINE
 
 	pool, err = pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
