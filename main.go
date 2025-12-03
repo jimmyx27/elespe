@@ -512,6 +512,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			v := bookVerses[currentVerseIndex]
 			user := cleanString(strings.TrimSpace(msg.Content))
 			correct := cleanString(strings.TrimSpace(v.Text))
+			fmt.Println("here", user, correct)
 
 			if !runtimeStats.Started && len(user) > 0 {
 				runtimeStats.Started = true
