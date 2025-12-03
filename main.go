@@ -311,6 +311,12 @@ func cleanString(s string) string {
 	}, s)
 }
 
+func normalize(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "\u00A0", " ")
+	s = strings.Join(strings.Fields(s), " ")
+	return s
+}
 func groupVersesByBook(verses []Verse) {
 	versesByBook = make(map[string][]Verse)
 	for _, v := range verses {
