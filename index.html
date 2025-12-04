@@ -448,7 +448,7 @@
       const text = inputEl.value.trim();
       console.log("Sending message:", text);
       console.log("Expected text:", currentVerseText.trim());
-      console.log("Match:", text === currentVerseText);
+      console.log("Match:", text === currentVerseText.trim());
       if (text && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "content", content: text }));
       }
