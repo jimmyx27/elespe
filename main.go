@@ -317,6 +317,7 @@ func normalize(s string) string {
 	s = strings.Join(strings.Fields(s), " ")
 	return s
 }
+
 func groupVersesByBook(verses []Verse) {
 	versesByBook = make(map[string][]Verse)
 	for _, v := range verses {
