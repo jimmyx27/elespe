@@ -517,7 +517,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			v := bookVerses[currentVerseIndex]
-			user := cleanString(strings.TrimSpace(msg.Content))
+			user := normalize(cleanString(strings.TrimSpace(msg.Content)))
 			correct := cleanString(strings.TrimSpace(v.Text))
 			log.Println("here", user, correct)
 
