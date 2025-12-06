@@ -445,10 +445,10 @@
     });
     
     function sendMessage() {
-      const text = inputEl.value.trim();
+      const text = inputEl.value;
       console.log("Sending message:", text);
-      console.log("Expected text:", currentVerseText.trim());
-      console.log("Match:", text === currentVerseText.trim());
+      console.log("Expected text:", currentVerseText);
+      console.log("Match:", text === currentVerseText);
       if (text && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "content", content: text }));
       }
