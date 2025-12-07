@@ -450,7 +450,7 @@
       console.log("Expected text:", currentVerseText);
       console.log("Match:", text === currentVerseText);
       if (text && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "content", content: text }));
+        ws.send(JSON.stringify({ type: "content", content: text, verse: currentVerse }));
       }
     }
     
