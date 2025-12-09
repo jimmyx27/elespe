@@ -511,6 +511,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 		case "content":
 			if selectedBook == "" || bookProgress == nil {
+				conn.WriteJSON(Message{
+					Type:    "error",
+					Content: "No book selected yet",
+				})
+				log.Println("Ignored content: no selected book")
 				continue
 			}
 			if currentVerseIndex >= len(bookVerses) {
