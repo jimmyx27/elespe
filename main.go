@@ -521,7 +521,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if currentVerseIndex >= len(bookVerses) {
 				continue
 			}
-			v := msg.Verse
+			v := bookVerses[currentVerseIndex]
 			user := normalize(cleanString(strings.TrimSpace(msg.Content)))
 			correct := normalize(cleanString(strings.TrimSpace(v.Text)))
 			log.Println("here", user, correct)
