@@ -392,6 +392,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			log.Println("Read error:", err)
 			return
 		}
+		log.Printf("Received message type: %q, content: %v", msg.Type, msg.Content) // ADD THIS
 
 		switch msg.Type {
 		case "get_favorites":
