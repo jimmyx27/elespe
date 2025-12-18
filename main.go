@@ -396,8 +396,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		var msg Message
 		if err := conn.ReadJSON(&msg); err != nil {
-			log.Println("Read error:", err)
-			return
+			if websocket.IsCloseError(err,
+				websocket.CloseNormalClosure,
+				websocket.CloseGoingAway) {
+				log.Println("Websocket closed normally")
+			} else {
+				log.Println("Read error:", err)
+			}
+			break
 		}
 		log.Printf("Received message type: %q, content: %v", msg.Type, msg.Content) // ADD THIS
 
