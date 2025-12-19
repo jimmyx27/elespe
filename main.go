@@ -344,6 +344,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 	log.Println("Websocket connected")
 
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
 	uid := r.URL.Query().Get("uid")
 	if uid == "" {
 		uid = fmt.Sprintf("user_%d", time.Now().UnixNano())
