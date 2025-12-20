@@ -349,6 +349,17 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Println("Ping failed:", err)
+				return
+			}
+			<-ticker.C
+		}
+	}()
 
 	uid := r.URL.Query().Get("uid")
 	if uid == "" {
