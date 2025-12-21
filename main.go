@@ -332,7 +332,7 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { retu
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("PANIC in WebSocket handler: %v", r)
+			log.Printf("PANIC in WebSocket handler: %v\n%s", r, debug.Stack())
 		}
 	}()
 	log.Println("Connecting websocket")
@@ -360,6 +360,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			<-ticker.C
 		}
 	}()
+	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 
 	uid := r.URL.Query().Get("uid")
 	if uid == "" {
