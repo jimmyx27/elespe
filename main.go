@@ -8,14 +8,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
 	"unicode"
 
 	"github.com/gorilla/websocket"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -312,13 +310,6 @@ func cleanString(s string) string {
 	}, s)
 }
 
-func normalize(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, "\u00A0", " ")
-	s = strings.Join(strings.Fields(s), " ")
-	return s
-}
-
 func groupVersesByBook(verses []Verse) {
 	versesByBook = make(map[string][]Verse)
 	for _, v := range verses {
@@ -331,37 +322,12 @@ func groupVersesByBook(verses []Verse) {
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("PANIC in WebSocket handler: %v\n%s", r, debug.Stack())
-		}
-	}()
-	log.Println("Connecting websocket")
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Upgrade error:", err)
 		return
 	}
 	defer conn.Close()
-	log.Println("Websocket connected")
-
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		return nil
-	})
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for {
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				log.Println("Ping failed:", err)
-				return
-			}
-			<-ticker.C
-		}
-	}()
-	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 
 	uid := r.URL.Query().Get("uid")
 	if uid == "" {
@@ -415,16 +381,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		var msg Message
 		if err := conn.ReadJSON(&msg); err != nil {
-			if websocket.IsCloseError(err,
-				websocket.CloseNormalClosure,
-				websocket.CloseGoingAway) {
-				log.Println("Websocket closed normally")
-			} else {
-				log.Println("Read error:", err)
-			}
-			break
+			log.Println("Read error:", err)
+			return
 		}
-		log.Printf("Received message type: %q, content: %v", msg.Type, msg.Content) // ADD THIS
 
 		switch msg.Type {
 		case "get_favorites":
@@ -542,22 +501,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					Stats:   stats,
 				})
 			}
+
 		case "content":
 			if selectedBook == "" || bookProgress == nil {
-				conn.WriteJSON(Message{
-					Type:    "error",
-					Content: "No book selected yet",
-				})
-				log.Println("Ignored content: no selected book")
 				continue
 			}
+
 			if currentVerseIndex >= len(bookVerses) {
 				continue
 			}
+
 			v := bookVerses[currentVerseIndex]
-			user := normalize(cleanString(strings.TrimSpace(msg.Content)))
-			correct := normalize(cleanString(strings.TrimSpace(v.Text)))
-			log.Println("here", user, correct)
+			user := cleanString(strings.TrimSpace(msg.Content))
+			correct := cleanString(strings.TrimSpace(v.Text))
 
 			if !runtimeStats.Started && len(user) > 0 {
 				runtimeStats.Started = true
@@ -572,11 +528,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if user == correct {
 				runtimeStats.CorrectChars += len(correct)
 				runtimeStats.CharsTyped += len(user)
-
-				// Only advance CurrentVerse if we're at or past it
-				if currentVerseIndex >= bookProgress.CurrentVerse {
-					bookProgress.CurrentVerse = currentVerseIndex + 1
-				}
+				bookProgress.CurrentVerse++
 				bookProgress.CorrectEntries++
 
 				elapsed := time.Since(runtimeStats.StartTime).Minutes()
@@ -595,11 +547,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
-				// Update progress percentage
-				if bookProgress.TotalVerses > 0 {
-					allProgress[selectedBook] = (bookProgress.CurrentVerse * 100) / bookProgress.TotalVerses
-				}
-
 				stats := &Stats{
 					BookProgress: *bookProgress,
 					RuntimeStats: runtimeStats,
@@ -607,31 +554,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 				conn.WriteJSON(Message{Type: "correct", Content: "correct"})
 				conn.WriteJSON(Message{Type: "stats", Stats: stats})
-				conn.WriteJSON(Message{Type: "progress_update", Progress: allProgress})
 
-				// Auto-advance to next verse
-				currentVerseIndex++
-				if currentVerseIndex < len(bookVerses) {
-					next := bookVerses[currentVerseIndex]
-
-					// Check if favorited
-					isFav, _ := isFavorite(ctx, uid, next)
-
+				// Send next verse
+				if bookProgress.CurrentVerse < len(bookVerses) {
+					next := bookVerses[bookProgress.CurrentVerse]
 					conn.WriteJSON(Message{
-						Type:       "verse",
-						Content:    next.Text,
-						Verse:      next,
-						Number:     currentVerseIndex + 1,
-						Total:      len(bookVerses),
-						Stats:      stats,
-						IsFavorite: isFav,
-					})
-				} else {
-					conn.WriteJSON(Message{
-						Type:    "complete",
-						Content: fmt.Sprintf("Congratulations! You've completed %s!", selectedBook),
+						Type:    "verse",
+						Content: next.Text,
+						Verse:   next,
+						Number:  bookProgress.CurrentVerse + 1,
+						Total:   len(bookVerses),
 						Stats:   stats,
 					})
+				} else {
+					conn.WriteJSON(Message{Type: "complete", Content: "All done!", Stats: stats})
 				}
 			} else {
 				bookProgress.Mistakes++
@@ -656,8 +592,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				conn.WriteJSON(Message{Type: "wrong", Content: "wrong"})
 				conn.WriteJSON(Message{Type: "stats", Stats: stats})
 			}
-		default:
-			log.Printf("Unknow message type: %q %+v", msg.Type, msg)
 		}
 	}
 }
@@ -681,13 +615,12 @@ func main() {
 	}
 
 	// Supabase-optimized connection pool settings
-	config.MaxConns = 1 // Supabase free tier has connection limits
+	config.MaxConns = 5 // Supabase free tier has connection limits
 	config.MinConns = 1
 	config.MaxConnLifetime = time.Hour
 	config.MaxConnIdleTime = time.Minute * 30
 	config.HealthCheckPeriod = time.Minute
-	config.ConnConfig.StatementCacheCapacity = 0 // ADD THIS LINE
-	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
 	pool, err = pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
