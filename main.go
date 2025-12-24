@@ -359,19 +359,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for b := range versesByBook {
 		books = append(books, b)
 	}
-
-	// Send as single unified message
-	type BooksMessage struct {
-		Type     string         `json:"type"`
-		Books    []string       `json:"books"`
-		Progress map[string]int `json:"progress"`
-	}
-
-	conn.WriteJSON(BooksMessage{
+	conn.WriteJSON(Message{
 		Type:     "books",
-		Books:    books,
+		Content:  "",
 		Progress: allProgress,
 	})
+	conn.WriteJSON(map[string]any{"type": "books", "books": books, "progress": allProgress})
 
 	// Track selected book
 	var selectedBook string
@@ -400,13 +393,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			v := bookVerses[currentVerseIndex]
-			isFav, err := toggleFavorite(ctx, uid, v)
+			isFavorite, err := toggleFavorite(ctx, uid, v)
 			if err != nil {
 				log.Printf("Error toggling favorite: %v", err)
 				conn.WriteJSON(Message{Type: "error", Content: "Failed to toggle favorite"})
 				continue
 			}
-			conn.WriteJSON(Message{Type: "favorite_toggled", IsFavorite: isFav})
+			conn.WriteJSON(Message{Type: "favorite_toggled", IsFavorite: isFavorite})
 
 		case "jump_to_verse":
 			if selectedBook == "" || bookProgress == nil {
