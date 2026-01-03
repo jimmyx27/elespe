@@ -172,6 +172,7 @@
 
       if (msg.type === "books") {
         bookSelect.innerHTML = "";
+		bookProgress = msg.progress || {};
         msg.books.forEach((b) => {
           const opt = document.createElement("option");
           opt.value = b;
