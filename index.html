@@ -190,6 +190,9 @@
 		ws.send(JSON.stringify({ type: "select_book", content: bookSelect.value }));
 					}
       }
+		
+		if (msg.type === "progressUpdate") {
+			}
 
       if (msg.type === "verse") {
         currentVerseText = msg.content;
