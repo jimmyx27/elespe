@@ -192,6 +192,8 @@
       }
 		
 		if (msg.type === "progressUpdate") {
+					bookProgress = msg.progress || bookProgress;
+					const currentBook = bookSelect.value;
 			}
 
       if (msg.type === "verse") {
