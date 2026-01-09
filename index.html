@@ -194,6 +194,9 @@
 		if (msg.type === "progressUpdate") {
 					bookProgress = msg.progress || bookProgress;
 					const currentBook = bookSelect.value;
+					if (currentBook && bookProgress[currentBook] !== undefined) {
+						const selectedOption = bookSelect.options[bookSelect[selectedIndex];
+					}
 			}
 
       if (msg.type === "verse") {
