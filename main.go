@@ -116,6 +116,27 @@ func ensureUser(ctx context.Context, uid string) error {
 	return err
 }
 
+func getAllBookProgress(ctx context.Context, uid string) (map[string]int, error) {
+	rows, err := pool.Query(ctx, `SELECT book_name, current_verse, total_verses FROM book_progress WHERE uid = $1`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	progress := make(map[string]int)
+	for rows.Next() {
+		var bookName string
+		var current, total int
+		if err := rows.Scan(&bookName, &current, &total); err != nil {
+			continue
+		}
+		if total > 0 {
+			progress[bookName] = (current * 100) / total
+		}
+	}
+	return progress, nil
+}
+
 func getBookProgress(ctx context.Context, uid, bookName string, totalVerses int) (*BookProgress, error) {
 	var bp BookProgress
 
@@ -233,6 +254,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Initialize runtime stats
 	runtimeStats := RuntimeStats{StartTime: time.Now()}
 	var sessionID int
+	var currentVerseIndex int
 
 	// Send book list
 	books := make([]string, 0, len(versesByBook))
