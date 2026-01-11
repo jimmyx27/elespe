@@ -254,7 +254,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Initialize runtime stats
 	runtimeStats := RuntimeStats{StartTime: time.Now()}
 	var sessionID int
-	var currentVerseIndex int
 	allProgress, err := getAllBookProgress(ctx, uid)
 	if err != nil {
 		log.Printf("Error loading all progress: %v", err)
