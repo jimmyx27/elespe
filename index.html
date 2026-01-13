@@ -195,7 +195,7 @@
 					bookProgress = msg.progress || bookProgress;
 					const currentBook = bookSelect.value;
 					if (currentBook && bookProgress[currentBook] !== undefined) {
-						const selectedOption = bookSelect.options[bookSelect[selectedIndex];
+						const selectedOption = bookSelect.options[bookSelect.selectedIndex];
 							const progress = bookProgress[currentBook];
 							selectedOption.textContent = `${currentBook} ${progress}`;
 					}
