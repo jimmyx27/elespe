@@ -265,7 +265,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for b := range versesByBook {
 		books = append(books, b)
 	}
-	conn.WriteJSON(map[string]any{"type": "books", "books": books, "[rogress": allProgress})
+	conn.WriteJSON(map[string]any{"type": "books", "books": books, "progress": allProgress})
 
 	// Track selected book
 	var selectedBook string
