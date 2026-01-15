@@ -116,23 +116,21 @@ func ensureUser(ctx context.Context, uid string) error {
 	return err
 }
 
-func getAllBookProgress(ctx context.Context, uid string) (map[string]int, error) {
+func getAllBookProgress(ctx context.Context, uid string) (map[string]BookProgress, error) {
 	rows, err := pool.Query(ctx, `SELECT book_name, current_verse, total_verses FROM book_progress WHERE uid = $1`, uid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	progress := make(map[string]int)
+	progress := make(map[string]BookProgress)
 	for rows.Next() {
-		var bookName string
-		var current, total int
-		if err := rows.Scan(&bookName, &current, &total); err != nil {
+		var book string
+		var bp BookProgress
+		if err := rows.Scan(&book, &bp.CurrentVerse, &bp.TotalVerses, &bp.CorrectEntries, &bp.Mistakes); err != nil {
 			continue
 		}
-		if total > 0 {
-			progress[bookName] = (current * 100) / total
-		}
+		progress[book] = bp
 	}
 	return progress, nil
 }
