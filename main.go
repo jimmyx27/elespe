@@ -255,7 +255,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	allProgress, err := getAllBookProgress(ctx, uid)
 	if err != nil {
 		log.Printf("Error loading all progress: %v", err)
-		allProgress = make(map[string]int)
+		allProgress = make(map[string]BookProgress)
 	}
 
 	// Send book list
