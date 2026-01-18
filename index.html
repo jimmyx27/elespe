@@ -177,7 +177,7 @@
           const opt = document.createElement("option");
           opt.value = b;
 
-		const progress = bookProgress[b] || 0;
+		const progress = bookProgress[b];
 		  opt.textContent = `${b} (${progress})`;
           bookSelect.appendChild(opt);
         });
