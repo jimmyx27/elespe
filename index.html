@@ -178,7 +178,11 @@
           opt.value = b;
 
 		const progress = bookProgress[b];
-		  opt.textContent = `${b} (${progress})`;
+		if (progress) {
+									opt.textContent = `${b} (${progress.currentVerse}/${progress.totalVerses})`;
+							} else {
+									opt.textContent = `${b} (0/?)`;
+							}
           bookSelect.appendChild(opt);
         });
 		if (msg.books.length > 0) {
