@@ -179,6 +179,19 @@ func updateBookProgress(ctx context.Context, uid, bookName string, bp *BookProgr
 	return err
 }
 
+func ensureBookProgressRows(ctx context.Context, uid string) error {
+	for book, verses := range versesByBook {
+		_, err := pool.Exec(ctx, `
+	INSERT INTO book_progress(uid, book_name, total_verses)
+	VALUES ($1, $2, $3)
+	ON CONFLICT (uid, book_name) DO NOTHING`, uid, book, len(verses))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func createTypingSession(ctx context.Context, uid, bookName string) (int, error) {
 	var sessionID int
 	err := pool.QueryRow(ctx, `
