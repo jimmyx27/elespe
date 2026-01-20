@@ -344,6 +344,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				runtimeStats.CorrectChars += len(correct)
 				runtimeStats.CharsTyped += len(user)
 				bookProgress.CurrentVerse++
+				conn.WriteJSON(map[string]any{
+					"type":     "progressUpdate",
+					"book":     selectedBook,
+					"progress": bookProgress,
+				})
 				bookProgress.CorrectEntries++
 
 				elapsed := time.Since(runtimeStats.StartTime).Minutes()
