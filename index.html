@@ -192,12 +192,14 @@
       }
 		
 		if (msg.type === "progressUpdate") {
-					bookProgress = msg.progress || bookProgress;
-					const currentBook = bookSelect.value;
-					if (currentBook && bookProgress[currentBook] !== undefined) {
-						const selectedOption = bookSelect.options[bookSelect.selectedIndex];
-							const progress = bookProgress[currentBook];
-							selectedOption.textContent = `${currentBook} ${progress}`;
+					const book = msg.book;
+					const progress = msg.progress;
+					if (!book || !progress) return;
+						for (const opt of bookSelect.options) {
+						if(opt.value === book) {
+								opt.textContent = `${book} (${progress.currentVerse}/${progress.totalVerses})`;
+									break;
+							}
 					}
 			}
 
