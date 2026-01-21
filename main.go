@@ -262,6 +262,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := ensureBookProgressRows(ctx, uid); err != nil {
+		log.Printf("Error ensuring book progress rows: %v", err)
+		return
+
+	}
+
 	// Initialize runtime stats
 	runtimeStats := RuntimeStats{StartTime: time.Now()}
 	var sessionID int
