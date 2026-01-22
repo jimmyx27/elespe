@@ -410,7 +410,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				bookProgress.Mistakes++
-				runtimeStats.CharsTyped += len(user)
 
 				// Update database
 				if err := updateBookProgress(ctx, uid, selectedBook, bookProgress); err != nil {
