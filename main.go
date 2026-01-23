@@ -473,7 +473,6 @@ func main() {
 	}
 	log.Println("Database initialized")
 
-	// Load bible
 	data, err := os.ReadFile("kjv.json")
 	if err != nil {
 		log.Fatal(err)
