@@ -121,7 +121,7 @@ func getAllBookProgress(ctx context.Context, uid string) (map[string]BookProgres
 		`SELECT
 			book_name,
 			current_verse,
-		total_verses,
+			total_verses,
 		correct_entries,
 		mistakes
 		FROM book_progress WHERE uid = $1`, uid)
