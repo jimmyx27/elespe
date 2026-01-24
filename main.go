@@ -117,7 +117,14 @@ func ensureUser(ctx context.Context, uid string) error {
 }
 
 func getAllBookProgress(ctx context.Context, uid string) (map[string]BookProgress, error) {
-	rows, err := pool.Query(ctx, `SELECT book_name, current_verse, total_verses FROM book_progress WHERE uid = $1`, uid)
+	rows, err := pool.Query(ctx,
+		`SELECT
+			book_name,
+		current_verse,
+		total_verses,
+		correct_entries,
+		mistakes
+		FROM book_progress WHERE uid = $1`, uid)
 	if err != nil {
 		return nil, err
 	}
