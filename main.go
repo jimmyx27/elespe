@@ -467,7 +467,6 @@ func main() {
 	}
 	log.Println("Connected to:", version)
 
-	// Initialize database schema
 	if err := initDB(); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
