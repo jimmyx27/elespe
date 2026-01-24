@@ -123,7 +123,7 @@ func getAllBookProgress(ctx context.Context, uid string) (map[string]BookProgres
 			current_verse,
 			total_verses,
 			correct_entries,
-		mistakes
+			mistakes
 		FROM book_progress WHERE uid = $1`, uid)
 	if err != nil {
 		return nil, err
