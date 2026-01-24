@@ -120,7 +120,7 @@ func getAllBookProgress(ctx context.Context, uid string) (map[string]BookProgres
 	rows, err := pool.Query(ctx,
 		`SELECT
 			book_name,
-		current_verse,
+			current_verse,
 		total_verses,
 		correct_entries,
 		mistakes
