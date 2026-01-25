@@ -47,6 +47,10 @@
     animation: slideUp 0.4s ease-out;
   }
 
+  #input-container {
+	  width: 100%;
+  }
+
   #stats {
     display: flex;
     justify-content: space-between;
@@ -164,6 +168,10 @@
 
     <div id="verse">Connecting...</div>
 
+	<div id="input-container">
+    <input id="input" type="text" placeholder="Type here..." autofocus />
+	</div>
+	  
     <div id="stats">
       <p>WPM: <span id="wpm">0</span></p>
       <p>Chars typed: <span id="chars">0</span></p>
@@ -175,9 +183,7 @@
     </div>
 
     <select id="bookSelect"></select>
-	<div>
-    <input id="input" type="text" placeholder="Type here..." autofocus />
-	</div>
+
 	<button id="send">Send</button>
 
     <div id="messages"></div>
