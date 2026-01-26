@@ -10,24 +10,33 @@
         --bg-soft: #eef1f7;
         --card: #ffffff;
         --accent: #ffb703;
-        --accent-soft: #fff1cc;
-        --text: #2b2e34;
+        --accent-soft: rgba(255, 183, 3, 0.25);
+        --text: #1f2937;
         --muted: #6b7280;
         --border: #e5e7eb;
         --radius: 12px;
       }
 
+      /* System dark mode */
       @media (prefers-color-scheme: dark) {
         :root {
           --bg: #0b0d10;
           --bg-soft: #12151c;
           --card: #161a22;
-          --accent: #ffb703;
-          --accent-soft: rgba(255, 183, 3, 0.15);
           --text: #e5e7eb;
-          --muted: #09ca3af;
+          --muted: #9ca3af;
           --border: #252a36;
         }
+      }
+
+      /* Manual override */
+      html.dark {
+        --bg: #0b0d10;
+        --bg-soft: #12151c;
+        --card: #161a22;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --border: #252a36;
       }
 
       *,
@@ -111,6 +120,12 @@
         display: block;
         width: 100%;
       }
+      input.good {
+        background: rgba(34, 197, 94, 0.15);
+      }
+      input.bad {
+        background: rgba(239, 68, 68, 0.18);
+      }
 
       #stats {
         display: flex;
@@ -166,7 +181,7 @@
 
       input,
       select {
-        background: #0f131a;
+        background: var(--bg-soft);
         color: var(--text);
         border: 1px solid var(--border);
       }
@@ -177,7 +192,7 @@
 
       input:focus,
       select:focus {
-        //outline: none;
+        outline: none;
         border-color: var(--accent);
         box-shadow: 0 0 0 3px var(--accent-soft);
       }
@@ -375,16 +390,15 @@
       });
 
       inputEl.addEventListener("input", () => {
+        inputEl.classList.remove("good", "bad");
         const typed = inputEl.value;
-        const correct = currentVerseText;
-        let mismatch = false;
         for (let i = 0; i < typed.length; i++) {
-          if (typed[i] !== correct[i]) {
-            mismatch = true;
+          if (typed[i] !== currentVerseText[i]) {
+            inputEl.classList.add("bad");
             break;
           }
         }
-        inputEl.style.backgroundColor = mismatch ? "#ffdddd" : "#ddffdd";
+        if (typed.length > 0) inputEl.classList.add("good");
       });
 
       function sendMessage() {
