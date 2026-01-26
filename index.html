@@ -7,6 +7,7 @@
 				<style>
   :root {
     --bg: #f4f6fb;
+    --bg-soft: #eef1f7;
     --card: #ffffff;
     --accent: #ffb703;
     --accent-soft: #fff1cc;
@@ -16,6 +17,19 @@
     --radius: 12px;
   }
 
+  @media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0b0d10;
+		--bg-soft: #12151c;
+		--card: #161a22;
+		--accent: #ffb703;
+		--accent-soft: rgba(255, 183, 3, 0.15);
+		--text: #e5e7eb;
+		--muted: #09ca3af;
+		--border: #252a36;
+		  }
+}
+
   *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -23,7 +37,10 @@
 
   body {
     font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    background: linear-gradient(135deg, #f4f6fb, #eef1f7);
+    background:
+	  radial-gradient(1200px 600px at 80% -10%, rgba(255, 183, 3, 0.08), transparent 40%),
+      radial-gradient(800px 400px at 10% 110%, rgba(255, 120, 0, 0.06), transparent 45%),
+      linear-gradient(180deg, var(--bg), var(--bg-soft));
     padding: 2rem;
     max-width: 720px;
     margin: auto;
@@ -47,7 +64,9 @@
     border-radius: var(--radius);
     border: 1px solid var(--border);
     white-space: pre-wrap;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+    box-shadow: 
+		0 10px 30px rgba(0, 0, 0, 0.35),
+		inset 0 1px 0 rgba(255, 255, 255, 0.4);
     line-height: 1.6;
     animation: slideUp 0.4s ease-out;
   }
@@ -70,7 +89,9 @@
     padding: 0.75rem 1rem;
     border-radius: var(--radius);
     border: 1px solid var(--border);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    box-shadow: 
+		0 10px 30px rgba(0, 0, 0, 0.35),
+		inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
   #stats p {
@@ -112,9 +133,20 @@
     transition: all 0.2s ease;
   }
 
+  input,
+  select {
+		background: #0f131a;
+		color: var(--text);
+		border: 1px solid var(--border);
+  }
+
+  input::placeholder {
+		color: var(--muted);
+  }
+
   input:focus,
   select:focus {
-    outline: none;
+    //outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
