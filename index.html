@@ -4,230 +4,247 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Praise the Sun! \\[T]//</title>
-				<style>
-  :root {
-    --bg: #f4f6fb;
-    --bg-soft: #eef1f7;
-    --card: #ffffff;
-    --accent: #ffb703;
-    --accent-soft: #fff1cc;
-    --text: #2b2e34;
-    --muted: #6b7280;
-    --border: #e5e7eb;
-    --radius: 12px;
-  }
+    <style>
+      :root {
+        --bg: #f4f6fb;
+        --bg-soft: #eef1f7;
+        --card: #ffffff;
+        --accent: #ffb703;
+        --accent-soft: #fff1cc;
+        --text: #2b2e34;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --radius: 12px;
+      }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b0d10;
+          --bg-soft: #12151c;
+          --card: #161a22;
+          --accent: #ffb703;
+          --accent-soft: rgba(255, 183, 3, 0.15);
+          --text: #e5e7eb;
+          --muted: #09ca3af;
+          --border: #252a36;
+        }
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      .dark {
         --bg: #0b0d10;
-		--bg-soft: #12151c;
-		--card: #161a22;
-		--accent: #ffb703;
-		--accent-soft: rgba(255, 183, 3, 0.15);
-		--text: #e5e7eb;
-		--muted: #09ca3af;
-		--border: #252a36;
-		  }
-}
+        --bg-soft: #12151c;
+        --card: #161a22;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --border: #252a36;
+      }
 
-  *, *::before, *::after {
-  box-sizing: border-box;
-}
+      body {
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background:
+          radial-gradient(
+            1200px 600px at 80% -10%,
+            rgba(255, 183, 3, 0.08),
+            transparent 40%
+          ),
+          radial-gradient(
+            800px 400px at 10% 110%,
+            rgba(255, 120, 0, 0.06),
+            transparent 45%
+          ),
+          linear-gradient(180deg, var(--bg), var(--bg-soft));
+        padding: 2rem;
+        max-width: 720px;
+        margin: auto;
+        color: var(--text);
+        animation: fadeIn 0.6s ease-out;
+      }
 
+      h1 {
+        text-align: center;
+        font-size: 2.2rem;
+        margin-bottom: 1.5rem;
+        color: #1f2937;
+        letter-spacing: 0.5px;
+      }
 
-  body {
-    font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    background:
-	  radial-gradient(1200px 600px at 80% -10%, rgba(255, 183, 3, 0.08), transparent 40%),
-      radial-gradient(800px 400px at 10% 110%, rgba(255, 120, 0, 0.06), transparent 45%),
-      linear-gradient(180deg, var(--bg), var(--bg-soft));
-    padding: 2rem;
-    max-width: 720px;
-    margin: auto;
-    color: var(--text);
-    animation: fadeIn 0.6s ease-out;
-  }
+      #themeToggle {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        background: var(--card);
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
 
-  h1 {
-    text-align: center;
-    font-size: 2.2rem;
-    margin-bottom: 1.5rem;
-    color: #1f2937;
-    letter-spacing: 0.5px;
-  }
+      #verse {
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        padding: 1.25rem;
+        background: var(--card);
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        white-space: pre-wrap;
+        box-shadow:
+          0 10px 30px rgba(0, 0, 0, 0.35),
+          inset 0 1px 0 rgba(255, 255, 255, 0.4);
+        line-height: 1.6;
+        animation: slideUp 0.4s ease-out;
+      }
 
-  #themeToggle {
-		position: fixed;
-		top: 1rem;
-		right: 1rem;
-		background: var(--card);
-		border: 1px solid var(--border);
-		color: var(--text);
-}
+      #input-container {
+        width: 100%;
+      }
 
-  #verse {
-    font-weight: 600;
-    margin-bottom: 1.25rem;
-    padding: 1.25rem;
-    background: var(--card);
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    white-space: pre-wrap;
-    box-shadow: 
-		0 10px 30px rgba(0, 0, 0, 0.35),
-		inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    line-height: 1.6;
-    animation: slideUp 0.4s ease-out;
-  }
+      input {
+        display: block;
+        width: 100%;
+      }
 
-  #input-container {
-	  width: 100%;
-  }
+      #stats {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        background: var(--card);
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        box-shadow:
+          0 10px 30px rgba(0, 0, 0, 0.35),
+          inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
 
-  input {
-	  display: block;
-	  width: 100%;
-  }
+      #stats p {
+        margin: 0;
+        font-size: 0.95rem;
+        color: var(--muted);
+      }
 
-  #stats {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1rem;
-    background: var(--card);
-    padding: 0.75rem 1rem;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    box-shadow: 
-		0 10px 30px rgba(0, 0, 0, 0.35),
-		inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  }
+      #progress-container {
+        margin: 1.25rem 0;
+        background-color: #1f2430;
+        border-radius: 999px;
+        overflow: hidden;
+        height: 18px;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+      }
 
-  #stats p {
-    margin: 0;
-    font-size: 0.95rem;
-    color: var(--muted);
-  }
+      #progress {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #ffb703, #ff8800, #ffd166);
+        border-radius: 999px;
+        transition: width 0.4s ease;
+        animation: pulse 2s infinite ease-in-out;
+        box-shadow:
+          0 0 12px rgba(255, 183, 3, 0.6),
+          inset 0 0 4px rgba(255, 255, 255, 0.3);
+      }
 
-  #progress-container {
-    margin: 1.25rem 0;
-    background-color: #1f2430;
-    border-radius: 999px;
-    overflow: hidden;
-    height: 18px;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
-  }
+      input,
+      select,
+      button {
+        font-family: inherit;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        padding: 0.6rem 0.75rem;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+      }
 
-  #progress {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(
-      90deg,
-      #ffb703,
-      #ff8800,
-      #ffd166
-    );
-    border-radius: 999px;
-    transition: width 0.4s ease;
-    animation: pulse 2s infinite ease-in-out;
-    box-shadow:
-		0 0 12px rgba(255, 183, 3, 0.6),
-		inset 0 0 4px rgba(255, 255, 255, 0.3);
-  }
+      input,
+      select {
+        background: #0f131a;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
 
-  input,
-  select,
-  button {
-    font-family: inherit;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    padding: 0.6rem 0.75rem;
-    font-size: 0.95rem;
-    transition: all 0.2s ease;
-  }
+      input::placeholder {
+        color: var(--muted);
+      }
 
-  input,
-  select {
-		background: #0f131a;
-		color: var(--text);
-		border: 1px solid var(--border);
-  }
+      input:focus,
+      select:focus {
+        //outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
 
-  input::placeholder {
-		color: var(--muted);
-  }
+      button {
+        background: var(--accent);
+        color: #1f2937;
+        font-weight: 600;
+        cursor: pointer;
+      }
 
-  input:focus,
-  select:focus {
-    //outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(255, 183, 3, 0.35);
+      }
 
-  button {
-    background: var(--accent);
-    color: #1f2937;
-    font-weight: 600;
-    cursor: pointer;
-  }
+      button:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
 
-  button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(255, 183, 3, 0.35);
-  }
+      /* Animations */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
 
-  button:active {
-    transform: translateY(0);
-    box-shadow: none;
-  }
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
 
-  /* Animations */
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes pulse {
-    0% {
-      filter: brightness(1);
-    }
-    50% {
-      filter: brightness(1.15);
-    }
-    100% {
-      filter: brightness(1);
-    }
-  }
-</style>
-
+      @keyframes pulse {
+        0% {
+          filter: brightness(1);
+        }
+        50% {
+          filter: brightness(1.15);
+        }
+        100% {
+          filter: brightness(1);
+        }
+      }
+    </style>
   </head>
   <body>
-		<button id="themeToggle"> * </button>
+    <button id="themeToggle">*</button>
     <h1>Praise the Sun! * \\[T]//</h1>
 
     <div id="verse">Connecting...</div>
 
-	<div id="input-container">
-    <input id="input" type="text" placeholder="Type here..." autofocus />
-	</div>
-	  
+    <div id="input-container">
+      <input id="input" type="text" placeholder="Type here..." autofocus />
+    </div>
+
     <div id="stats">
       <p>WPM: <span id="wpm">0</span></p>
       <p>Chars typed: <span id="chars">0</span></p>
@@ -240,7 +257,7 @@
 
     <select id="bookSelect"></select>
 
-	<button id="send">Send</button>
+    <button id="send">Send</button>
 
     <div id="messages"></div>
 
@@ -266,10 +283,10 @@
       const charsEl = document.getElementById("chars");
       const mistakesEl = document.getElementById("mistakes");
       const bookSelect = document.getElementById("bookSelect");
-	  const toggle = document.getElementById("themeToggle");
-	  toggle.onclick = () => {
-		document.documentElement.classList.toggle("dark");
-	  }
+      const toggle = document.getElementById("themeToggle");
+      toggle.onclick = () => {
+        document.documentElement.classList.toggle("dark");
+      };
 
       ws.onopen = () => {
         verseEl.textContent = "Connected! Waiting for first verse...";
