@@ -301,7 +301,6 @@
       );
       const verseEl = document.getElementById("verse");
       const inputEl = document.getElementById("input");
-      const sendBtn = document.getElementById("send");
       const messagesEl = document.getElementById("messages");
       const progressEl = document.getElementById("progress");
       const wpmEl = document.getElementById("wpm");
@@ -394,7 +393,6 @@
         );
       };
 
-      sendBtn.onclick = () => sendMessage();
       inputEl.addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendMessage();
       });
