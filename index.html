@@ -56,6 +56,15 @@
     letter-spacing: 0.5px;
   }
 
+  #themeToggle {
+		position: fixed;
+		top: 1rem;
+		right: 1rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		color: var(--text);
+}
+
   #verse {
     font-weight: 600;
     margin-bottom: 1.25rem;
@@ -210,7 +219,7 @@
 
   </head>
   <body>
-				<button id="themeToggle"> * </button>
+		<button id="themeToggle"> * </button>
     <h1>Praise the Sun! * \\[T]//</h1>
 
     <div id="verse">Connecting...</div>
@@ -257,6 +266,10 @@
       const charsEl = document.getElementById("chars");
       const mistakesEl = document.getElementById("mistakes");
       const bookSelect = document.getElementById("bookSelect");
+	  const toggle = document.getElementById("themeToggle");
+	  toggle.onclick = () => {
+		document.documentElement.classList.toggle("dark");
+	  }
 
       ws.onopen = () => {
         verseEl.textContent = "Connected! Waiting for first verse...";
