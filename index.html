@@ -102,7 +102,7 @@
 
   #progress-container {
     margin: 1.25rem 0;
-    background-color: #e5e7eb;
+    background-color: #1f2430;
     border-radius: 999px;
     overflow: hidden;
     height: 18px;
@@ -114,12 +114,16 @@
     width: 0%;
     background: linear-gradient(
       90deg,
-      var(--accent),
+      #ffb703,
+      #ff8800,
       #ffd166
     );
     border-radius: 999px;
     transition: width 0.4s ease;
     animation: pulse 2s infinite ease-in-out;
+    box-shadow:
+		0 0 12px rgba(255, 183, 3, 0.6),
+		inset 0 0 4px rgba(255, 255, 255, 0.3);
   }
 
   input,
