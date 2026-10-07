@@ -3,41 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="./logo.svg">
-    <title>Praise the Sun! \\[T]//</title>
+    <link rel="icon" href="./logo.svg" />
+    <title>Praise the Sun! \ [T]/</title>
     <style>
-      :root {
-        --bg: #f4f6fb;
-        --bg-soft: #eef1f7;
-        --card: #ffffff;
-        --accent: #ffb703;
-        --accent-soft: rgba(255, 183, 3, 0.25);
-        --text: #1f2937;
-        --muted: #6b7280;
-        --border: #e5e7eb;
-        --radius: 12px;
+      :root,
+      html[data-theme="light"] {
+        --bg: #f8fafc;
+        --bg-soft: #edf2f7;
+        --card: rgba(255, 255, 255, 0.94);
+        --card-solid: #ffffff;
+        --accent: #d97706;
+        --accent-bright: #f59e0b;
+        --accent-soft: rgba(245, 158, 11, 0.16);
+        --glow: rgba(245, 158, 11, 0.3);
+        --text: #0f172a;
+        --text-sub: #334155;
+        --muted: #64748b;
+        --border: rgba(15, 23, 42, 0.11);
+        --border-focus: rgba(217, 119, 6, 0.45);
+        --success: #16a34a;
+        --success-soft: rgba(22, 163, 74, 0.14);
+        --danger: #dc2626;
+        --danger-soft: rgba(220, 38, 38, 0.14);
+        --shadow: 0 16px 40px -8px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+        --radius: 16px;
+        --cat-glow-op: 0.12;
       }
 
-      /* System dark mode */
       @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #0b0d10;
-          --bg-soft: #12151c;
-          --card: #161a22;
-          --text: #e5e7eb;
-          --muted: #9ca3af;
-          --border: #252a36;
+        :root:not([data-theme="light"]) {
+          --bg: #090c13;
+          --bg-soft: #111622;
+          --card: rgba(20, 26, 38, 0.84);
+          --card-solid: #151b27;
+          --accent: #ffb703;
+          --accent-bright: #ffc938;
+          --accent-soft: rgba(255, 183, 3, 0.18);
+          --glow: rgba(255, 183, 3, 0.35);
+          --text: #f1f5f9;
+          --text-sub: #cbd5e1;
+          --muted: #94a3b8;
+          --border: rgba(255, 255, 255, 0.09);
+          --border-focus: rgba(255, 183, 3, 0.45);
+          --success: #34d399;
+          --success-soft: rgba(52, 211, 153, 0.15);
+          --danger: #f87171;
+          --danger-soft: rgba(248, 113, 113, 0.15);
+          --shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.55), 0 6px 16px -4px rgba(0, 0, 0, 0.35);
+          --cat-glow-op: 0.22;
         }
       }
 
-      /* Manual override */
+      html[data-theme="dark"],
       html.dark {
-        --bg: #0b0d10;
-        --bg-soft: #12151c;
-        --card: #161a22;
-        --text: #e5e7eb;
-        --muted: #9ca3af;
-        --border: #252a36;
+        --bg: #090c13;
+        --bg-soft: #111622;
+        --card: rgba(20, 26, 38, 0.84);
+        --card-solid: #151b27;
+        --accent: #ffb703;
+        --accent-bright: #ffc938;
+        --accent-soft: rgba(255, 183, 3, 0.18);
+        --glow: rgba(255, 183, 3, 0.35);
+        --text: #f1f5f9;
+        --text-sub: #cbd5e1;
+        --muted: #94a3b8;
+        --border: rgba(255, 255, 255, 0.09);
+        --border-focus: rgba(255, 183, 3, 0.45);
+        --success: #34d399;
+        --success-soft: rgba(52, 211, 153, 0.15);
+        --danger: #f87171;
+        --danger-soft: rgba(248, 113, 113, 0.15);
+        --shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.55), 0 6px 16px -4px rgba(0, 0, 0, 0.35);
+        --cat-glow-op: 0.22;
       }
 
       *,
@@ -46,371 +83,2273 @@
         box-sizing: border-box;
       }
 
-      .dark {
-        --bg: #0b0d10;
-        --bg-soft: #12151c;
-        --card: #161a22;
-        --text: #e5e7eb;
-        --muted: #9ca3af;
-        --border: #252a36;
-      }
-
       body {
-        font-family:
-          "Segoe UI",
-          system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        color: var(--text);
+        background-color: var(--bg);
         background:
-          radial-gradient(
-            1200px 600px at 80% -10%,
-            rgba(255, 183, 3, 0.08),
-            transparent 40%
-          ),
-          radial-gradient(
-            800px 400px at 10% 110%,
-            rgba(255, 120, 0, 0.06),
-            transparent 45%
-          ),
+          radial-gradient(1100px 520px at 85% -10%, rgba(255, 183, 3, 0.14), transparent 45%),
+          radial-gradient(900px 480px at 0% 110%, rgba(255, 110, 0, 0.1), transparent 50%),
           linear-gradient(180deg, var(--bg), var(--bg-soft));
-        padding: 2rem;
-        max-width: 720px;
-        margin: auto;
-        color: var(--text);
-        animation: fadeIn 0.6s ease-out;
+        background-attachment: fixed;
+        transition: background 0.6s ease, color 0.3s ease;
+        animation: fadeIn 0.4s ease-out;
       }
 
-      h1 {
-        text-align: center;
-        font-size: 2.2rem;
-        margin-bottom: 1.5rem;
-        color: #1f2937;
-        letter-spacing: 0.5px;
+      /* ---- Dynamic Atmospheric Genre / Book Background Themes ---- */
+      body[data-category="law"] {
+        --accent: #d97706;
+        --accent-bright: #fbbf24;
+        --accent-soft: rgba(245, 158, 11, 0.2);
+        --glow: rgba(245, 158, 11, 0.4);
+        background:
+          radial-gradient(1100px 520px at 85% -10%, rgba(245, 158, 11, var(--cat-glow-op)), transparent 45%),
+          radial-gradient(900px 480px at 0% 110%, rgba(217, 119, 6, calc(var(--cat-glow-op) * 0.8)), transparent 50%),
+          linear-gradient(180deg, var(--bg), var(--bg-soft));
+        background-attachment: fixed;
       }
 
-      #themeToggle {
-        position: fixed;
-        top: 1rem;
-        right: 1rem;
-        background: var(--card);
-        border: 1px solid var(--border);
-        color: var(--text);
-        border: 1px solid var(--border);
-        cursor: pointer;
+      body[data-category="history"] {
+        --accent: #e11d48;
+        --accent-bright: #fb7185;
+        --accent-soft: rgba(225, 29, 72, 0.2);
+        --glow: rgba(225, 29, 72, 0.4);
+        background:
+          radial-gradient(1100px 520px at 85% -10%, rgba(225, 29, 72, var(--cat-glow-op)), transparent 45%),
+          radial-gradient(900px 480px at 0% 110%, rgba(180, 83, 9, calc(var(--cat-glow-op) * 0.8)), transparent 50%),
+          linear-gradient(180deg, var(--bg), var(--bg-soft));
+        background-attachment: fixed;
       }
 
-      #verse {
-        font-weight: 600;
-        margin-bottom: 1.25rem;
-        padding: 1.25rem;
-        background: var(--card);
-        border-radius: var(--radius);
-        border: 1px solid var(--border);
-        white-space: pre-wrap;
-        box-shadow:
-          0 10px 30px rgba(0, 0, 0, 0.35),
-          inset 0 1px 0 rgba(255, 255, 255, 0.4);
-        line-height: 1.6;
-        animation: slideUp 0.4s ease-out;
+      body[data-category="wisdom"] {
+        --accent: #6366f1;
+        --accent-bright: #818cf8;
+        --accent-soft: rgba(99, 102, 241, 0.2);
+        --glow: rgba(99, 102, 241, 0.4);
+        background:
+          radial-gradient(1100px 520px at 85% -10%, rgba(99, 102, 241, var(--cat-glow-op)), transparent 45%),
+          radial-gradient(900px 480px at 0% 110%, rgba(2, 132, 199, calc(var(--cat-glow-op) * 0.8)), transparent 50%),
+          linear-gradient(180deg, var(--bg), var(--bg-soft));
+        background-attachment: fixed;
       }
 
-      #input-container {
-        width: 100%;
+      body[data-category="prophets"] {
+        --accent: #ea580c;
+        --accent-bright: #fb923c;
+        --accent-soft: rgba(234, 88, 12, 0.2);
+        --glow: rgba(234, 88, 12, 0.4);
+        background:
+          radial-gradient(1100px 520px at 85% -10%, rgba(234, 88, 12, var(--cat-glow-op)), transparent 45%),
+          radial-gradient(900px 480px at 0% 110%, rgba(185, 28, 28, calc(var(--cat-glow-op) * 0.8)), transparent 50%),
+          linear-gradient(180deg, var(--bg), var(--bg-soft));
+        background-attachment: fixed;
       }
 
-      input {
-        display: block;
-        width: 100%;
-      }
-      input.good {
-        background: rgba(34, 197, 94, 0.15);
-      }
-      input.bad {
-        background: rgba(239, 68, 68, 0.18);
+      body[data-category="gospels"] {
+        --accent: #0d9488;
+        --accent-bright: #2dd4bf;
+        --accent-soft: rgba(13, 148, 136, 0.2);
+        --glow: rgba(13, 148, 136, 0.4);
+        background:
+          radial-gradient(1100px 520px at 85% -10%, rgba(13, 148, 136, var(--cat-glow-op)), transparent 45%),
+          radial-gradient(900px 480px at 0% 110%, rgba(16, 185, 129, calc(var(--cat-glow-op) * 0.8)), transparent 50%),
+          linear-gradient(180deg, var(--bg), var(--bg-soft));
+        background-attachment: fixed;
       }
 
-      #stats {
+      body[data-category="epistles"] {
+        --accent: #2563eb;
+        --accent-bright: #60a5fa;
+        --accent-soft: rgba(37, 99, 235, 0.2);
+        --glow: rgba(37, 99, 235, 0.4);
+        background:
+          radial-gradient(1100px 520px at 85% -10%, rgba(37, 99, 235, var(--cat-glow-op)), transparent 45%),
+          radial-gradient(900px 480px at 0% 110%, rgba(14, 165, 233, calc(var(--cat-glow-op) * 0.8)), transparent 50%),
+          linear-gradient(180deg, var(--bg), var(--bg-soft));
+        background-attachment: fixed;
+      }
+
+      body[data-category="revelation"] {
+        --accent: #9333ea;
+        --accent-bright: #c084fc;
+        --accent-soft: rgba(147, 51, 234, 0.24);
+        --glow: rgba(147, 51, 234, 0.4);
+        background:
+          radial-gradient(1100px 520px at 85% -10%, rgba(147, 51, 234, var(--cat-glow-op)), transparent 45%),
+          radial-gradient(900px 480px at 0% 110%, rgba(245, 158, 11, calc(var(--cat-glow-op) * 0.8)), transparent 50%),
+          linear-gradient(180deg, var(--bg), var(--bg-soft));
+        background-attachment: fixed;
+      }
+
+      .app {
+        max-width: 1140px;
+        margin: 0 auto;
+        padding: 1.25rem 1rem 3rem;
+      }
+
+      /* ---- Topbar ---- */
+      .topbar {
         display: flex;
+        align-items: center;
         justify-content: space-between;
         gap: 1rem;
-        margin-bottom: 1rem;
-        background: var(--card);
-        padding: 0.75rem 1rem;
-        border-radius: var(--radius);
-        border: 1px solid var(--border);
-        box-shadow:
-          0 10px 30px rgba(0, 0, 0, 0.35),
-          inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
       }
 
-      #stats p {
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+      }
+
+      .brand-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        box-shadow: 0 0 0 1px var(--border), var(--shadow);
+        animation: sunSpin 28s linear infinite;
+      }
+
+      @keyframes sunSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .brand-title {
         margin: 0;
-        font-size: 0.95rem;
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: 0.3px;
+        background: linear-gradient(90deg, var(--accent-bright), var(--accent), var(--accent-bright));
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: shimmer 6s ease-in-out infinite;
+      }
+
+      @keyframes shimmer {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+      }
+
+      .brand-sub {
+        margin: 0.1rem 0 0;
+        font-size: 0.8rem;
+        color: var(--muted);
+        letter-spacing: 0.4px;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+
+      .icon-btn {
+        height: 40px;
+        padding: 0 0.85rem;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        transition: all 0.15s ease;
+        box-shadow: var(--shadow);
+        user-select: none;
+      }
+
+      .icon-btn:hover {
+        transform: translateY(-1px);
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow);
+      }
+
+      .streak-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--accent-soft);
+        border: 1px solid rgba(255, 183, 3, 0.4);
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 0.88rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: transform 0.15s ease;
+      }
+      .streak-pill:hover {
+        transform: scale(1.04);
+      }
+
+      .trans-select {
+        height: 40px;
+        padding: 0 2rem 0 0.85rem;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--card-solid);
+        color: var(--text);
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        box-shadow: var(--shadow);
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.7rem center;
+      }
+
+      /* ---- Layout ---- */
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 1.25rem;
+        align-items: start;
+      }
+
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      /* ---- Mode Banner ---- */
+      .mode-banner {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.65rem 1.25rem;
+        background: var(--accent-soft);
+        border-bottom: 1px solid var(--border);
+        border-top-left-radius: var(--radius);
+        border-top-right-radius: var(--radius);
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .mode-banner.active {
+        display: flex;
+      }
+      .mode-banner-back {
+        background: var(--card-solid);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .mode-banner-back:hover {
+        border-color: var(--accent);
+      }
+
+      /* ---- Verse Card ---- */
+      .verse-card {
+        padding: 1.5rem 1.75rem 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+        min-height: 200px;
+        position: relative;
+      }
+
+      .verse-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .meta-left {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+
+      .verse-ref-btn {
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid rgba(255, 183, 3, 0.35);
+        border-radius: 999px;
+        padding: 0.35rem 0.9rem;
+        letter-spacing: 0.3px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.15s ease;
+      }
+      .verse-ref-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+
+      .fav-btn {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        font-size: 1.25rem;
+        line-height: 1;
+        padding: 0.2rem;
+        color: var(--muted);
+        transition: transform 0.15s ease, color 0.15s ease;
+      }
+      .fav-btn:hover {
+        transform: scale(1.2);
+        color: var(--accent);
+      }
+      .fav-btn.is-fav {
+        color: #eab308;
+      }
+
+      .meta-nav {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .nav-arrow {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--card-solid);
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 700;
+        transition: all 0.15s ease;
+      }
+      .nav-arrow:hover:not(:disabled) {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .nav-arrow:disabled,
+      .nav-arrow.disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        border-color: var(--border);
         color: var(--muted);
       }
 
-      #progress-container {
-        margin: 1.25rem 0;
-        background-color: #1f2430;
-        border-radius: 999px;
-        overflow: hidden;
-        height: 18px;
-        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
-      }
-      progress::-webkit-progress-bar {
-        background: #1f2430;
+      .verse-count {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        padding: 0 0.3rem;
       }
 
-      progress::-webkit-progress-value {
-        background: linear-gradient(90deg, #ffb703, #ff8800, #ffd166);
-        box-shadow: 0 0 10px rgba(255, 183, 3, 0.6);
+      /* ---- Character-by-character typing reader ---- */
+      .typing-stage {
+        position: relative;
+        cursor: text;
+        border-radius: 12px;
+        padding: 0.75rem 0.5rem;
+        background: rgba(0, 0, 0, 0.02);
+        border: 1px dashed transparent;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .typing-stage:hover,
+      .typing-stage.focused {
+        border-color: var(--border-focus);
+      }
+      .typing-stage.is-complete {
+        border-color: var(--success);
+        box-shadow: 0 0 0 2px var(--success-soft);
       }
 
-      #progress {
-        height: 100%;
-        width: 0%;
-        background: linear-gradient(90deg, #ffb703, #ff8800, #ffd166);
-        border-radius: 999px;
-        transition: width 0.4s ease;
-        animation: pulse 2s infinite ease-in-out;
-        box-shadow:
-          0 0 12px rgba(255, 183, 3, 0.6),
-          inset 0 0 4px rgba(255, 255, 255, 0.3);
+      @keyframes shakeAnim {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-6px); }
+        40%, 80% { transform: translateX(6px); }
+      }
+      .shake {
+        animation: shakeAnim 0.35s ease-in-out;
       }
 
-      input,
-      select,
-      button {
-        font-family: inherit;
-        border-radius: var(--radius);
-        border: 1px solid var(--border);
-        padding: 0.6rem 0.75rem;
+      .verse-reader {
+        margin: 0;
+        font-family: "Charter", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: clamp(1.15rem, 1.05rem + 0.55vw, 1.45rem);
+        line-height: 1.75;
+        white-space: pre-wrap;
+        word-break: break-word;
+        user-select: none;
+      }
+
+      .char {
+        position: relative;
+        transition: color 0.1s ease, background 0.1s ease;
+      }
+      .char.correct {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .char.incorrect {
+        color: var(--danger);
+        background: var(--danger-soft);
+        text-decoration: underline wavy var(--danger);
+        border-radius: 2px;
+      }
+      .char.pending {
+        color: var(--muted);
+        opacity: 0.55;
+      }
+      .char.current::before {
+        content: "";
+        position: absolute;
+        left: -1px;
+        top: 15%;
+        bottom: 10%;
+        width: 2.5px;
+        background: var(--accent);
+        border-radius: 2px;
+        animation: caretBlink 1s infinite;
+      }
+
+      @keyframes caretBlink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+
+      .submit-prompt-bar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1.25rem;
+        background: linear-gradient(90deg, var(--success-soft), var(--card-solid));
+        border: 1.5px solid var(--success);
+        border-radius: 12px;
+        margin-top: 0.85rem;
+        animation: pulseGlow 2s infinite ease-in-out;
+        box-shadow: 0 4px 16px var(--success-soft);
+      }
+      .submit-prompt-bar.active {
+        display: flex;
+      }
+      @keyframes pulseGlow {
+        0%, 100% { box-shadow: 0 4px 16px var(--success-soft); }
+        50% { box-shadow: 0 8px 24px rgba(34, 197, 94, 0.35); }
+      }
+      .submit-prompt-content {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .submit-check-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--success);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
         font-size: 0.95rem;
-        transition: all 0.2s ease;
+      }
+      .submit-prompt-text {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .kbd-highlight {
+        background: var(--card-solid);
+        border: 1px solid var(--border);
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        font-weight: 700;
+        color: var(--accent);
+        box-shadow: 0 2px 0 var(--border);
+      }
+      .btn-submit-action {
+        background: var(--success);
+        color: #ffffff;
+        border: none;
+        border-radius: 10px;
+        padding: 0.55rem 1.25rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        transition: all 0.15s ease;
+        box-shadow: 0 4px 12px var(--success-soft);
+      }
+      .btn-submit-action:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.1);
+        box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35);
+      }
+      .btn-submit-action:active {
+        transform: translateY(1px);
+      }
+      .submit-key-hint {
+        opacity: 0.85;
+        font-size: 0.8rem;
       }
 
-      input,
-      select {
-        background: var(--bg-soft);
+      kbd {
+        background: var(--card-solid);
+        border: 1px solid var(--border);
+        padding: 0.15rem 0.4rem;
+        border-radius: 5px;
+        font-size: 0.78rem;
+        font-family: inherit;
+        box-shadow: 0 1px 0 var(--border);
+        color: var(--text);
+      }
+
+      #hiddenInput {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+        left: -9999px;
+        top: -9999px;
+      }
+
+      .typing-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .hint-text {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin: 0;
+      }
+
+      .btn-restart {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.2rem 0.5rem;
+        cursor: pointer;
+      }
+      .btn-restart:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      /* ---- Controls & Books ---- */
+      .controls {
+        padding: 1.25rem 1.75rem 1.5rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .book-controls-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .select-wrap {
+        position: relative;
+        flex: 1 1 220px;
+      }
+
+      select.primary-select {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 100%;
+        padding: 0.65rem 2.2rem 0.65rem 0.95rem;
+        background: var(--card-solid);
         color: var(--text);
         border: 1px solid var(--border);
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: var(--shadow);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.8rem center;
       }
-
-      input::placeholder {
-        color: var(--muted);
-      }
-
-      input:focus,
-      select:focus {
+      select.primary-select:focus {
         outline: none;
         border-color: var(--accent);
         box-shadow: 0 0 0 3px var(--accent-soft);
       }
 
-      button {
-        background: var(--accent);
-        color: #1f2937;
-        font-weight: 600;
+      .book-action-btn {
+        padding: 0.65rem 0.9rem;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--card-solid);
+        color: var(--text);
+        font-size: 0.82rem;
+        font-weight: 700;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.15s ease;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
       }
-
-      button:hover {
+      .book-action-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
         transform: translateY(-1px);
-        box-shadow: 0 6px 14px rgba(255, 183, 3, 0.35);
+      }
+      .book-action-btn.locked {
+        opacity: 0.6;
+        cursor: not-allowed;
       }
 
-      button:active {
-        transform: translateY(0);
-        box-shadow: none;
+      progress {
+        appearance: none;
+        -webkit-appearance: none;
+        border: none;
+        width: 100%;
+        height: 14px;
+        border-radius: 999px;
+        background: var(--border);
+        overflow: hidden;
+      }
+      progress::-webkit-progress-bar {
+        background: transparent;
+      }
+      progress::-webkit-progress-value {
+        background: linear-gradient(90deg, #ffb703, #ff8800, #ffd166);
+        border-radius: 999px;
+        box-shadow: 0 0 10px var(--glow);
+        transition: width 0.3s ease;
+      }
+      progress::-moz-progress-bar {
+        background: linear-gradient(90deg, #ffb703, #ff8800, #ffd166);
+        border-radius: 999px;
       }
 
-      /* Animations */
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(6px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+      /* ---- Sidebar ---- */
+      .side-panel {
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        position: sticky;
+        top: 1.25rem;
       }
 
-      @keyframes slideUp {
-        from {
-          opacity: 0;
-          transform: translateY(12px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+      .side-title {
+        margin: 0;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--muted);
       }
 
-      @keyframes pulse {
-        0% {
-          filter: brightness(1);
+      .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+      }
+
+      .stat {
+        background: var(--card-solid);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.85rem 0.6rem;
+        text-align: center;
+        transition: transform 0.15s ease, border-color 0.15s ease;
+      }
+      .stat:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+      }
+
+      .stat b {
+        display: block;
+        font-size: 1.45rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: var(--text);
+        line-height: 1.1;
+      }
+      .stat.accent b {
+        color: var(--accent);
+      }
+
+      .stat label {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .book-insight-card {
+        background: var(--card-solid);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.85rem;
+        font-size: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+      .book-insight-title {
+        font-weight: 700;
+        color: var(--accent);
+        font-size: 0.85rem;
+        margin: 0;
+      }
+      .book-insight-row {
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+      }
+      .book-insight-row span:last-child {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .log {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        max-height: 240px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+      }
+      .log p {
+        margin: 0;
+        padding: 0.45rem 0.7rem;
+        border-radius: 9px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        animation: slideUp 0.25s ease-out;
+      }
+      .log .correct {
+        background: var(--success-soft);
+        color: var(--success);
+      }
+      .log .wrong {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+      .log .complete {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .log .badge-notice {
+        background: linear-gradient(90deg, var(--accent-soft), var(--card-solid));
+        border: 1px solid var(--accent);
+        color: var(--accent);
+      }
+
+      /* ---- Modals / Drawers ---- */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(4px);
+        display: none;
+        place-items: center;
+        z-index: 1000;
+        padding: 1rem;
+        animation: fadeIn 0.2s ease-out;
+      }
+      .modal-backdrop.open {
+        display: grid;
+      }
+
+      .modal-window {
+        background: var(--card-solid);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        width: 100%;
+        max-width: 620px;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        animation: modalScale 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes modalScale {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.1rem 1.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .modal-title {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .modal-close {
+        background: transparent;
+        border: none;
+        font-size: 1.3rem;
+        cursor: pointer;
+        color: var(--muted);
+        line-height: 1;
+        padding: 0.2rem;
+      }
+      .modal-close:hover {
+        color: var(--text);
+      }
+
+      .modal-body {
+        padding: 1.25rem 1.4rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .modal-footer {
+        padding: 1rem 1.4rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        background: var(--bg-soft);
+      }
+
+      /* Badges Grid */
+      .badges-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 0.75rem;
+      }
+      .badge-card {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.85rem 0.5rem;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .badge-card.unlocked {
+        border-color: var(--accent);
+        background: var(--card-solid);
+        box-shadow: 0 4px 12px var(--accent-soft);
+      }
+      .badge-card.locked {
+        opacity: 0.45;
+        filter: grayscale(1);
+      }
+      .badge-icon {
+        font-size: 1.8rem;
+        line-height: 1;
+      }
+      .badge-name {
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin: 0;
+        color: var(--text);
+      }
+      .badge-desc {
+        font-size: 0.68rem;
+        color: var(--muted);
+        margin: 0;
+        line-height: 1.2;
+      }
+
+      /* Favorites List */
+      .fav-item {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.85rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .fav-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .fav-ref {
+        font-weight: 700;
+        color: var(--accent);
+        font-size: 0.88rem;
+      }
+      .fav-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .fav-text {
+        margin: 0;
+        font-family: Georgia, serif;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: var(--text-sub);
+      }
+
+      /* Chapter / Verse Picker Grid */
+      .picker-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+        gap: 0.45rem;
+        max-height: 280px;
+        overflow-y: auto;
+      }
+      .picker-btn {
+        height: 38px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--card-solid);
+        color: var(--text);
+        font-weight: 700;
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: all 0.1s ease;
+      }
+      .picker-btn:hover:not(:disabled),
+      .picker-btn.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .picker-btn:disabled,
+      .picker-btn.locked {
+        opacity: 0.45;
+        background: var(--bg-soft);
+        border-color: var(--border);
+        color: var(--muted);
+        cursor: not-allowed;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+      }
+      .picker-btn:disabled:hover,
+      .picker-btn.locked:hover {
+        background: var(--bg-soft);
+        color: var(--muted);
+        border-color: var(--border);
+        transform: none;
+      }
+      .picker-lock {
+        font-size: 0.65rem;
+        opacity: 0.75;
+      }
+
+      /* Celebration Confetti Overlay */
+      #confettiCanvas {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 9999;
+      }
+
+      /* Toast Notification */
+      .toast {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background: var(--card-solid);
+        border: 1px solid var(--accent);
+        border-radius: 12px;
+        padding: 0.85rem 1.25rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        z-index: 10000;
+        animation: slideUp 0.3s ease-out;
+      }
+      .toast-icon { font-size: 1.5rem; }
+      .toast-title { font-weight: 800; font-size: 0.88rem; margin: 0; color: var(--accent); }
+      .toast-desc { font-size: 0.78rem; margin: 0; color: var(--muted); }
+
+      /* ---- Responsive ---- */
+      @media (max-width: 860px) {
+        .layout {
+          grid-template-columns: 1fr;
         }
-        50% {
-          filter: brightness(1.15);
+        .side-panel {
+          position: static;
         }
-        100% {
-          filter: brightness(1);
+        .log {
+          max-height: 180px;
         }
       }
     </style>
   </head>
-  <body>
-    <button id="themeToggle">*</button>
-    <h1>Praise the Sun! * \\[T]//</h1>
+  <body data-category="law">
+    <canvas id="confettiCanvas"></canvas>
 
-    <div id="verse">Connecting...</div>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <img class="brand-logo" src="./logo.svg" alt="" />
+          <div>
+            <h1 class="brand-title">Praise the Sun!</h1>
+            <p class="brand-sub">Bible Typing Trainer &middot; \\[T]//</p>
+          </div>
+        </div>
 
-    <div id="input-container">
-      <input id="input" type="text" placeholder="Type here..." autofocus />
+        <div class="top-actions">
+          <!-- Translation Selector (7 Translations) -->
+          <select id="transSelect" class="trans-select" title="Bible Translation">
+            <option value="kjv">KJV</option>
+            <option value="esv">ESV</option>
+            <option value="niv">NIV</option>
+            <option value="nlt">NLT</option>
+            <option value="hcsb">HCSB</option>
+            <option value="asv">ASV</option>
+            <option value="bbe">BBE</option>
+          </select>
+
+          <!-- Daily Streak Pill -->
+          <div id="streakPill" class="streak-pill" title="Daily typing streak">
+            <span>🔥</span>
+            <span id="streakCount">0</span>
+            <span style="font-size: 0.75rem; font-weight: 600;">days</span>
+          </div>
+
+          <!-- Favorites Drawer Button -->
+          <button id="btnOpenFavorites" class="icon-btn" title="View Favorited Passages">
+            <span>⭐</span>
+            <span id="favCount">0</span>
+          </button>
+
+          <!-- Rewards / Badges Button -->
+          <button id="btnOpenBadges" class="icon-btn" title="Trophy Room & Badges">
+            <span>🏆</span>
+            <span id="badgeCount">0</span>
+          </button>
+
+          <!-- Sound Effects Toggle -->
+          <button id="soundToggle" class="icon-btn" title="Toggle Typing Sounds">
+            <span id="soundIcon">🔊</span>
+          </button>
+
+          <!-- Dark / Light Theme Toggle -->
+          <button id="themeToggle" class="icon-btn" title="Toggle Theme">🌙</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <!-- Main Typing Panel -->
+        <section class="panel">
+          <!-- Mode Banner (active during mandatory intro, review, or favorite) -->
+          <div id="modeBanner" class="mode-banner">
+            <span id="modeBannerText">📖 Mandatory Step 1: Type the Book Introduction to unlock Chapter 1</span>
+            <button id="btnExitMode" class="mode-banner-back">← Back to Scripture</button>
+          </div>
+
+          <div id="verse" class="verse-card">
+            <div class="verse-meta">
+              <div class="meta-left">
+                <button id="verseRefBtn" class="verse-ref-btn" title="Click to Jump to Chapter/Verse">
+                  <span id="verseRef">Connecting&hellip;</span>
+                  <span style="font-size: 0.75rem; opacity: 0.8;">▾</span>
+                </button>
+                <button id="favToggleBtn" class="fav-btn" title="Favorite this verse">☆</button>
+              </div>
+
+              <div class="meta-nav">
+                <button id="btnPrevVerse" class="nav-arrow" title="Previous verse (Alt+Left)">◀</button>
+                <span id="verseCount" class="verse-count"></span>
+                <button id="btnNextVerse" class="nav-arrow" title="Next verse (Alt+Right)">▶</button>
+              </div>
+            </div>
+
+            <!-- Interactive Character-by-Character Reader -->
+            <div id="typingStage" class="typing-stage" tabindex="0">
+              <p id="verseReader" class="verse-reader"></p>
+              <input id="hiddenInput" type="text" autocomplete="off" spellcheck="false" />
+            </div>
+
+            <!-- Submit Prompt Bar (shown when passage is complete) -->
+            <div id="submitPromptBar" class="submit-prompt-bar">
+              <div class="submit-prompt-content">
+                <span class="submit-check-icon">✓</span>
+                <span class="submit-prompt-text">Passage complete! Press <kbd class="kbd-highlight">Enter ↵</kbd> to submit</span>
+              </div>
+              <button id="btnSubmitPassage" class="btn-submit-action">Submit <span class="submit-key-hint">↵</span></button>
+            </div>
+
+            <div class="typing-footer">
+              <p id="typingHint" class="hint-text">
+                Type directly on the verse above. <kbd>Backspace</kbd> to fix mistakes &middot; <kbd>Enter</kbd> to submit.
+              </p>
+              <button id="btnRestartVerse" class="btn-restart">↺ Restart</button>
+            </div>
+          </div>
+
+          <div class="controls">
+            <div class="book-controls-row">
+              <div class="select-wrap">
+                <select id="bookSelect" class="primary-select"></select>
+              </div>
+              <button id="btnBookIntro" class="book-action-btn" title="View & Read Book Introduction anytime">
+                <span>📖</span> Intro
+              </button>
+              <button id="btnBookReview" class="book-action-btn" title="Book Review (Locked until all verses completed)">
+                <span id="reviewLockIcon">🔒</span> Review
+              </button>
+            </div>
+
+            <progress id="progress" value="0" max="100"></progress>
+          </div>
+        </section>
+
+        <!-- Sidebar Panel -->
+        <aside class="panel side-panel">
+          <h2 class="side-title">Live Session</h2>
+          <div class="stats-grid">
+            <div class="stat accent"><b id="wpm">0</b><label>WPM</label></div>
+            <div class="stat"><b id="accuracy">100%</b><label>Accuracy</label></div>
+            <div class="stat"><b id="chars">0</b><label>Chars</label></div>
+            <div class="stat"><b id="mistakes">0</b><label>Mistakes</label></div>
+          </div>
+
+          <!-- Book Insight Quick Card -->
+          <div id="bookInsightCard" class="book-insight-card">
+            <p id="insightBookName" class="book-insight-title">Genesis</p>
+            <div class="book-insight-row">
+              <span>Category</span>
+              <span id="insightCategory">Law / Pentateuch</span>
+            </div>
+            <div class="book-insight-row">
+              <span>Author</span>
+              <span id="insightAuthor">Moses</span>
+            </div>
+            <div class="book-insight-row">
+              <span>Period</span>
+              <span id="insightTime">c. 1440 BC</span>
+            </div>
+          </div>
+
+          <h2 class="side-title">Devotional Log</h2>
+          <div id="messages" class="log"></div>
+        </aside>
+      </main>
     </div>
 
-    <div id="stats">
-      <p>WPM: <span id="wpm">0</span></p>
-      <p>Chars typed: <span id="chars">0</span></p>
-      <p>Mistakes: <span id="mistakes">0</span></p>
+    <!-- Modal 1: Chapter / Verse Jump Picker -->
+    <div id="jumpModal" class="modal-backdrop">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h3 class="modal-title"><span>📖</span> Jump to Verse</h3>
+          <button class="modal-close" data-close="jumpModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Select a verse in <b id="jumpBookName">Genesis</b>:</p>
+          <div id="jumpVerseGrid" class="picker-grid"></div>
+        </div>
+      </div>
     </div>
 
-    <div id="progress-container">
-      <progress id="progress" value="0" max="100"></progress>
+    <!-- Modal 2: Book Introduction (View anytime) -->
+    <div id="introModal" class="modal-backdrop">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h3 class="modal-title"><span>📖</span> <span id="introModalTitle">Genesis: Book Overview</span></h3>
+          <button class="modal-close" data-close="introModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.8rem;">
+            <span id="introAuthorBadge" class="verse-ref-btn"></span>
+            <span id="introTimeBadge" class="verse-ref-btn"></span>
+          </div>
+          <p id="introThemeText" style="font-weight: 700; color: var(--accent); margin: 0;"></p>
+          <p id="introKeyVerseText" style="font-style: italic; color: var(--text-sub); margin: 0; font-family: Georgia, serif;"></p>
+          <hr style="border: none; border-top: 1px solid var(--border); margin: 0.5rem 0;" />
+          <p id="introBodyText" style="line-height: 1.6; margin: 0; font-size: 0.95rem;"></p>
+        </div>
+        <div class="modal-footer">
+          <button class="icon-btn" data-close="introModal">Close</button>
+          <button id="btnTypeIntroNow" class="icon-btn" style="background: var(--accent); color: #fff; border-color: var(--accent);">
+            ✍️ Type Intro
+          </button>
+        </div>
+      </div>
     </div>
 
-    <select id="bookSelect"></select>
+    <!-- Modal 3: Book Review / Reflection (Unlocked on completion) -->
+    <div id="reviewModal" class="modal-backdrop">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h3 class="modal-title"><span>📜</span> <span id="reviewModalTitle">Genesis: Reflection & Review</span></h3>
+          <button class="modal-close" data-close="reviewModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="reviewLockedWarning" style="display: none; background: var(--danger-soft); color: var(--danger); padding: 0.75rem 1rem; border-radius: 10px; font-weight: 700; font-size: 0.88rem;">
+            🔒 Locked! Complete all verses of this book to unlock the reflection and review.
+          </div>
+          <div id="reviewContentWrap">
+            <p style="font-weight: 700; color: var(--accent); margin: 0;">Theological Significance & Takeaways</p>
+            <p id="reviewBodyText" style="line-height: 1.6; margin: 0; font-size: 0.95rem;"></p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="icon-btn" data-close="reviewModal">Close</button>
+          <button id="btnTypeReviewNow" class="icon-btn" style="background: var(--accent); color: #fff; border-color: var(--accent);">
+            🎓 Type Book Review
+          </button>
+        </div>
+      </div>
+    </div>
 
-    <div id="messages"></div>
+    <!-- Modal 4: Favorites Drawer -->
+    <div id="favModal" class="modal-backdrop">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h3 class="modal-title"><span>⭐</span> Favorited Passages</h3>
+          <button class="modal-close" data-close="favModal">&times;</button>
+        </div>
+        <div class="modal-body" id="favListContainer">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 5: Trophy Room / Badges Showcase -->
+    <div id="badgesModal" class="modal-backdrop">
+      <div class="modal-window" style="max-width: 680px;">
+        <div class="modal-header">
+          <h3 class="modal-title"><span>🏆</span> Trophy Room & Rewards</h3>
+          <button class="modal-close" data-close="badgesModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">
+            Earn trophies by completing books, keeping daily streaks, and typing required intros & reviews!
+          </p>
+          <div id="badgesContainer" class="badges-grid">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script>
-      let currentVerseText = "";
-      let currentVerse = null;
-      let bookProgress = {};
-      let uid = localStorage.getItem("uid");
-      if (!uid) {
-        uid = Date.now().toString(36) + Math.random().toString(36).slice(2);
-        localStorage.setItem("uid", uid);
-      }
+      // ---- State ----
+      let ws = null;
+      let uid = (() => {
+        let id = localStorage.getItem("uid");
+        if (!id) {
+          id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+          localStorage.setItem("uid", id);
+        }
+        return id;
+      })();
 
-      const ws = new WebSocket(
-        `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?uid=${uid}`,
-      );
-      const verseEl = document.getElementById("verse");
-      const inputEl = document.getElementById("input");
-      const messagesEl = document.getElementById("messages");
+      let currentTrans = localStorage.getItem("translation") || "kjv";
+      let selectedBook = null;
+      let bookProgress = {};
+      let allBooks = [];
+      let totalVersesInBook = 1;
+      let currentVerseNum = 1;
+      let isReviewLocked = true;
+      let isIntroMandatory = false;
+
+      // Current active target text to type & typed state
+      let currentTargetText = "";
+      let currentTyped = "";
+      let currentMode = "verse"; // "verse", "intro", "review", "favorite"
+      let currentGuide = null;
+      let currentVerseObj = null;
+
+      // Accurate active typing WPM measurement
+      let typingStartTime = null;
+      let lastKeystrokeTime = null;
+      let accumulatedTypingMs = 0;
+      let liveWPM = 0;
+
+      let userFavorites = [];
+      let userBadges = [];
+      let userStreak = null;
+
+      let reconnectDelay = 1000;
+      let reconnectTimer = null;
+
+      // Sound settings
+      let soundEnabled = localStorage.getItem("soundEnabled") !== "false";
+
+      // ---- DOM Elements ----
+      const transSelect = document.getElementById("transSelect");
+      const streakPill = document.getElementById("streakPill");
+      const streakCountEl = document.getElementById("streakCount");
+      const favCountEl = document.getElementById("favCount");
+      const badgeCountEl = document.getElementById("badgeCount");
+      const soundToggle = document.getElementById("soundToggle");
+      const soundIcon = document.getElementById("soundIcon");
+      const themeToggle = document.getElementById("themeToggle");
+
+      const modeBanner = document.getElementById("modeBanner");
+      const modeBannerText = document.getElementById("modeBannerText");
+      const btnExitMode = document.getElementById("btnExitMode");
+
+      const verseRefBtn = document.getElementById("verseRefBtn");
+      const verseRefEl = document.getElementById("verseRef");
+      const favToggleBtn = document.getElementById("favToggleBtn");
+      const verseCountEl = document.getElementById("verseCount");
+      const btnPrevVerse = document.getElementById("btnPrevVerse");
+      const btnNextVerse = document.getElementById("btnNextVerse");
+
+      const typingStage = document.getElementById("typingStage");
+      const verseReader = document.getElementById("verseReader");
+      const hiddenInput = document.getElementById("hiddenInput");
+      const typingHint = document.getElementById("typingHint");
+      const btnRestartVerse = document.getElementById("btnRestartVerse");
+      const submitPromptBar = document.getElementById("submitPromptBar");
+      const btnSubmitPassage = document.getElementById("btnSubmitPassage");
+
+      const bookSelect = document.getElementById("bookSelect");
+      const btnBookIntro = document.getElementById("btnBookIntro");
+      const btnBookReview = document.getElementById("btnBookReview");
+      const reviewLockIcon = document.getElementById("reviewLockIcon");
       const progressEl = document.getElementById("progress");
+
       const wpmEl = document.getElementById("wpm");
+      const accuracyEl = document.getElementById("accuracy");
       const charsEl = document.getElementById("chars");
       const mistakesEl = document.getElementById("mistakes");
-      const bookSelect = document.getElementById("bookSelect");
-      const toggle = document.getElementById("themeToggle");
-      toggle.onclick = () => {
-        document.documentElement.classList.toggle("dark");
+      const messagesEl = document.getElementById("messages");
+
+      // Sidebar Book Insight
+      const insightBookName = document.getElementById("insightBookName");
+      const insightCategory = document.getElementById("insightCategory");
+      const insightAuthor = document.getElementById("insightAuthor");
+      const insightTime = document.getElementById("insightTime");
+
+      // Modals
+      const jumpModal = document.getElementById("jumpModal");
+      const introModal = document.getElementById("introModal");
+      const reviewModal = document.getElementById("reviewModal");
+      const favModal = document.getElementById("favModal");
+      const badgesModal = document.getElementById("badgesModal");
+
+      // ---- Dynamic Atmospheric Background Theme by Biblical Category ----
+      function applyBookAtmosphere(category) {
+        if (!category) return;
+        const catLower = category.toLowerCase();
+        let catKey = "law";
+        if (catLower.includes("law") || catLower.includes("pentateuch")) {
+          catKey = "law";
+        } else if (catLower.includes("historic")) {
+          catKey = "history";
+        } else if (catLower.includes("wisdom") || catLower.includes("poet")) {
+          catKey = "wisdom";
+        } else if (catLower.includes("prophet")) {
+          catKey = "prophets";
+        } else if (catLower.includes("gospel") || catLower.includes("church history")) {
+          catKey = "gospels";
+        } else if (catLower.includes("epistle")) {
+          catKey = "epistles";
+        } else if (catLower.includes("apocalypse") || catLower.includes("revelation")) {
+          catKey = "revelation";
+        }
+        document.body.setAttribute("data-category", catKey);
+      }
+
+      // ---- Audio Synthesizer (Web Audio API) ----
+      let audioCtx = null;
+      function playTone(freq, duration, type = "sine", gainVal = 0.05) {
+        if (!soundEnabled) return;
+        try {
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (audioCtx.state === "suspended") {
+            audioCtx.resume();
+          }
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+          gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + duration);
+        } catch (_) {}
+      }
+
+      function playKeyClick() {
+        playTone(850 + Math.random() * 220, 0.035, "triangle", 0.03);
+      }
+
+      function playMistakeSound() {
+        playTone(180, 0.08, "sawtooth", 0.05);
+      }
+
+      function playVictoryChime() {
+        if (!soundEnabled) return;
+        setTimeout(() => playTone(523.25, 0.25, "sine", 0.08), 0);
+        setTimeout(() => playTone(659.25, 0.3, "sine", 0.08), 80);
+        setTimeout(() => playTone(783.99, 0.45, "sine", 0.09), 160);
+      }
+
+      // ---- Theme Management ----
+      function applyTheme() {
+        let savedTheme = localStorage.getItem("theme");
+        if (!savedTheme) {
+          savedTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", savedTheme);
+        document.documentElement.classList.toggle("dark", savedTheme === "dark");
+        themeToggle.textContent = savedTheme === "dark" ? "☀️" : "🌙";
+        themeToggle.title = savedTheme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode";
+      }
+
+      themeToggle.onclick = () => {
+        const current = document.documentElement.getAttribute("data-theme") || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        const nextTheme = current === "dark" ? "light" : "dark";
+        localStorage.setItem("theme", nextTheme);
+        applyTheme();
+      };
+      applyTheme();
+
+      // ---- Sound Toggle ----
+      function updateSoundUI() {
+        soundIcon.textContent = soundEnabled ? "🔊" : "🔇";
+      }
+      soundToggle.onclick = () => {
+        soundEnabled = !soundEnabled;
+        localStorage.setItem("soundEnabled", soundEnabled);
+        updateSoundUI();
+      };
+      updateSoundUI();
+
+      // ---- Modals Helper ----
+      function openModal(modal) {
+        modal.classList.add("open");
+      }
+      function closeModal(modal) {
+        modal.classList.remove("open");
+        focusTyping();
+      }
+      document.querySelectorAll("[data-close]").forEach((btn) => {
+        btn.onclick = () => {
+          const mId = btn.getAttribute("data-close");
+          closeModal(document.getElementById(mId));
+        };
+      });
+      window.onclick = (e) => {
+        if (e.target.classList.contains("modal-backdrop")) {
+          closeModal(e.target);
+        }
       };
 
-      ws.onopen = () => {
-        verseEl.textContent = "Connected! Waiting for first verse...";
-      };
+      // ---- Accurate Active WPM Timer ----
+      function resetVerseTypingTimer() {
+        typingStartTime = null;
+        lastKeystrokeTime = null;
+        accumulatedTypingMs = 0;
+        liveWPM = 0;
+      }
 
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
+      function recordKeystrokeForWPM() {
+        const now = Date.now();
+        if (!typingStartTime) {
+          typingStartTime = now;
+          lastKeystrokeTime = now;
+        } else {
+          const gap = now - lastKeystrokeTime;
+          // Count active duration if gap is under 2.5 seconds (idle pauses are not penalized)
+          if (gap < 2500) {
+            accumulatedTypingMs += gap;
+          }
+          lastKeystrokeTime = now;
+        }
 
-        if (msg.type === "books") {
-          bookSelect.innerHTML = "";
-          bookProgress = msg.progress || {};
-          msg.books.forEach((b) => {
-            const opt = document.createElement("option");
-            opt.value = b;
+        const totalActiveMs = Math.max(accumulatedTypingMs, 1000);
+        const activeMinutes = totalActiveMs / 60000;
+        const words = currentTyped.length / 5.0;
+        liveWPM = Math.round(words / activeMinutes);
+        if (liveWPM > 0 && liveWPM < 300) {
+          wpmEl.textContent = liveWPM;
+        }
+      }
 
-            const progress = bookProgress[b];
-            if (progress) {
-              opt.textContent = `${b} (${progress.currentVerse}/${progress.totalVerses})`;
+      let hintTimer = null;
+      function showTempHint(html) {
+        if (hintTimer) clearTimeout(hintTimer);
+        typingHint.innerHTML = html;
+        hintTimer = setTimeout(() => {
+          if (currentTyped === currentTargetText && currentTargetText) {
+            typingHint.innerHTML = "<strong>✓ Passage Complete!</strong> Press <kbd class=\"kbd-highlight\">Enter ↵</kbd> or click Submit to advance.";
+          } else {
+            typingHint.innerHTML = "Type directly on the verse above. <kbd>Backspace</kbd> to fix mistakes &middot; <kbd>Enter</kbd> to submit.";
+          }
+        }, 3200);
+      }
+
+      // ---- Rendering the Typable Verse with Character-Level Feedback ----
+      function renderTypingStage() {
+        if (!currentTargetText) {
+          verseReader.textContent = "";
+          submitPromptBar.classList.remove("active");
+          typingStage.classList.remove("is-complete");
+          return;
+        }
+
+        const frag = document.createDocumentFragment();
+        const targetLen = currentTargetText.length;
+        const typedLen = currentTyped.length;
+
+        for (let i = 0; i < targetLen; i++) {
+          const span = document.createElement("span");
+          span.textContent = currentTargetText[i];
+          span.className = "char";
+
+          if (i < typedLen) {
+            if (currentTyped[i] === currentTargetText[i]) {
+              span.classList.add("correct");
             } else {
-              opt.textContent = `${b} (0/?)`;
+              span.classList.add("incorrect");
             }
-            bookSelect.appendChild(opt);
-          });
-          if (msg.books.length > 0) {
-            bookSelect.value = msg.books[0];
-            ws.send(
-              JSON.stringify({
-                type: "select_book",
-                content: bookSelect.value,
-              }),
-            );
+          } else if (i === typedLen) {
+            span.classList.add("current");
+          } else {
+            span.classList.add("pending");
+          }
+          frag.appendChild(span);
+        }
+
+        verseReader.innerHTML = "";
+        verseReader.appendChild(frag);
+
+        const isMatched = (typedLen === targetLen && currentTyped === currentTargetText);
+        if (isMatched) {
+          submitPromptBar.classList.add("active");
+          typingStage.classList.add("is-complete");
+          typingHint.innerHTML = "<strong>✓ Passage Complete!</strong> Press <kbd class=\"kbd-highlight\">Enter ↵</kbd> or click Submit to advance.";
+        } else {
+          submitPromptBar.classList.remove("active");
+          typingStage.classList.remove("is-complete");
+        }
+      }
+
+      function focusTyping() {
+        hiddenInput.focus();
+        typingStage.classList.add("focused");
+      }
+
+      typingStage.onclick = focusTyping;
+      hiddenInput.onfocus = () => typingStage.classList.add("focused");
+      hiddenInput.onblur = () => typingStage.classList.remove("focused");
+
+      function handleEnterKey() {
+        if (!currentTargetText) return;
+
+        // Passage must match completely before submitting
+        if (currentTyped === currentTargetText) {
+          submitTyping();
+          return;
+        }
+
+        // Shake and show hint on incomplete or erroneous submit attempts
+        typingStage.classList.add("shake");
+        setTimeout(() => typingStage.classList.remove("shake"), 400);
+        playMistakeSound();
+
+        if (currentTyped.length < currentTargetText.length) {
+          showTempHint("⚠️ Incomplete passage: finish typing all words before pressing Enter.");
+        } else {
+          showTempHint("⚠️ Typos detected: press <kbd>Backspace</kbd> to fix mistakes, then press Enter.");
+        }
+      }
+
+      // Character input handling
+      hiddenInput.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace") {
+          e.preventDefault();
+          if (currentTyped.length > 0) {
+            currentTyped = currentTyped.slice(0, -1);
+            hiddenInput.value = currentTyped;
+            renderTypingStage();
+            recordKeystrokeForWPM();
+            playKeyClick();
+          }
+          return;
+        }
+
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleEnterKey();
+          return;
+        }
+
+        // Single printable character
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          if (currentTyped.length < currentTargetText.length) {
+            const nextIdx = currentTyped.length;
+            const expectedChar = currentTargetText[nextIdx];
+            const typedChar = e.key;
+
+            currentTyped += typedChar;
+            hiddenInput.value = currentTyped;
+            renderTypingStage();
+            recordKeystrokeForWPM();
+
+            if (typedChar === expectedChar) {
+              playKeyClick();
+            } else {
+              playMistakeSound();
+            }
+
+            // DO NOT AUTO ADVANCE! User must explicitly submit with Enter!
           }
         }
+      });
 
-        if (msg.type === "progressUpdate") {
-          const book = msg.book;
-          const progress = msg.progress;
-          if (!book || !progress) return;
-          for (const opt of bookSelect.options) {
-            if (opt.value === book) {
-              opt.textContent = `${book} (${progress.currentVerse}/${progress.totalVerses})`;
-              break;
+      function submitTyping() {
+        if (!currentTyped || currentTyped !== currentTargetText) return;
+        const totalDurationSec = Math.max(accumulatedTypingMs / 1000, 0.5);
+        ws.send(JSON.stringify({
+          type: "content",
+          content: currentTyped,
+          wpm: liveWPM,
+          duration: totalDurationSec
+        }));
+      }
+
+      btnSubmitPassage.onclick = () => {
+        handleEnterKey();
+      };
+
+      btnRestartVerse.onclick = () => {
+        currentTyped = "";
+        hiddenInput.value = "";
+        resetVerseTypingTimer();
+        renderTypingStage();
+        focusTyping();
+      };
+
+      // ---- WebSocket Connection ----
+      function connect() {
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        ws = new WebSocket(`${protocol}://${location.host}/ws?uid=${uid}&trans=${currentTrans}`);
+
+        ws.onopen = () => {
+          resetReconnectDelay();
+          verseRefEl.textContent = "Loading...";
+        };
+
+        ws.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+
+          if (msg.type === "translations") {
+            transSelect.innerHTML = "";
+            msg.translations.forEach((t) => {
+              const opt = document.createElement("option");
+              opt.value = t.id;
+              opt.textContent = `${t.shortname} - ${t.name}`;
+              transSelect.appendChild(opt);
+            });
+            transSelect.value = msg.translation;
+            currentTrans = msg.translation;
+          }
+
+          if (msg.type === "books") {
+            allBooks = msg.books || [];
+            bookProgress = msg.progress || {};
+            bookSelect.innerHTML = "";
+            allBooks.forEach((b) => {
+              const opt = document.createElement("option");
+              opt.value = b;
+              const p = bookProgress[b];
+              const done = p && p.reviewCompleted;
+              opt.textContent = `${b} (${done ? "done" : p ? `${p.currentVerse}/${p.totalVerses}` : "0/?"})`;
+              bookSelect.appendChild(opt);
+            });
+
+            if (!selectedBook || !allBooks.includes(selectedBook)) {
+              selectedBook = allBooks[0];
+            }
+            bookSelect.value = selectedBook;
+            ws.send(JSON.stringify({ type: "select_book", content: selectedBook }));
+            updateNavigationState();
+          }
+
+          if (msg.type === "progressUpdate") {
+            const b = msg.book;
+            const p = msg.progress;
+            if (b && p) {
+              bookProgress[b] = p;
+              for (const opt of bookSelect.options) {
+                if (opt.value === b) {
+                  opt.textContent = `${b} (${p.reviewCompleted ? "done" : `${p.currentVerse}/${p.totalVerses}`})`;
+                  break;
+                }
+              }
+              // Update review lock icon
+              updateReviewLockUI(p.currentVerse < p.totalVerses);
+              updateNavigationState();
             }
           }
-        }
 
-        if (msg.type === "verse") {
-          currentVerseText = msg.content;
-          verseEl.textContent = `${msg.verse.book_name} ${msg.verse.chapter}:${msg.verse.verse} (${msg.number}/${msg.total})\n\n${msg.content}`;
-          inputEl.value = "";
-          inputEl.style.backgroundColor = "";
-        }
+          if (msg.type === "verse") {
+            setTypingMode("verse");
+            currentTargetText = msg.content;
+            currentTyped = "";
+            hiddenInput.value = "";
+            resetVerseTypingTimer();
+            currentVerseObj = msg.verse;
+            currentVerseNum = msg.number;
+            totalVersesInBook = msg.total;
 
-        if (msg.type === "stats" && msg.stats) {
-          wpmEl.textContent = msg.stats.wpm;
-          charsEl.textContent = msg.stats.charsTyped;
-          mistakesEl.textContent = msg.stats.mistakes;
-          progressEl.max = msg.stats.totalVerses;
-          progressEl.value = msg.stats.currentVerse;
-        }
+            verseRefEl.textContent = `${msg.verse.book_name} ${msg.verse.chapter}:${msg.verse.verse}`;
+            verseCountEl.textContent = `${msg.number} / ${msg.total}`;
+            favToggleBtn.textContent = msg.is_favorite ? "★" : "☆";
+            favToggleBtn.classList.toggle("is-fav", !!msg.is_favorite);
+            typingHint.innerHTML = "Type directly on the verse above. <kbd>Backspace</kbd> to fix mistakes &middot; <kbd>Enter</kbd> to submit.";
 
-        if (msg.type === "correct") {
-          appendMessage("✓ " + msg.content, "correct");
-          inputEl.value = "";
-        }
+            if (msg.guide) {
+              currentGuide = msg.guide;
+              updateBookInsight(msg.guide);
+              applyBookAtmosphere(msg.guide.category);
+            }
+            updateReviewLockUI(msg.review_locked);
 
-        if (msg.type === "wrong") {
-          appendMessage("✗ " + msg.content, "wrong");
-        }
+            if (msg.stats) {
+              updateStatsUI(msg.stats, msg.wpm);
+            } else {
+              updateNavigationState();
+            }
 
-        if (msg.type === "complete") {
-          appendMessage(msg.content, "complete");
-          verseEl.textContent = "All done!";
+            renderTypingStage();
+            focusTyping();
+          }
+
+          if (msg.type === "intro") {
+            isIntroMandatory = !!msg.mandatory;
+            setTypingMode("intro", msg.mandatory
+              ? `📖 Step 1: Type the ${msg.guide.name} Introduction to unlock Chapter 1`
+              : `📖 Typing ${msg.guide.name} Introduction`);
+            currentTargetText = msg.content;
+            currentTyped = "";
+            hiddenInput.value = "";
+            resetVerseTypingTimer();
+            currentGuide = msg.guide;
+            updateBookInsight(msg.guide);
+            applyBookAtmosphere(msg.guide.category);
+
+            verseRefEl.textContent = `${msg.guide.name} - Intro`;
+            verseCountEl.textContent = msg.mandatory ? "Mandatory" : "Overview";
+            typingHint.innerHTML = msg.mandatory
+              ? "<b>Mandatory:</b> Type this book introduction to begin Chapter 1."
+              : "Type directly on the intro above to practice.";
+
+            updateReviewLockUI(true);
+            if (msg.stats) updateStatsUI(msg.stats, msg.wpm);
+            updateNavigationState();
+            renderTypingStage();
+            focusTyping();
+          }
+
+          if (msg.type === "review") {
+            setTypingMode("review", msg.mandatory
+              ? `📜 Final Step: Type the ${msg.guide.name} Reflection to finish this book!`
+              : `📜 Typing ${msg.guide.name} Reflection`);
+            currentTargetText = msg.content;
+            currentTyped = "";
+            hiddenInput.value = "";
+            resetVerseTypingTimer();
+            currentGuide = msg.guide;
+            updateBookInsight(msg.guide);
+            applyBookAtmosphere(msg.guide.category);
+
+            verseRefEl.textContent = `${msg.guide.name} - Final Review`;
+            verseCountEl.textContent = "Final Step";
+            typingHint.innerHTML = "<b>Final Step:</b> Type this reflection to complete the book!";
+
+            updateReviewLockUI(false);
+            if (msg.stats) updateStatsUI(msg.stats, msg.wpm);
+            updateNavigationState();
+            renderTypingStage();
+            focusTyping();
+          }
+
+          if (msg.type === "review_locked") {
+            showToast("Review Locked", msg.content, "🔒");
+          }
+
+          if (msg.type === "favorite_verse") {
+            setTypingMode("favorite", `⭐ Practicing Favorite: ${msg.favorite.book_name} ${msg.favorite.chapter}:${msg.favorite.verse}`);
+            currentTargetText = msg.content;
+            currentTyped = "";
+            hiddenInput.value = "";
+            resetVerseTypingTimer();
+
+            verseRefEl.textContent = `${msg.favorite.book_name} ${msg.favorite.chapter}:${msg.favorite.verse}`;
+            verseCountEl.textContent = `Practiced ${msg.favorite.times_typed || 0}x`;
+            if (msg.guide) {
+              applyBookAtmosphere(msg.guide.category);
+            }
+            updateNavigationState();
+            renderTypingStage();
+            focusTyping();
+          }
+
+          if (msg.type === "stats" && msg.stats) {
+            updateStatsUI(msg.stats, msg.wpm);
+          }
+
+          if (msg.type === "correct") {
+            playVictoryChime();
+            appendMessage("✓ " + (currentVerseObj ? `${currentVerseObj.book_name} ${currentVerseObj.chapter}:${currentVerseObj.verse}` : "Correct!"), "correct");
+          }
+
+          if (msg.type === "wrong") {
+            playMistakeSound();
+            const text = msg.content || "Typo encountered. Check characters.";
+            appendMessage("✗ " + text, "wrong");
+            if (text.toLowerCase().includes("locked")) {
+              showToast("Passage Locked", text, "🔒");
+            }
+          }
+
+          if (msg.type === "complete") {
+            playVictoryChime();
+            fireConfetti();
+            appendMessage(msg.content, "complete");
+            showToast("🏆 Book Mastered!", msg.content, "🏆");
+            updateReviewLockUI(false);
+            updateNavigationState();
+          }
+
+          if (msg.type === "streakUpdate" && msg.streak) {
+            userStreak = msg.streak;
+            streakCountEl.textContent = msg.streak.current_streak;
+            streakPill.title = `Streak: ${msg.streak.current_streak} days | Longest: ${msg.streak.longest_streak} days | Today: ${msg.streak.today_verses_count} verses`;
+          }
+
+          if (msg.type === "badges" && msg.badges) {
+            userBadges = msg.badges;
+            badgeCountEl.textContent = msg.badges.length;
+            renderBadges();
+          }
+
+          if (msg.type === "badgeUnlocked" && msg.reward) {
+            fireConfetti();
+            userBadges.unshift(msg.reward);
+            badgeCountEl.textContent = userBadges.length;
+            renderBadges();
+            appendMessage(`🏆 Unlocked Badge: ${msg.reward.name}!`, "badge-notice");
+            showToast(`Achievement Unlocked!`, `${msg.reward.icon} ${msg.reward.name}: ${msg.reward.description}`);
+          }
+
+          if (msg.type === "favorites" && msg.favorites) {
+            userFavorites = msg.favorites;
+            favCountEl.textContent = msg.favorites.length;
+            renderFavorites();
+          }
+
+          if (msg.type === "favoriteToggled") {
+            favToggleBtn.textContent = msg.is_favorite ? "★" : "☆";
+            favToggleBtn.classList.toggle("is-fav", !!msg.is_favorite);
+            if (msg.favorites) {
+              userFavorites = msg.favorites;
+              favCountEl.textContent = msg.favorites.length;
+              renderFavorites();
+            }
+          }
+
+          if (msg.type === "modeComplete") {
+            appendMessage(`✓ ${msg.content}`, "complete");
+            showToast("Splendid Job!", msg.content, "✍️");
+          }
+        };
+
+        ws.onclose = () => {
+          verseRefEl.textContent = "Reconnecting...";
+          scheduleReconnect();
+        };
+
+        ws.onerror = () => ws.close();
+      }
+
+      function scheduleReconnect() {
+        if (reconnectTimer) return;
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+          connect();
+        }, reconnectDelay);
+      }
+
+      function resetReconnectDelay() {
+        reconnectDelay = 1000;
+      }
+
+      function setTypingMode(mode, bannerText = "") {
+        currentMode = mode;
+        if (mode !== "verse") {
+          modeBanner.classList.add("active");
+          modeBannerText.textContent = bannerText;
+          // In mandatory intro or review, exit mode button is hidden
+          btnExitMode.style.display = (isIntroMandatory && mode === "intro") ? "none" : "block";
+        } else {
+          modeBanner.classList.remove("active");
         }
+      }
+
+      function updateReviewLockUI(locked) {
+        isReviewLocked = locked;
+        reviewLockIcon.textContent = locked ? "🔒" : "📜";
+        btnBookReview.classList.toggle("locked", locked);
+        btnBookReview.title = locked ? "Book Review (Locked until all verses completed)" : "Book Review & Reflection (Unlocked)";
+      }
+
+      btnExitMode.onclick = () => {
+        ws.send(JSON.stringify({ type: "exit_mode" }));
+      };
+
+      // ---- Selection Controls ----
+      transSelect.onchange = () => {
+        const newTrans = transSelect.value;
+        currentTrans = newTrans;
+        localStorage.setItem("translation", newTrans);
+        ws.send(JSON.stringify({ type: "select_translation", content: newTrans }));
       };
 
       bookSelect.onchange = () => {
-        ws.send(
-          JSON.stringify({ type: "select_book", content: bookSelect.value }),
-        );
+        selectedBook = bookSelect.value;
+        ws.send(JSON.stringify({ type: "select_book", content: selectedBook }));
       };
 
-      inputEl.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") sendMessage();
-      });
+      favToggleBtn.onclick = () => {
+        ws.send(JSON.stringify({ type: "toggle_favorite" }));
+      };
 
-      inputEl.addEventListener("input", () => {
-        inputEl.classList.remove("good", "bad");
-        const typed = inputEl.value;
-        for (let i = 0; i < typed.length; i++) {
-          if (typed[i] !== currentVerseText[i]) {
-            inputEl.classList.add("bad");
-            break;
+      function updateStatsUI(stats, wpmVal) {
+        if (!stats) return;
+        wpmEl.textContent = wpmVal || stats.wpm || liveWPM || 0;
+        charsEl.textContent = stats.charsTyped || 0;
+        mistakesEl.textContent = stats.mistakes || 0;
+        const tot = (stats.correct || 0) + (stats.mistakes || 0);
+        accuracyEl.textContent = tot > 0 ? `${Math.round(((stats.correct || 0) / tot) * 100)}%` : "100%";
+        progressEl.max = Math.max(stats.totalVerses || 1, 1);
+        progressEl.value = stats.currentVerse || 0;
+
+        if (selectedBook && stats.totalVerses) {
+          bookProgress[selectedBook] = {
+            ...(bookProgress[selectedBook] || {}),
+            currentVerse: stats.currentVerse,
+            totalVerses: stats.totalVerses,
+            introCompleted: stats.introCompleted,
+            reviewCompleted: stats.reviewCompleted
+          };
+          updateNavigationState();
+        }
+      }
+
+      function getUnlockedVerseCount(bName) {
+        if (!bName) return 1;
+        const p = bookProgress[bName];
+        if (!p) return 1;
+        if (!p.introCompleted) return 0;
+        return Math.min(p.totalVerses || totalVersesInBook, (p.currentVerse || 0) + 1);
+      }
+
+      function updateNavigationState() {
+        const unlocked = getUnlockedVerseCount(selectedBook);
+        const p = bookProgress[selectedBook];
+        const isIntroDone = p ? !!p.introCompleted : false;
+
+        // Previous button
+        if (currentMode !== "verse" || currentVerseNum <= 1) {
+          btnPrevVerse.disabled = true;
+          btnPrevVerse.classList.add("disabled");
+        } else {
+          btnPrevVerse.disabled = false;
+          btnPrevVerse.classList.remove("disabled");
+        }
+
+        // Next button: locked if next verse is not unlocked yet
+        if (currentMode !== "verse" || currentVerseNum >= totalVersesInBook || currentVerseNum >= unlocked || !isIntroDone) {
+          btnNextVerse.disabled = true;
+          btnNextVerse.classList.add("disabled");
+          btnNextVerse.title = !isIntroDone
+            ? "Locked: Complete the Book Introduction first"
+            : (currentVerseNum >= unlocked
+                ? "Locked: Complete current verse first to unlock next"
+                : "End of book");
+        } else {
+          btnNextVerse.disabled = false;
+          btnNextVerse.classList.remove("disabled");
+          btnNextVerse.title = "Next verse (Alt+Right)";
+        }
+      }
+
+      btnPrevVerse.onclick = () => {
+        if (currentMode !== "verse") return;
+        if (currentVerseNum > 1) {
+          ws.send(JSON.stringify({ type: "jump_verse", number: currentVerseNum - 1 }));
+        }
+      };
+
+      btnNextVerse.onclick = () => {
+        if (currentMode !== "verse") return;
+        const unlocked = getUnlockedVerseCount(selectedBook);
+        if (currentVerseNum < totalVersesInBook && currentVerseNum < unlocked) {
+          ws.send(JSON.stringify({ type: "jump_verse", number: currentVerseNum + 1 }));
+        } else {
+          showToast("Verse Locked", "Complete current verse first to unlock the next.", "🔒");
+        }
+      };
+
+      document.addEventListener("keydown", (e) => {
+        if (e.altKey && e.key === "ArrowLeft") {
+          e.preventDefault();
+          if (!btnPrevVerse.disabled) {
+            btnPrevVerse.click();
+          }
+        } else if (e.altKey && e.key === "ArrowRight") {
+          e.preventDefault();
+          if (!btnNextVerse.disabled) {
+            btnNextVerse.click();
+          } else {
+            showToast("Verse Locked", "Complete current verse first to unlock the next.", "🔒");
           }
         }
-        if (typed.length > 0) inputEl.classList.add("good");
       });
 
-      function sendMessage() {
-        const text = inputEl.value.trim();
-        if (text) ws.send(JSON.stringify({ type: "content", content: text }));
+      // ---- Jump Verse Modal ----
+      verseRefBtn.onclick = () => {
+        if (currentMode !== "verse") return;
+        document.getElementById("jumpBookName").textContent = selectedBook || "";
+        const grid = document.getElementById("jumpVerseGrid");
+        grid.innerHTML = "";
+
+        const unlocked = getUnlockedVerseCount(selectedBook);
+        const p = bookProgress[selectedBook];
+        const isIntroDone = p ? !!p.introCompleted : false;
+
+        for (let i = 1; i <= totalVersesInBook; i++) {
+          const btn = document.createElement("button");
+          const isUnlocked = isIntroDone && (i <= unlocked);
+
+          if (isUnlocked) {
+            btn.className = "picker-btn" + (i === currentVerseNum ? " active" : "");
+            btn.textContent = i;
+            btn.title = `Verse ${i}`;
+            btn.onclick = () => {
+              ws.send(JSON.stringify({ type: "jump_verse", number: i }));
+              closeModal(jumpModal);
+            };
+          } else {
+            btn.className = "picker-btn locked";
+            btn.disabled = true;
+            btn.title = !isIntroDone
+              ? "Locked: Complete Book Introduction first"
+              : `Verse ${i} is locked. Complete previous verses to unlock.`;
+            btn.innerHTML = `<span>${i}</span><span class="picker-lock">🔒</span>`;
+          }
+          grid.appendChild(btn);
+        }
+        openModal(jumpModal);
+      };
+
+      // ---- Book Overview (Intro) Modal (Viewable anytime) ----
+      btnBookIntro.onclick = () => {
+        if (!currentGuide) return;
+        document.getElementById("introModalTitle").textContent = `${currentGuide.name}: Book Overview`;
+        document.getElementById("introAuthorBadge").textContent = `Author: ${currentGuide.author}`;
+        document.getElementById("introTimeBadge").textContent = `Date: ${currentGuide.timeframe}`;
+        document.getElementById("introThemeText").textContent = `Theme: ${currentGuide.theme}`;
+        document.getElementById("introKeyVerseText").textContent = `Key Verse: ${currentGuide.key_verse}`;
+        document.getElementById("introBodyText").textContent = currentGuide.description;
+        openModal(introModal);
+      };
+
+      document.getElementById("btnTypeIntroNow").onclick = () => {
+        closeModal(introModal);
+        ws.send(JSON.stringify({ type: "start_intro", content: selectedBook }));
+      };
+
+      // ---- Book Review (Reflection) Modal (Locked until completed) ----
+      btnBookReview.onclick = () => {
+        if (!currentGuide) return;
+        document.getElementById("reviewModalTitle").textContent = `${currentGuide.name}: Reflection & Review`;
+        const warning = document.getElementById("reviewLockedWarning");
+        const wrap = document.getElementById("reviewContentWrap");
+        const btnTypeRev = document.getElementById("btnTypeReviewNow");
+
+        if (isReviewLocked) {
+          warning.style.display = "block";
+          wrap.style.display = "none";
+          btnTypeRev.style.display = "none";
+        } else {
+          warning.style.display = "none";
+          wrap.style.display = "block";
+          btnTypeRev.style.display = "inline-flex";
+          document.getElementById("reviewBodyText").textContent = currentGuide.review;
+        }
+        openModal(reviewModal);
+      };
+
+      document.getElementById("btnTypeReviewNow").onclick = () => {
+        closeModal(reviewModal);
+        ws.send(JSON.stringify({ type: "start_review", content: selectedBook }));
+      };
+
+      function updateBookInsight(guide) {
+        insightBookName.textContent = guide.name;
+        insightCategory.textContent = guide.category;
+        insightAuthor.textContent = guide.author;
+        insightTime.textContent = guide.timeframe;
+      }
+
+      // ---- Favorites Modal ----
+      document.getElementById("btnOpenFavorites").onclick = () => {
+        renderFavorites();
+        openModal(favModal);
+      };
+
+      function renderFavorites() {
+        const cont = document.getElementById("favListContainer");
+        if (!userFavorites || userFavorites.length === 0) {
+          cont.innerHTML = `<p style="color: var(--muted); text-align: center; margin: 2rem 0;">No favorited passages yet.<br>Click the star ☆ next to any verse to treasure it here!</p>`;
+          return;
+        }
+
+        cont.innerHTML = "";
+        userFavorites.forEach((f) => {
+          const item = document.createElement("div");
+          item.className = "fav-item";
+          item.innerHTML = `
+            <div class="fav-header">
+              <span class="fav-ref">${f.book_name} ${f.chapter}:${f.verse} (${f.translation.toUpperCase()})</span>
+              <div class="fav-actions">
+                <button class="icon-btn" style="height: 32px; padding: 0 0.6rem; font-size: 0.78rem;" data-type-fav="${f.id}">
+                  ✍️ Type
+                </button>
+                <button class="icon-btn" style="height: 32px; padding: 0 0.5rem; font-size: 0.78rem; color: var(--danger);" data-del-fav="${f.id}">
+                  ✕
+                </button>
+              </div>
+            </div>
+            <p class="fav-text">"${f.text}"</p>
+          `;
+
+          item.querySelector("[data-type-fav]").onclick = () => {
+            closeModal(favModal);
+            ws.send(JSON.stringify({ type: "start_favorite", number: f.id }));
+          };
+
+          item.querySelector("[data-del-fav]").onclick = () => {
+            ws.send(JSON.stringify({
+              type: "toggle_favorite",
+              verse: { book_name: f.book_name, chapter: f.chapter, verse: f.verse }
+            }));
+          };
+
+          cont.appendChild(item);
+        });
+      }
+
+      // ---- Badges / Trophy Room Modal ----
+      document.getElementById("btnOpenBadges").onclick = () => {
+        renderBadges();
+        openModal(badgesModal);
+      };
+
+      streakPill.onclick = () => {
+        renderBadges();
+        openModal(badgesModal);
+      };
+
+      function renderBadges() {
+        const cont = document.getElementById("badgesContainer");
+        cont.innerHTML = "";
+
+        const catalog = [
+          { id: "verse_1", icon: "🌱", name: "First Verse Scribe", desc: "First verse typed" },
+          { id: "verse_25", icon: "📖", name: "Diligent Copyist", desc: "Typed 25 verses" },
+          { id: "verse_100", icon: "💯", name: "Century Scribe", desc: "Typed 100 verses" },
+          { id: "verse_500", icon: "📜", name: "Scroll Keeper", desc: "Typed 500 verses" },
+          { id: "streak_3", icon: "🔥", name: "Spark of Devotion", desc: "3-day typing streak" },
+          { id: "streak_7", icon: "⚡", name: "Week of Faith", desc: "7-day typing streak" },
+          { id: "streak_30", icon: "🌟", name: "Unshakeable Habit", desc: "30-day typing streak" },
+          { id: "speed_40", icon: "⚡", name: "Swift Fingers", desc: "40+ Words Per Minute" },
+          { id: "speed_60", icon: "🚀", name: "Lightning Scribe", desc: "60+ Words Per Minute" },
+          { id: "intro_scribe", icon: "✍️", name: "Prologue Scribe", desc: "Typed a Book Introduction" },
+          { id: "review_scholar", icon: "🎓", name: "Epilogue Scholar", desc: "Typed a Book Review" },
+          { id: "favorite_typist", icon: "🕊️", name: "Heart Inscription", desc: "Practiced a favorite passage" },
+          { id: "pentateuch_master", icon: "📜", name: "Pentateuch Pioneer", desc: "Completed Genesis to Deuteronomy" },
+          { id: "gospel_bearer", icon: "🕊️", name: "Gospel Bearer", desc: "Completed all 4 Gospels" },
+        ];
+
+        const earnedMap = new Map();
+        userBadges.forEach((b) => earnedMap.set(b.id, b));
+
+        catalog.forEach((cat) => {
+          const earned = earnedMap.get(cat.id);
+          const card = document.createElement("div");
+          card.className = "badge-card " + (earned ? "unlocked" : "locked");
+          card.innerHTML = `
+            <span class="badge-icon">${earned ? earned.icon : cat.icon}</span>
+            <p class="badge-name">${cat.name}</p>
+            <p class="badge-desc">${earned ? earned.description : cat.desc}</p>
+          `;
+          cont.appendChild(card);
+        });
+
+        userBadges.forEach((b) => {
+          if (b.type === "book" && !catalog.some((c) => c.id === b.id)) {
+            const card = document.createElement("div");
+            card.className = "badge-card unlocked";
+            card.innerHTML = `
+              <span class="badge-icon">${b.icon || "🏆"}</span>
+              <p class="badge-name">${b.name}</p>
+              <p class="badge-desc">${b.description}</p>
+            `;
+            cont.appendChild(card);
+          }
+        });
       }
 
       function appendMessage(text, cls) {
@@ -418,8 +2357,90 @@
         p.textContent = text;
         if (cls) p.className = cls;
         messagesEl.appendChild(p);
+        while (messagesEl.children.length > 50) {
+          messagesEl.removeChild(messagesEl.firstChild);
+        }
         messagesEl.scrollTop = messagesEl.scrollHeight;
       }
+
+      function showToast(title, desc, icon = "🏆") {
+        const t = document.createElement("div");
+        t.className = "toast";
+        t.innerHTML = `
+          <span class="toast-icon">${icon}</span>
+          <div>
+            <p class="toast-title">${title}</p>
+            <p class="toast-desc">${desc}</p>
+          </div>
+        `;
+        document.body.appendChild(t);
+        setTimeout(() => {
+          t.style.transition = "opacity 0.4s ease, transform 0.4s ease";
+          t.style.opacity = "0";
+          t.style.transform = "translateY(10px)";
+          setTimeout(() => t.remove(), 400);
+        }, 4500);
+      }
+
+      // Simple Confetti Animation
+      function fireConfetti() {
+        const canvas = document.getElementById("confettiCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const particles = [];
+        const colors = ["#ffb703", "#fb8500", "#023047", "#219ebc", "#8ecae6", "#22c55e", "#e11d48"];
+
+        for (let i = 0; i < 90; i++) {
+          particles.push({
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            vx: (Math.random() - 0.5) * 14,
+            vy: (Math.random() - 0.7) * 16,
+            size: Math.random() * 8 + 4,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            rotation: Math.random() * 360,
+            rSpeed: (Math.random() - 0.5) * 10,
+            alpha: 1,
+          });
+        }
+
+        let frame = 0;
+        function render() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          let alive = false;
+          particles.forEach((p) => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.35;
+            p.rotation += p.rSpeed;
+            p.alpha -= 0.012;
+
+            if (p.alpha > 0) {
+              alive = true;
+              ctx.save();
+              ctx.translate(p.x, p.y);
+              ctx.rotate((p.rotation * Math.PI) / 180);
+              ctx.fillStyle = p.color;
+              ctx.globalAlpha = Math.max(0, p.alpha);
+              ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+              ctx.restore();
+            }
+          });
+
+          if (alive && frame < 120) {
+            frame++;
+            requestAnimationFrame(render);
+          } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+          }
+        }
+        render();
+      }
+
+      // Start connection
+      connect();
     </script>
   </body>
 </html>
