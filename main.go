@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -23,7 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-//go:embed index.html logo.svg kjv.json asv.json bbe.json esv.json niv.json nlt.json hcsb.json book_guides.json
+//go:embed index.html logo.svg manifest.json sw.js kjv.json asv.json bbe.json esv.json niv.json nlt.json hcsb.json rvr1909.json book_guides.json book_guides_es.json
 var appFS embed.FS
 
 const (
@@ -32,13 +31,14 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 )
 
-// publicFS serves embedded frontend assets but keeps the raw JSON datasets out of the public HTTP route.
+// publicFS serves embedded frontend assets but keeps the raw JSON datasets out of the public HTTP route,
+// while allowing manifest.json and other public assets.
 type publicFS struct {
 	fs.FS
 }
 
 func (f publicFS) Open(name string) (fs.File, error) {
-	if strings.HasSuffix(name, ".json") {
+	if strings.HasSuffix(name, ".json") && name != "manifest.json" {
 		return nil, fs.ErrNotExist
 	}
 	return f.FS.Open(name)
@@ -53,6 +53,9 @@ type safeConn struct {
 func (s *safeConn) WriteJSON(v any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.conn == nil {
+		return nil
+	}
 	_ = s.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	return s.conn.WriteJSON(v)
 }
@@ -60,961 +63,67 @@ func (s *safeConn) WriteJSON(v any) error {
 func (s *safeConn) WritePing() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.conn == nil {
+		return nil
+	}
 	return s.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait))
 }
 
 func (s *safeConn) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.conn == nil {
+		return nil
+	}
 	return s.conn.Close()
 }
 
-// ---- Data Models ----
-
-type Verse struct {
-	BookName string `json:"book_name"`
-	Book     int    `json:"book"`
-	Chapter  int    `json:"chapter"`
-	Verse    int    `json:"verse"`
-	Text     string `json:"text"`
-}
-
-type BookProgress struct {
-	CurrentVerse    int        `json:"currentVerse"`
-	TotalVerses     int        `json:"totalVerses"`
-	CorrectEntries  int        `json:"correct"`
-	Mistakes        int        `json:"mistakes"`
-	IntroCompleted  bool       `json:"introCompleted"`
-	ReviewCompleted bool       `json:"reviewCompleted"`
-	CompletedAt     *time.Time `json:"completedAt,omitempty"`
-}
-
-type RuntimeStats struct {
-	StartTime      time.Time `json:"startTime"`
-	VerseStartTime time.Time `json:"verseStartTime"`
-	CharsTyped     int       `json:"charsTyped"`
-	CorrectChars   int       `json:"correctChars"`
-	WPM            int       `json:"wpm"`
-	Started        bool      `json:"started"`
-}
-
-type Stats struct {
-	BookProgress
-	RuntimeStats
-}
-
-type Favorite struct {
-	ID          int       `json:"id,omitempty"`
-	UID         string    `json:"uid"`
-	Translation string    `json:"translation"`
-	BookName    string    `json:"book_name"`
-	Book        int       `json:"book"`
-	Chapter     int       `json:"chapter"`
-	Verse       int       `json:"verse"`
-	Text        string    `json:"text"`
-	CreatedAt   time.Time `json:"created_at"`
-	TimesTyped  int       `json:"times_typed"`
-}
-
-type UserStreak struct {
-	UID              string `json:"uid"`
-	CurrentStreak    int    `json:"current_streak"`
-	LongestStreak    int    `json:"longest_streak"`
-	LastActiveDate   string `json:"last_active_date"` // YYYY-MM-DD
-	TodayVersesCount int    `json:"today_verses_count"`
-	TotalVersesTyped int    `json:"total_verses_typed"`
-	TotalCharsTyped  int    `json:"total_chars_typed"`
-	TotalSeconds     int    `json:"total_seconds"`
-}
-
-type Badge struct {
-	ID          string    `json:"id"`
-	Type        string    `json:"type"` // "book", "streak", "milestone", "special"
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Icon        string    `json:"icon"`
-	EarnedAt    time.Time `json:"earned_at"`
-}
-
-type BookGuide struct {
-	Name        string `json:"name"`
-	Order       int    `json:"order"`
-	Testament   string `json:"testament"`
-	Category    string `json:"category"`
-	Author      string `json:"author"`
-	Timeframe   string `json:"timeframe"`
-	Theme       string `json:"theme"`
-	KeyVerse    string `json:"key_verse"`
-	Description string `json:"description"`
-	Review      string `json:"review"`
-}
-
-type TranslationMeta struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	ShortName string `json:"shortname"`
-}
-
-type TranslationData struct {
-	Meta           TranslationMeta
-	Verses         []Verse
-	VersesByBook   map[string][]Verse
-	CanonicalBooks []string
-}
-
-type Message struct {
-	Type         string            `json:"type"`
-	Content      string            `json:"content,omitempty"`
-	Translation  string            `json:"translation,omitempty"`
-	Book         string            `json:"book,omitempty"`
-	Verse        *Verse            `json:"verse,omitempty"`
-	Guide        *BookGuide        `json:"guide,omitempty"`
-	Favorite     *Favorite         `json:"favorite,omitempty"`
-	Number       int               `json:"number,omitempty"`
-	Total        int               `json:"total,omitempty"`
-	Stats        *Stats            `json:"stats,omitempty"`
-	IsFavorite   bool              `json:"is_favorite,omitempty"`
-	Streak       *UserStreak       `json:"streak,omitempty"`
-	Badges       []Badge           `json:"badges,omitempty"`
-	Favorites    []Favorite        `json:"favorites,omitempty"`
-	Mode         string            `json:"mode,omitempty"` // "verse", "intro", "review", "favorite"
-	Books        []string          `json:"books,omitempty"`
-	Progress     any               `json:"progress,omitempty"`
-	Translations []TranslationMeta `json:"translations,omitempty"`
-	Reward       *Badge            `json:"reward,omitempty"`
-	WPM          int               `json:"wpm,omitempty"`
-	Duration     float64           `json:"duration,omitempty"`
-	Mandatory    bool              `json:"mandatory,omitempty"`
-	ReviewLocked bool              `json:"review_locked,omitempty"`
-	Category     string            `json:"category,omitempty"`
-}
-
-// Global in-memory datasets
+// Global in-memory datasets & services
 var (
 	translations       = make(map[string]*TranslationData)
 	availableTransList []TranslationMeta
 	bookGuides         = make(map[string]BookGuide)
+	bookGuidesES       = make(map[string]BookGuide)
 	canonicalOrder     []string
 	store              Store
 )
 
-// ---- Store Interface ----
-
-type Store interface {
-	EnsureUser(ctx context.Context, uid string) error
-	GetAllBookProgress(ctx context.Context, uid, translation string) (map[string]BookProgress, error)
-	GetBookProgress(ctx context.Context, uid, translation, bookName string, totalVerses int) (*BookProgress, error)
-	UpdateBookProgress(ctx context.Context, uid, translation, bookName string, bp *BookProgress) error
-	EnsureBookProgressRows(ctx context.Context, uid, translation string, books []string, totals map[string]int) error
-	CreateTypingSession(ctx context.Context, uid, translation, bookName string) (int, error)
-	UpdateTypingSession(ctx context.Context, sessionID int, stats *RuntimeStats) error
-
-	// Favorites
-	GetFavorites(ctx context.Context, uid string) ([]Favorite, error)
-	AddFavorite(ctx context.Context, fav Favorite) error
-	RemoveFavorite(ctx context.Context, uid, translation, bookName string, chapter, verse int) error
-	IsFavorite(ctx context.Context, uid, translation, bookName string, chapter, verse int) (bool, error)
-	RecordFavoriteTyped(ctx context.Context, uid, translation, bookName string, chapter, verse int) error
-
-	// Streaks
-	GetStreak(ctx context.Context, uid string) (*UserStreak, error)
-	RecordVerseCompleted(ctx context.Context, uid string, chars int, seconds float64) (*UserStreak, error)
-
-	// Badges
-	GetBadges(ctx context.Context, uid string) ([]Badge, error)
-	AwardBadge(ctx context.Context, uid string, badge Badge) (bool, error)
+func isSpanishTranslation(trans string) bool {
+	t := strings.ToLower(strings.TrimSpace(trans))
+	return t == "rvr1909" || strings.HasPrefix(t, "es") || strings.HasPrefix(t, "rvr")
 }
 
-// ---- Postgres Store ----
-
-type postgresStore struct {
-	pool *pgxpool.Pool
-}
-
-func (s *postgresStore) initDB(ctx context.Context) error {
-	schema := `
-	CREATE TABLE IF NOT EXISTS users (
-		uid TEXT PRIMARY KEY,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	);
-
-	CREATE TABLE IF NOT EXISTS book_progress (
-		id SERIAL PRIMARY KEY,
-		uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-		translation TEXT NOT NULL DEFAULT 'kjv',
-		book_name TEXT NOT NULL,
-		current_verse INT DEFAULT 0,
-		total_verses INT NOT NULL,
-		correct_entries INT DEFAULT 0,
-		mistakes INT DEFAULT 0,
-		intro_completed BOOLEAN DEFAULT false,
-		review_completed BOOLEAN DEFAULT false,
-		completed_at TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	);
-
-	ALTER TABLE book_progress ADD COLUMN IF NOT EXISTS translation TEXT NOT NULL DEFAULT 'kjv';
-	ALTER TABLE book_progress ADD COLUMN IF NOT EXISTS intro_completed BOOLEAN DEFAULT false;
-	ALTER TABLE book_progress ADD COLUMN IF NOT EXISTS review_completed BOOLEAN DEFAULT false;
-	ALTER TABLE book_progress ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;
-	CREATE UNIQUE INDEX IF NOT EXISTS idx_book_progress_uid_trans_book ON book_progress(uid, translation, book_name);
-	CREATE INDEX IF NOT EXISTS idx_book_progress_uid_trans ON book_progress(uid, translation);
-
-	CREATE TABLE IF NOT EXISTS typing_sessions (
-		id SERIAL PRIMARY KEY,
-		uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-		translation TEXT NOT NULL DEFAULT 'kjv',
-		book_name TEXT NOT NULL,
-		started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		ended_at TIMESTAMP,
-		chars_typed INT DEFAULT 0,
-		correct_chars INT DEFAULT 0,
-		wpm INT DEFAULT 0
-	);
-
-	ALTER TABLE typing_sessions ADD COLUMN IF NOT EXISTS translation TEXT NOT NULL DEFAULT 'kjv';
-	CREATE INDEX IF NOT EXISTS idx_typing_sessions_uid ON typing_sessions(uid);
-
-	CREATE TABLE IF NOT EXISTS favorites (
-		id SERIAL PRIMARY KEY,
-		uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-		translation TEXT NOT NULL DEFAULT 'kjv',
-		book_name TEXT NOT NULL,
-		book INT NOT NULL DEFAULT 1,
-		chapter INT NOT NULL,
-		verse INT NOT NULL,
-		text TEXT NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		times_typed INT DEFAULT 0,
-		UNIQUE(uid, translation, book_name, chapter, verse)
-	);
-
-	CREATE INDEX IF NOT EXISTS idx_favorites_uid ON favorites(uid);
-
-	CREATE TABLE IF NOT EXISTS user_streaks (
-		uid TEXT PRIMARY KEY REFERENCES users(uid) ON DELETE CASCADE,
-		current_streak INT DEFAULT 0,
-		longest_streak INT DEFAULT 0,
-		last_active_date TEXT DEFAULT '',
-		today_verses_count INT DEFAULT 0,
-		total_verses_typed INT DEFAULT 0,
-		total_chars_typed INT DEFAULT 0,
-		total_seconds INT DEFAULT 0,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	);
-
-	CREATE TABLE IF NOT EXISTS user_badges (
-		id SERIAL PRIMARY KEY,
-		uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-		badge_id TEXT NOT NULL,
-		badge_type TEXT NOT NULL,
-		name TEXT NOT NULL,
-		description TEXT NOT NULL,
-		icon TEXT NOT NULL,
-		earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		UNIQUE(uid, badge_id)
-	);
-	`
-	_, err := s.pool.Exec(ctx, schema)
-	return err
-}
-
-func (s *postgresStore) EnsureUser(ctx context.Context, uid string) error {
-	_, err := s.pool.Exec(ctx, `
-		INSERT INTO users (uid, last_active) 
-		VALUES ($1, CURRENT_TIMESTAMP)
-		ON CONFLICT (uid) DO UPDATE SET last_active = CURRENT_TIMESTAMP
-	`, uid)
-	return err
-}
-
-func (s *postgresStore) GetAllBookProgress(ctx context.Context, uid, translation string) (map[string]BookProgress, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT
-			book_name,
-			current_verse,
-			total_verses,
-			correct_entries,
-			mistakes,
-			intro_completed,
-			review_completed,
-			completed_at
-		FROM book_progress WHERE uid = $1 AND translation = $2`, uid, translation)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	progress := make(map[string]BookProgress)
-	for rows.Next() {
-		var book string
-		var bp BookProgress
-		if err := rows.Scan(&book, &bp.CurrentVerse, &bp.TotalVerses, &bp.CorrectEntries, &bp.Mistakes, &bp.IntroCompleted, &bp.ReviewCompleted, &bp.CompletedAt); err != nil {
-			continue
-		}
-		progress[book] = bp
-	}
-	return progress, nil
-}
-
-func (s *postgresStore) GetBookProgress(ctx context.Context, uid, translation, bookName string, totalVerses int) (*BookProgress, error) {
-	var bp BookProgress
-	err := s.pool.QueryRow(ctx, `
-		SELECT current_verse, total_verses, correct_entries, mistakes, intro_completed, review_completed, completed_at
-		FROM book_progress
-		WHERE uid = $1 AND translation = $2 AND book_name = $3
-	`, uid, translation, bookName).Scan(&bp.CurrentVerse, &bp.TotalVerses, &bp.CorrectEntries, &bp.Mistakes, &bp.IntroCompleted, &bp.ReviewCompleted, &bp.CompletedAt)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			_, insertErr := s.pool.Exec(ctx, `
-				INSERT INTO book_progress (uid, translation, book_name, total_verses, intro_completed, review_completed)
-				VALUES ($1, $2, $3, $4, false, false)
-				ON CONFLICT (uid, translation, book_name) DO NOTHING
-			`, uid, translation, bookName, totalVerses)
-			if insertErr != nil {
-				return nil, insertErr
-			}
-			return &BookProgress{
-				CurrentVerse:    0,
-				TotalVerses:     totalVerses,
-				CorrectEntries:  0,
-				Mistakes:        0,
-				IntroCompleted:  false,
-				ReviewCompleted: false,
-			}, nil
-		}
-		return nil, err
-	}
-
-	return &bp, nil
-}
-
-func (s *postgresStore) UpdateBookProgress(ctx context.Context, uid, translation, bookName string, bp *BookProgress) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE book_progress
-		SET current_verse = $4,
-			correct_entries = $5,
-			mistakes = $6,
-			intro_completed = $7,
-			review_completed = $8,
-			completed_at = $9,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE uid = $1 AND translation = $2 AND book_name = $3
-	`, uid, translation, bookName, bp.CurrentVerse, bp.CorrectEntries, bp.Mistakes, bp.IntroCompleted, bp.ReviewCompleted, bp.CompletedAt)
-	return err
-}
-
-func (s *postgresStore) EnsureBookProgressRows(ctx context.Context, uid, translation string, books []string, totals map[string]int) error {
-	totalList := make([]int, len(books))
-	for i, b := range books {
-		totalList[i] = totals[b]
-	}
-
-	_, err := s.pool.Exec(ctx, `
-		INSERT INTO book_progress (uid, translation, book_name, total_verses)
-		SELECT $1, $2, unnest($3::text[]), unnest($4::int[])
-		ON CONFLICT (uid, translation, book_name) DO NOTHING
-	`, uid, translation, books, totalList)
-	return err
-}
-
-func (s *postgresStore) CreateTypingSession(ctx context.Context, uid, translation, bookName string) (int, error) {
-	var sessionID int
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO typing_sessions (uid, translation, book_name)
-		VALUES ($1, $2, $3)
-		RETURNING id
-	`, uid, translation, bookName).Scan(&sessionID)
-	return sessionID, err
-}
-
-func (s *postgresStore) UpdateTypingSession(ctx context.Context, sessionID int, stats *RuntimeStats) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE typing_sessions
-		SET chars_typed = $2,
-			correct_chars = $3,
-			wpm = $4,
-			ended_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-	`, sessionID, stats.CharsTyped, stats.CorrectChars, stats.WPM)
-	return err
-}
-
-func (s *postgresStore) GetFavorites(ctx context.Context, uid string) ([]Favorite, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT id, uid, translation, book_name, book, chapter, verse, text, created_at, times_typed
-		FROM favorites
-		WHERE uid = $1
-		ORDER BY book, chapter, verse
-	`, uid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var favs []Favorite
-	for rows.Next() {
-		var f Favorite
-		if err := rows.Scan(&f.ID, &f.UID, &f.Translation, &f.BookName, &f.Book, &f.Chapter, &f.Verse, &f.Text, &f.CreatedAt, &f.TimesTyped); err != nil {
-			continue
-		}
-		favs = append(favs, f)
-	}
-	return favs, nil
-}
-
-func (s *postgresStore) AddFavorite(ctx context.Context, fav Favorite) error {
-	_, err := s.pool.Exec(ctx, `
-		INSERT INTO favorites (uid, translation, book_name, book, chapter, verse, text)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (uid, translation, book_name, chapter, verse) DO NOTHING
-	`, fav.UID, fav.Translation, fav.BookName, fav.Book, fav.Chapter, fav.Verse, fav.Text)
-	return err
-}
-
-func (s *postgresStore) RemoveFavorite(ctx context.Context, uid, translation, bookName string, chapter, verse int) error {
-	_, err := s.pool.Exec(ctx, `
-		DELETE FROM favorites
-		WHERE uid = $1 AND translation = $2 AND book_name = $3 AND chapter = $4 AND verse = $5
-	`, uid, translation, bookName, chapter, verse)
-	return err
-}
-
-func (s *postgresStore) IsFavorite(ctx context.Context, uid, translation, bookName string, chapter, verse int) (bool, error) {
-	var count int
-	err := s.pool.QueryRow(ctx, `
-		SELECT count(*)
-		FROM favorites
-		WHERE uid = $1 AND translation = $2 AND book_name = $3 AND chapter = $4 AND verse = $5
-	`, uid, translation, bookName, chapter, verse).Scan(&count)
-	return count > 0, err
-}
-
-func (s *postgresStore) RecordFavoriteTyped(ctx context.Context, uid, translation, bookName string, chapter, verse int) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE favorites
-		SET times_typed = times_typed + 1
-		WHERE uid = $1 AND translation = $2 AND book_name = $3 AND chapter = $4 AND verse = $5
-	`, uid, translation, bookName, chapter, verse)
-	return err
-}
-
-func (s *postgresStore) GetStreak(ctx context.Context, uid string) (*UserStreak, error) {
-	var streak UserStreak
-	err := s.pool.QueryRow(ctx, `
-		SELECT uid, current_streak, longest_streak, last_active_date, today_verses_count, total_verses_typed, total_chars_typed, total_seconds
-		FROM user_streaks
-		WHERE uid = $1
-	`, uid).Scan(&streak.UID, &streak.CurrentStreak, &streak.LongestStreak, &streak.LastActiveDate, &streak.TodayVersesCount, &streak.TotalVersesTyped, &streak.TotalCharsTyped, &streak.TotalSeconds)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			nowDate := time.Now().UTC().Format("2006-01-02")
-			newStreak := UserStreak{
-				UID:              uid,
-				CurrentStreak:    0,
-				LongestStreak:    0,
-				LastActiveDate:   nowDate,
-				TodayVersesCount: 0,
-			}
-			_, _ = s.pool.Exec(ctx, `
-				INSERT INTO user_streaks (uid, current_streak, longest_streak, last_active_date, today_verses_count)
-				VALUES ($1, 0, 0, $2, 0)
-				ON CONFLICT (uid) DO NOTHING
-			`, uid, nowDate)
-			return &newStreak, nil
-		}
-		return nil, err
-	}
-	return &streak, nil
-}
-
-func (s *postgresStore) RecordVerseCompleted(ctx context.Context, uid string, chars int, seconds float64) (*UserStreak, error) {
-	streak, err := s.GetStreak(ctx, uid)
-	if err != nil {
-		return nil, err
-	}
-
-	today := time.Now().UTC().Format("2006-01-02")
-	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
-
-	if streak.LastActiveDate == today {
-		streak.TodayVersesCount++
-	} else if streak.LastActiveDate == yesterday {
-		streak.CurrentStreak++
-		streak.TodayVersesCount = 1
-		streak.LastActiveDate = today
-		if streak.CurrentStreak > streak.LongestStreak {
-			streak.LongestStreak = streak.CurrentStreak
-		}
-	} else {
-		streak.CurrentStreak = 1
-		streak.TodayVersesCount = 1
-		streak.LastActiveDate = today
-		if streak.LongestStreak < 1 {
-			streak.LongestStreak = 1
+func getBookGuide(trans, book string) (BookGuide, bool) {
+	if isSpanishTranslation(trans) {
+		if g, ok := bookGuidesES[book]; ok {
+			return g, true
 		}
 	}
-
-	streak.TotalVersesTyped++
-	streak.TotalCharsTyped += chars
-	streak.TotalSeconds += int(seconds)
-
-	_, err = s.pool.Exec(ctx, `
-		INSERT INTO user_streaks (uid, current_streak, longest_streak, last_active_date, today_verses_count, total_verses_typed, total_chars_typed, total_seconds, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
-		ON CONFLICT (uid) DO UPDATE SET
-			current_streak = EXCLUDED.current_streak,
-			longest_streak = EXCLUDED.longest_streak,
-			last_active_date = EXCLUDED.last_active_date,
-			today_verses_count = EXCLUDED.today_verses_count,
-			total_verses_typed = EXCLUDED.total_verses_typed,
-			total_chars_typed = EXCLUDED.total_chars_typed,
-			total_seconds = EXCLUDED.total_seconds,
-			updated_at = CURRENT_TIMESTAMP
-	`, streak.UID, streak.CurrentStreak, streak.LongestStreak, streak.LastActiveDate, streak.TodayVersesCount, streak.TotalVersesTyped, streak.TotalCharsTyped, streak.TotalSeconds)
-
-	return streak, err
+	g, ok := bookGuides[book]
+	return g, ok
 }
-
-func (s *postgresStore) GetBadges(ctx context.Context, uid string) ([]Badge, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT badge_id, badge_type, name, description, icon, earned_at
-		FROM user_badges
-		WHERE uid = $1
-		ORDER BY earned_at DESC
-	`, uid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var badges []Badge
-	for rows.Next() {
-		var b Badge
-		if err := rows.Scan(&b.ID, &b.Type, &b.Name, &b.Description, &b.Icon, &b.EarnedAt); err != nil {
-			continue
-		}
-		badges = append(badges, b)
-	}
-	return badges, nil
-}
-
-func (s *postgresStore) AwardBadge(ctx context.Context, uid string, badge Badge) (bool, error) {
-	tag, err := s.pool.Exec(ctx, `
-		INSERT INTO user_badges (uid, badge_id, badge_type, name, description, icon, earned_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (uid, badge_id) DO NOTHING
-	`, uid, badge.ID, badge.Type, badge.Name, badge.Description, badge.Icon, badge.EarnedAt)
-	if err != nil {
-		return false, err
-	}
-	return tag.RowsAffected() > 0, nil
-}
-
-// ---- Local Store (JSON-file backed) ----
-
-type localSession struct {
-	UID         string       `json:"uid"`
-	Translation string       `json:"translation"`
-	BookName    string       `json:"bookName"`
-	Stats       RuntimeStats `json:"stats"`
-}
-
-type localData struct {
-	Progress    map[string]map[string]BookProgress `json:"progress"` // key: uid -> key (translation:book or book for kjv)
-	Sessions    map[int]*localSession              `json:"sessions"`
-	NextSession int                                `json:"nextSession"`
-	Favorites   map[string][]Favorite              `json:"favorites"`
-	Streaks     map[string]*UserStreak             `json:"streaks"`
-	Badges      map[string][]Badge                 `json:"badges"`
-}
-
-type localStore struct {
-	mu   sync.Mutex
-	path string
-	data *localData
-}
-
-func newLocalStore(path string) (*localStore, error) {
-	s := &localStore{
-		path: path,
-		data: &localData{
-			Progress:  make(map[string]map[string]BookProgress),
-			Sessions:  make(map[int]*localSession),
-			Favorites: make(map[string][]Favorite),
-			Streaks:   make(map[string]*UserStreak),
-			Badges:    make(map[string][]Badge),
-		},
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
-		return s, nil
-	}
-	if err := json.Unmarshal(raw, s.data); err != nil {
-		log.Printf("Warning: unreadable local store %s: %v, resetting", path, err)
-		s.data = &localData{
-			Progress:  make(map[string]map[string]BookProgress),
-			Sessions:  make(map[int]*localSession),
-			Favorites: make(map[string][]Favorite),
-			Streaks:   make(map[string]*UserStreak),
-			Badges:    make(map[string][]Badge),
-		}
-	}
-	if s.data.Progress == nil {
-		s.data.Progress = make(map[string]map[string]BookProgress)
-	}
-	if s.data.Sessions == nil {
-		s.data.Sessions = make(map[int]*localSession)
-	}
-	if s.data.Favorites == nil {
-		s.data.Favorites = make(map[string][]Favorite)
-	}
-	if s.data.Streaks == nil {
-		s.data.Streaks = make(map[string]*UserStreak)
-	}
-	if s.data.Badges == nil {
-		s.data.Badges = make(map[string][]Badge)
-	}
-	return s, nil
-}
-
-func (s *localStore) save() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return err
-	}
-	tmp := s.path + ".tmp"
-	data, err := json.MarshalIndent(s.data, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.path)
-}
-
-func progressKey(translation, bookName string) string {
-	if translation == "kjv" || translation == "" {
-		return bookName
-	}
-	return translation + ":" + bookName
-}
-
-func (s *localStore) EnsureUser(ctx context.Context, uid string) error {
-	return nil
-}
-
-func (s *localStore) GetAllBookProgress(ctx context.Context, uid, translation string) (map[string]BookProgress, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	res := make(map[string]BookProgress)
-	userProg, ok := s.data.Progress[uid]
-	if !ok {
-		return res, nil
-	}
-
-	prefix := translation + ":"
-	for k, bp := range userProg {
-		if translation == "kjv" {
-			if !strings.Contains(k, ":") {
-				res[k] = bp
-			} else if strings.HasPrefix(k, "kjv:") {
-				res[strings.TrimPrefix(k, "kjv:")] = bp
-			}
-		} else {
-			if strings.HasPrefix(k, prefix) {
-				res[strings.TrimPrefix(k, prefix)] = bp
-			}
-		}
-	}
-	return res, nil
-}
-
-func (s *localStore) GetBookProgress(ctx context.Context, uid, translation, bookName string, totalVerses int) (*BookProgress, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.data.Progress[uid] == nil {
-		s.data.Progress[uid] = make(map[string]BookProgress)
-	}
-
-	k := progressKey(translation, bookName)
-	if bp, ok := s.data.Progress[uid][k]; ok {
-		bpCopy := bp
-		if bpCopy.CurrentVerse > 0 && !bpCopy.IntroCompleted {
-			bpCopy.IntroCompleted = true
-		}
-		return &bpCopy, nil
-	}
-	// Fallback for kjv
-	if translation == "kjv" {
-		if bp, ok := s.data.Progress[uid]["kjv:"+bookName]; ok {
-			bpCopy := bp
-			if bpCopy.CurrentVerse > 0 && !bpCopy.IntroCompleted {
-				bpCopy.IntroCompleted = true
-			}
-			return &bpCopy, nil
-		}
-	}
-
-	bp := BookProgress{
-		TotalVerses:     totalVerses,
-		IntroCompleted:  false,
-		ReviewCompleted: false,
-	}
-	s.data.Progress[uid][k] = bp
-	return &bp, s.save()
-}
-
-func (s *localStore) UpdateBookProgress(ctx context.Context, uid, translation, bookName string, bp *BookProgress) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.data.Progress[uid] == nil {
-		s.data.Progress[uid] = make(map[string]BookProgress)
-	}
-
-	k := progressKey(translation, bookName)
-	s.data.Progress[uid][k] = *bp
-	if translation == "kjv" {
-		s.data.Progress[uid][bookName] = *bp
-	}
-	return s.save()
-}
-
-func (s *localStore) EnsureBookProgressRows(ctx context.Context, uid, translation string, books []string, totals map[string]int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.data.Progress[uid] == nil {
-		s.data.Progress[uid] = make(map[string]BookProgress)
-	}
-
-	changed := false
-	for _, book := range books {
-		k := progressKey(translation, book)
-		if _, ok := s.data.Progress[uid][k]; !ok {
-			if translation == "kjv" {
-				if _, ok2 := s.data.Progress[uid]["kjv:"+book]; ok2 {
-					continue
-				}
-			}
-			s.data.Progress[uid][k] = BookProgress{
-				TotalVerses:     totals[book],
-				IntroCompleted:  false,
-				ReviewCompleted: false,
-			}
-			changed = true
-		}
-	}
-	if changed {
-		return s.save()
-	}
-	return nil
-}
-
-func (s *localStore) CreateTypingSession(ctx context.Context, uid, translation, bookName string) (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.data.NextSession++
-	id := s.data.NextSession
-	s.data.Sessions[id] = &localSession{
-		UID:         uid,
-		Translation: translation,
-		BookName:    bookName,
-	}
-	return id, s.save()
-}
-
-func (s *localStore) UpdateTypingSession(ctx context.Context, sessionID int, stats *RuntimeStats) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if sess, ok := s.data.Sessions[sessionID]; ok {
-		sess.Stats = *stats
-		return s.save()
-	}
-	return nil
-}
-
-func (s *localStore) GetFavorites(ctx context.Context, uid string) ([]Favorite, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	list := s.data.Favorites[uid]
-	res := make([]Favorite, len(list))
-	copy(res, list)
-	return res, nil
-}
-
-func (s *localStore) AddFavorite(ctx context.Context, fav Favorite) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, existing := range s.data.Favorites[fav.UID] {
-		if existing.Translation == fav.Translation && existing.BookName == fav.BookName && existing.Chapter == fav.Chapter && existing.Verse == fav.Verse {
-			return nil // already favorited
-		}
-	}
-	fav.CreatedAt = time.Now().UTC()
-	fav.ID = len(s.data.Favorites[fav.UID]) + 1
-	s.data.Favorites[fav.UID] = append(s.data.Favorites[fav.UID], fav)
-	return s.save()
-}
-
-func (s *localStore) RemoveFavorite(ctx context.Context, uid, translation, bookName string, chapter, verse int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	list := s.data.Favorites[uid]
-	newList := make([]Favorite, 0, len(list))
-	for _, f := range list {
-		if f.Translation == translation && f.BookName == bookName && f.Chapter == chapter && f.Verse == verse {
-			continue
-		}
-		newList = append(newList, f)
-	}
-	s.data.Favorites[uid] = newList
-	return s.save()
-}
-
-func (s *localStore) IsFavorite(ctx context.Context, uid, translation, bookName string, chapter, verse int) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, f := range s.data.Favorites[uid] {
-		if f.Translation == translation && f.BookName == bookName && f.Chapter == chapter && f.Verse == verse {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (s *localStore) RecordFavoriteTyped(ctx context.Context, uid, translation, bookName string, chapter, verse int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for i := range s.data.Favorites[uid] {
-		f := &s.data.Favorites[uid][i]
-		if f.Translation == translation && f.BookName == bookName && f.Chapter == chapter && f.Verse == verse {
-			f.TimesTyped++
-			return s.save()
-		}
-	}
-	return nil
-}
-
-func (s *localStore) GetStreak(ctx context.Context, uid string) (*UserStreak, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	streak, ok := s.data.Streaks[uid]
-	if !ok {
-		nowDate := time.Now().UTC().Format("2006-01-02")
-		newStreak := &UserStreak{
-			UID:            uid,
-			LastActiveDate: nowDate,
-		}
-		s.data.Streaks[uid] = newStreak
-		return newStreak, nil
-	}
-	res := *streak
-	return &res, nil
-}
-
-func (s *localStore) RecordVerseCompleted(ctx context.Context, uid string, chars int, seconds float64) (*UserStreak, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	streak, ok := s.data.Streaks[uid]
-	if !ok {
-		streak = &UserStreak{UID: uid}
-		s.data.Streaks[uid] = streak
-	}
-
-	today := time.Now().UTC().Format("2006-01-02")
-	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
-
-	if streak.LastActiveDate == today {
-		streak.TodayVersesCount++
-	} else if streak.LastActiveDate == yesterday {
-		streak.CurrentStreak++
-		streak.TodayVersesCount = 1
-		streak.LastActiveDate = today
-		if streak.CurrentStreak > streak.LongestStreak {
-			streak.LongestStreak = streak.CurrentStreak
-		}
-	} else {
-		streak.CurrentStreak = 1
-		streak.TodayVersesCount = 1
-		streak.LastActiveDate = today
-		if streak.LongestStreak < 1 {
-			streak.LongestStreak = 1
-		}
-	}
-
-	streak.TotalVersesTyped++
-	streak.TotalCharsTyped += chars
-	streak.TotalSeconds += int(seconds)
-
-	ret := *streak
-	return &ret, s.save()
-}
-
-func (s *localStore) GetBadges(ctx context.Context, uid string) ([]Badge, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	list := s.data.Badges[uid]
-	res := make([]Badge, len(list))
-	copy(res, list)
-	return res, nil
-}
-
-func (s *localStore) AwardBadge(ctx context.Context, uid string, badge Badge) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, b := range s.data.Badges[uid] {
-		if b.ID == badge.ID {
-			return false, nil // already unlocked
-		}
-	}
-	s.data.Badges[uid] = append(s.data.Badges[uid], badge)
-	return true, s.save()
-}
-
-// ---- Text Processing & Utilities ----
 
 // cleanVerseText removes non-typing markers and digital tags while standardizing quotes,
 // apostrophes, dashes, and whitespace for a smooth typing experience.
 func cleanVerseText(s string) string {
+	s = strings.ReplaceAll(s, "a\u00FC", "au")
+	s = strings.ReplaceAll(s, "A\u00FC", "Au")
 	var sb strings.Builder
 	sb.Grow(len(s))
 	for _, r := range s {
-		// Convert whitespace (including tabs, newlines) to regular space
 		if unicode.IsSpace(r) {
 			sb.WriteRune(' ')
 			continue
 		}
-		// Strip other non-space control characters
 		if unicode.IsControl(r) {
 			continue
 		}
-		// Strip paragraph marks, quote markers, and digital bracket tags
 		if r == '\u00B6' || r == '\u2029' || r == '\u2028' || r == '\u2039' || r == '\u203A' || r == '[' || r == ']' {
 			continue
 		}
-		// Strip Hebrew letter headers in English text (e.g. Psalm 119)
 		if r >= 0x0590 && r <= 0x05FF {
 			continue
 		}
-		// Standardize smart quotes / apostrophes
 		if r == '\u2018' || r == '\u2019' || r == '`' || r == '´' {
 			sb.WriteRune('\'')
 			continue
@@ -1035,18 +144,60 @@ func cleanVerseText(s string) string {
 			sb.WriteString("Ae")
 			continue
 		}
-		if r == '\u00FC' {
-			sb.WriteRune('u')
-			continue
-		}
 		if r == '\u00EF' {
 			sb.WriteRune('i')
 			continue
 		}
 		sb.WriteRune(r)
 	}
-	// Consolidate whitespace and trim
 	return strings.Join(strings.Fields(sb.String()), " ")
+}
+
+// normalizeSpanishForMatch folds Spanish diacritics (á->a, é->e, í->i, ó->o, ú->u, ü->u, ñ->n)
+// and strips optional inverted punctuation (¿, ¡) for lenient typing comparison.
+func normalizeSpanishForMatch(s string) string {
+	var sb strings.Builder
+	sb.Grow(len(s))
+	for _, r := range s {
+		switch r {
+		case '¿', '¡':
+			continue
+		case 'á', 'à', 'â', 'ä':
+			sb.WriteRune('a')
+		case 'é', 'è', 'ê', 'ë':
+			sb.WriteRune('e')
+		case 'í', 'ì', 'î', 'ï':
+			sb.WriteRune('i')
+		case 'ó', 'ò', 'ô', 'ö':
+			sb.WriteRune('o')
+		case 'ú', 'ù', 'û', 'ü':
+			sb.WriteRune('u')
+		case 'ñ':
+			sb.WriteRune('n')
+		case 'Á', 'À', 'Â', 'Ä':
+			sb.WriteRune('A')
+		case 'É', 'È', 'Ê', 'Ë':
+			sb.WriteRune('E')
+		case 'Í', 'Ì', 'Î', 'Ï':
+			sb.WriteRune('I')
+		case 'Ó', 'Ò', 'Ô', 'Ö':
+			sb.WriteRune('O')
+		case 'Ú', 'Ù', 'Û', 'Ü':
+			sb.WriteRune('U')
+		case 'Ñ':
+			sb.WriteRune('N')
+		default:
+			sb.WriteRune(r)
+		}
+	}
+	return strings.Join(strings.Fields(sb.String()), " ")
+}
+
+func matchesPassageText(userInput, targetText string) bool {
+	if userInput == targetText {
+		return true
+	}
+	return normalizeSpanishForMatch(userInput) == normalizeSpanishForMatch(targetText)
 }
 
 func runeLen(s string) int {
@@ -1056,7 +207,6 @@ func runeLen(s string) int {
 // ---- Data Loading ----
 
 func loadTranslationsAndGuides() error {
-	// 1. Load Book Guides (66 books)
 	guideData, err := appFS.ReadFile("book_guides.json")
 	if err != nil {
 		return fmt.Errorf("reading book_guides.json: %w", err)
@@ -1065,7 +215,10 @@ func loadTranslationsAndGuides() error {
 		return fmt.Errorf("unmarshaling book_guides.json: %w", err)
 	}
 
-	// 2. Canonical book ordering
+	if guideDataES, err := appFS.ReadFile("book_guides_es.json"); err == nil {
+		_ = json.Unmarshal(guideDataES, &bookGuidesES)
+	}
+
 	type orderEntry struct {
 		name  string
 		order int
@@ -1074,7 +227,6 @@ func loadTranslationsAndGuides() error {
 	for name, g := range bookGuides {
 		orders = append(orders, orderEntry{name: name, order: g.Order})
 	}
-	// Sort 1 to 66
 	for i := 0; i < len(orders)-1; i++ {
 		for j := i + 1; j < len(orders); j++ {
 			if orders[i].order > orders[j].order {
@@ -1087,7 +239,6 @@ func loadTranslationsAndGuides() error {
 		canonicalOrder[i] = o.name
 	}
 
-	// 3. Load Bible Translations: KJV, ESV, NIV, NLT, HCSB, ASV, BBE
 	manifest := []struct {
 		file      string
 		id        string
@@ -1101,8 +252,10 @@ func loadTranslationsAndGuides() error {
 		{"hcsb.json", "hcsb", "Holman Christian Standard Bible (CSB)", "HCSB"},
 		{"asv.json", "asv", "American Standard Version (1901)", "ASV"},
 		{"bbe.json", "bbe", "Bible in Basic English (1965)", "BBE"},
+		{"rvr1909.json", "rvr1909", "Reina-Valera (1909) — Español", "RVR1909"},
 	}
 
+	availableTransList = nil
 	for _, m := range manifest {
 		raw, err := appFS.ReadFile(m.file)
 		if err != nil {
@@ -1155,7 +308,6 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 
 	now := time.Now().UTC()
 
-	// 1. Verse count milestones
 	if streak != nil {
 		if streak.TotalVersesTyped >= 1 {
 			tryAward(Badge{
@@ -1197,8 +349,6 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 				EarnedAt:    now,
 			})
 		}
-
-		// 2. Streaks
 		if streak.CurrentStreak >= 3 {
 			tryAward(Badge{
 				ID:          "streak_3",
@@ -1231,7 +381,6 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 		}
 	}
 
-	// 3. Speed & Accuracy
 	if wpm >= 40 {
 		tryAward(Badge{
 			ID:          "speed_40",
@@ -1252,8 +401,37 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 			EarnedAt:    now,
 		})
 	}
+	if wpm >= 80 {
+		tryAward(Badge{
+			ID:          "speed_80",
+			Type:        "speed",
+			Name:        "Radiant Velocity",
+			Description: "Achieved 80+ Words Per Minute! Unlocked Radiant Amethyst completed text color.",
+			Icon:        "🔮",
+			EarnedAt:    now,
+		})
+	}
+	if wpm >= 100 {
+		tryAward(Badge{
+			ID:          "speed_100",
+			Type:        "speed",
+			Name:        "Gabriel's Herald",
+			Description: "Achieved 100+ Words Per Minute! Inscribing scripture with heavenly swiftness.",
+			Icon:        "🎺",
+			EarnedAt:    now,
+		})
+	}
+	if wpm >= 160 {
+		tryAward(Badge{
+			ID:          "speed_160",
+			Type:        "speed",
+			Name:        "Sword of Michael",
+			Description: "Achieved 160+ Words Per Minute! Inscribing at Archangel Michael lightning speed!",
+			Icon:        "⚔️",
+			EarnedAt:    now,
+		})
+	}
 
-	// 4. Typable Features
 	if mode == "intro" {
 		tryAward(Badge{
 			ID:          "intro_scribe",
@@ -1284,8 +462,17 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 			EarnedAt:    now,
 		})
 	}
+	if mode == "challenge" {
+		tryAward(Badge{
+			ID:          "daily_racer",
+			Type:        "special",
+			Name:        "Daily Champion",
+			Description: "Completed a Verse of the Day Challenge Race!",
+			Icon:        "🏆",
+			EarnedAt:    now,
+		})
+	}
 
-	// 5. Book Completion Rewards (awarded upon review completion!)
 	if bp != nil && bp.TotalVerses > 0 && bp.CurrentVerse >= bp.TotalVerses && bp.ReviewCompleted {
 		tryAward(Badge{
 			ID:          "book_" + book,
@@ -1296,7 +483,6 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 			EarnedAt:    now,
 		})
 
-		// Check section milestones
 		allProg, err := s.GetAllBookProgress(ctx, uid, trans)
 		if err == nil {
 			isBookDone := func(b string) bool {
@@ -1304,7 +490,6 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 				return ok && p.TotalVerses > 0 && p.CurrentVerse >= p.TotalVerses && p.ReviewCompleted
 			}
 
-			// Pentateuch
 			penta := []string{"Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"}
 			pentaDone := true
 			for _, b := range penta {
@@ -1324,7 +509,6 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 				})
 			}
 
-			// Gospels
 			gospels := []string{"Matthew", "Mark", "Luke", "John"}
 			gospelsDone := true
 			for _, b := range gospels {
@@ -1403,27 +587,65 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	if err := store.EnsureUser(ctx, uid); err != nil {
-		log.Printf("Error ensuring user %s: %v", uid, err)
-		return
+	_ = store.EnsureUser(ctx, uid)
+
+	// Fetch or init user account info
+	account, _ := store.GetAccount(ctx, uid)
+	displayName := "Typist " + uid[:min(len(uid), 4)]
+	avatarColor := "#6366f1"
+	if account != nil {
+		displayName = account.DisplayName
+		avatarColor = account.AvatarColor
 	}
 
-	// Default active translation
 	currentTransID := r.URL.Query().Get("trans")
 	if _, ok := translations[currentTransID]; !ok {
 		currentTransID = "kjv"
 	}
 	transData := translations[currentTransID]
 
-	// Send available translations
+	streak, _ := store.GetStreak(ctx, uid)
+	streakDays := 0
+	if streak != nil {
+		streakDays = streak.CurrentStreak
+	}
+
+	client := &Client{
+		conn:           conn,
+		UID:            uid,
+		DisplayName:    displayName,
+		AvatarColor:    avatarColor,
+		StreakDays:     streakDays,
+		Translation:    currentTransID,
+		VerseStartTime: time.Now(),
+	}
+	if globalHub != nil {
+		globalHub.Register(client)
+		defer func() {
+			globalHub.Unregister(client)
+			if globalAngelManager != nil {
+				globalAngelManager.DismissCompanion(uid)
+			}
+			if globalDemonManager != nil {
+				globalDemonManager.DismissDemon(uid)
+			}
+		}()
+	}
+
+	// Send initial state to client
 	_ = conn.WriteJSON(Message{
 		Type:         "translations",
 		Translation:  currentTransID,
 		Translations: availableTransList,
 	})
 
-	// Send current streak
-	streak, _ := store.GetStreak(ctx, uid)
+	if account != nil {
+		_ = conn.WriteJSON(Message{
+			Type:    "auth_success",
+			Account: account,
+		})
+	}
+
 	if streak != nil {
 		_ = conn.WriteJSON(Message{
 			Type:   "streakUpdate",
@@ -1431,21 +653,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Send badges
 	badges, _ := store.GetBadges(ctx, uid)
 	_ = conn.WriteJSON(Message{
 		Type:   "badges",
 		Badges: badges,
 	})
 
-	// Send favorites
 	favs, _ := store.GetFavorites(ctx, uid)
 	_ = conn.WriteJSON(Message{
 		Type:      "favorites",
 		Favorites: favs,
 	})
 
-	// Ensure book progress rows for current translation
+	// Ensure book progress rows
 	totalsMap := make(map[string]int, len(transData.VersesByBook))
 	for b, vList := range transData.VersesByBook {
 		totalsMap[b] = len(vList)
@@ -1457,7 +677,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		allProgress = make(map[string]BookProgress)
 	}
 
-	// Send canonical book list
 	_ = conn.WriteJSON(Message{
 		Type:        "books",
 		Books:       canonicalOrder,
@@ -1465,14 +684,72 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		Translation: currentTransID,
 	})
 
+	// Send Sanctuary Customizations & Unlocks
+	customs, _ := store.GetCustomizations(ctx, uid)
+	var topWPM int
+	an, _ := store.GetUserAnalytics(ctx, uid)
+	if an != nil {
+		topWPM = an.TopWPM
+	}
+	totVerses := 0
+	longStreak := 0
+	if streak != nil {
+		totVerses = streak.TotalVersesTyped
+		longStreak = streak.LongestStreak
+	}
+	booksDone := 0
+	for _, bp := range allProgress {
+		if bp.ReviewCompleted {
+			booksDone++
+		}
+	}
+	unlocks := GetAllCustomizationUnlocks(topWPM, totVerses, longStreak, booksDone)
+	_ = conn.WriteJSON(Message{
+		Type:      "sanctuary_state",
+		Sanctuary: customs,
+		Unlocks:   unlocks,
+	})
+
+	// Send Angel Bot Status & Templates
+	if globalAngelManager != nil {
+		_ = conn.WriteJSON(Message{
+			Type:   "angels_list",
+			Angels: globalAngelManager.GetAngelTemplatesForUser(uid),
+			Angel:  globalAngelManager.GetGlobalAngelStatus(),
+		})
+	}
+
+	// Send 24/7 Devil Status and Demon Templates
+	if globalDemonManager != nil {
+		vCount, loc, dWpm := globalDemonManager.GetDevil24_7Status()
+		_ = conn.WriteJSON(Message{
+			Type:                 "devil_24_7_status",
+			Devil24_7VersesCount: vCount,
+			Content:              loc,
+			DemonSpeed:           dWpm,
+			Demons:               globalDemonManager.GetDemonTemplates(),
+		})
+	}
+
+	// Send Celestial Boss Raid Status
+	if boss, err := store.GetBossRaid(ctx); err == nil && boss != nil {
+		_ = conn.WriteJSON(Message{
+			Type:     "boss_raid_update",
+			BossRaid: boss,
+		})
+	}
+
 	// Session State
 	var selectedBook string
 	var bookProgress *BookProgress
 	var bookVerses []Verse
 	var sessionID int
 	var activeVerseIdx int
-	currentMode := "verse" // "verse", "intro", "review", "favorite"
+	currentMode := "verse" // "verse", "intro", "review", "favorite", "challenge", "boss_raid"
 	var activeFavorite *Favorite
+	var activeChallenge *DailyChallenge
+	var activeBossRaid *BossRaid
+	var challengeStartTime time.Time
 
 	runtimeStats := RuntimeStats{
 		StartTime:      time.Now(),
@@ -1483,16 +760,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if selectedBook == "" || bookProgress == nil || len(bookVerses) == 0 {
 			return
 		}
-		guide := bookGuides[selectedBook]
+		guide, _ := getBookGuide(currentTransID, selectedBook)
 		stats := &Stats{
 			BookProgress: *bookProgress,
 			RuntimeStats: runtimeStats,
 		}
 
-		// 1. Mandatory Intro Check: User MUST type the intro before starting Chapter 1
 		if !bookProgress.IntroCompleted {
 			currentMode = "intro"
 			runtimeStats.VerseStartTime = time.Now()
+			client.VerseStartTime = runtimeStats.VerseStartTime
+			if globalHub != nil {
+				globalHub.UpdateClientLocation(client, currentTransID, selectedBook, 0, 0)
+			}
 			_ = conn.WriteJSON(Message{
 				Type:         "intro",
 				Mode:         "intro",
@@ -1509,8 +789,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 2. Normal Scripture Verses
-		// Clamp activeVerseIdx to not exceed highest unlocked verse
 		if activeVerseIdx > bookProgress.CurrentVerse {
 			activeVerseIdx = bookProgress.CurrentVerse
 		}
@@ -1522,28 +800,72 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			currentMode = "verse"
 			v := bookVerses[activeVerseIdx]
 			isFav, _ := store.IsFavorite(ctx, uid, currentTransID, v.BookName, v.Chapter, v.Verse)
+			uComps, gComps, _ := store.GetVerseCompletions(ctx, uid, currentTransID, v.BookName, v.Chapter, v.Verse)
+			if globalAngelManager != nil {
+				globalAngelManager.UpdateCompanionLocation(uid, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
+			}
+			if globalDemonManager != nil {
+				globalDemonManager.UpdateDemonLocation(uid, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
+			}
 			runtimeStats.VerseStartTime = time.Now()
+			client.VerseStartTime = runtimeStats.VerseStartTime
+			if globalHub != nil {
+				globalHub.UpdateClientLocation(client, currentTransID, v.BookName, v.Chapter, v.Verse)
+			}
+			var wildD *WildDemon
+			var encounterChance float64
+			var isAmbush bool
+			if globalDemonManager != nil {
+				wildD, encounterChance, isAmbush = globalDemonManager.CheckOrSpawnWildDemonForUser(
+					currentTransID,
+					v,
+					activeVerseIdx,
+					len(bookVerses),
+				)
+			}
 			_ = conn.WriteJSON(Message{
-				Type:         "verse",
-				Mode:         "verse",
-				Content:      v.Text,
-				Verse:        &v,
-				Guide:        &guide,
-				Number:       activeVerseIdx + 1,
-				Total:        len(bookVerses),
-				Stats:        stats,
-				IsFavorite:   isFav,
-				Translation:  currentTransID,
-				Category:     guide.Category,
-				ReviewLocked: bookProgress.CurrentVerse < len(bookVerses), // Locked while any verses remain uncompleted!
+				Type:              "verse",
+				Mode:              "verse",
+				Content:           v.Text,
+				Verse:             &v,
+				Guide:             &guide,
+				Number:            activeVerseIdx + 1,
+				Total:             len(bookVerses),
+				Stats:             stats,
+				IsFavorite:        isFav,
+				Translation:       currentTransID,
+				Category:          guide.Category,
+				ReviewLocked:      bookProgress.CurrentVerse < len(bookVerses),
+				UserCompletions:   uComps,
+				GlobalCompletions: gComps,
+				WildDemon:         wildD,
+				EncounterChance:   int(encounterChance * 100),
+				IsAmbush:          isAmbush,
 			})
+			if wildD != nil {
+				sanctuary, _ := store.GetCustomizations(ctx, uid)
+				wards := 0
+				if sanctuary != nil {
+					wards = sanctuary.GuardianWards
+				}
+				_ = conn.WriteJSON(Message{
+					Type:            "wild_demon_present",
+					WildDemon:       wildD,
+					HolyWards:       wards,
+					EncounterChance: int(encounterChance * 100),
+					IsAmbush:        isAmbush,
+				})
+			}
 			return
 		}
 
-		// 3. Mandatory Review Check: When all verses are typed, the user MUST type the review to finish the book
 		if !bookProgress.ReviewCompleted {
 			currentMode = "review"
 			runtimeStats.VerseStartTime = time.Now()
+			client.VerseStartTime = runtimeStats.VerseStartTime
+			if globalHub != nil {
+				globalHub.UpdateClientLocation(client, currentTransID, selectedBook, 999, 999)
+			}
 			_ = conn.WriteJSON(Message{
 				Type:         "review",
 				Mode:         "review",
@@ -1555,12 +877,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				Stats:        stats,
 				Translation:  currentTransID,
 				Category:     guide.Category,
-				ReviewLocked: false, // Review is now unlocked to type!
+				ReviewLocked: false,
 			})
 			return
 		}
 
-		// 4. Fully Completed Book!
 		currentMode = "verse"
 		_ = conn.WriteJSON(Message{
 			Type:         "complete",
@@ -1583,11 +904,634 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		switch msg.Type {
+
+		// ---- Identity & Account Messages ----
+		case "auth_register":
+			acc, err := store.RegisterAccount(ctx, msg.Username, msg.Email, hashPassword(msg.Password), msg.Content, msg.Color, msg.AnonUID)
+			if err != nil {
+				_ = conn.WriteJSON(Message{Type: "auth_error", Content: err.Error()})
+				continue
+			}
+			uid = acc.UID
+			client.UID = acc.UID
+			client.DisplayName = acc.DisplayName
+			client.AvatarColor = acc.AvatarColor
+			if globalHub != nil {
+				globalHub.UpdateClientIdentity(client, acc.DisplayName, acc.AvatarColor, client.StreakDays)
+			}
+
+			// Send updated merged profile and stats
+			_ = conn.WriteJSON(Message{Type: "auth_success", Account: acc})
+			st, _ := store.GetStreak(ctx, uid)
+			_ = conn.WriteJSON(Message{Type: "streakUpdate", Streak: st})
+			bdg, _ := store.GetBadges(ctx, uid)
+			_ = conn.WriteJSON(Message{Type: "badges", Badges: bdg})
+			favList, _ := store.GetFavorites(ctx, uid)
+			_ = conn.WriteJSON(Message{Type: "favorites", Favorites: favList})
+			allProg, _ := store.GetAllBookProgress(ctx, uid, currentTransID)
+			_ = conn.WriteJSON(Message{Type: "books", Books: canonicalOrder, Progress: allProg, Translation: currentTransID})
+			if selectedBook != "" {
+				bookProgress, _ = store.GetBookProgress(ctx, uid, currentTransID, selectedBook, len(bookVerses))
+				sendCurrentVerse()
+			}
+
+		case "auth_login":
+			acc, err := store.LoginAccount(ctx, msg.Username, hashPassword(msg.Password), msg.AnonUID)
+			if err != nil {
+				_ = conn.WriteJSON(Message{Type: "auth_error", Content: err.Error()})
+				continue
+			}
+			uid = acc.UID
+			client.UID = acc.UID
+			client.DisplayName = acc.DisplayName
+			client.AvatarColor = acc.AvatarColor
+			if globalHub != nil {
+				globalHub.UpdateClientIdentity(client, acc.DisplayName, acc.AvatarColor, client.StreakDays)
+			}
+
+			_ = conn.WriteJSON(Message{Type: "auth_success", Account: acc})
+			st, _ := store.GetStreak(ctx, uid)
+			_ = conn.WriteJSON(Message{Type: "streakUpdate", Streak: st})
+			bdg, _ := store.GetBadges(ctx, uid)
+			_ = conn.WriteJSON(Message{Type: "badges", Badges: bdg})
+			favList, _ := store.GetFavorites(ctx, uid)
+			_ = conn.WriteJSON(Message{Type: "favorites", Favorites: favList})
+			allProg, _ := store.GetAllBookProgress(ctx, uid, currentTransID)
+			_ = conn.WriteJSON(Message{Type: "books", Books: canonicalOrder, Progress: allProg, Translation: currentTransID})
+			if selectedBook != "" {
+				bookProgress, _ = store.GetBookProgress(ctx, uid, currentTransID, selectedBook, len(bookVerses))
+				sendCurrentVerse()
+			}
+
+		case "update_profile":
+			acc, err := store.UpdateProfile(ctx, uid, msg.Content, msg.Color)
+			if err == nil {
+				client.DisplayName = acc.DisplayName
+				client.AvatarColor = acc.AvatarColor
+				if globalHub != nil {
+					globalHub.UpdateClientIdentity(client, acc.DisplayName, acc.AvatarColor, client.StreakDays)
+				}
+				_ = conn.WriteJSON(Message{Type: "profile_updated", Account: acc})
+			}
+
+		case "claim_progress":
+			if msg.AnonUID != "" && msg.AnonUID != uid {
+				_ = store.MergeUserProgress(ctx, uid, msg.AnonUID)
+				st, _ := store.GetStreak(ctx, uid)
+				_ = conn.WriteJSON(Message{Type: "streakUpdate", Streak: st})
+				bdg, _ := store.GetBadges(ctx, uid)
+				_ = conn.WriteJSON(Message{Type: "badges", Badges: bdg})
+				favList, _ := store.GetFavorites(ctx, uid)
+				_ = conn.WriteJSON(Message{Type: "favorites", Favorites: favList})
+				allProg, _ := store.GetAllBookProgress(ctx, uid, currentTransID)
+				_ = conn.WriteJSON(Message{Type: "books", Books: canonicalOrder, Progress: allProg, Translation: currentTransID})
+			}
+
+		// ---- Daily Challenge & Race Messages ----
+		case "start_daily_challenge":
+			dateStr := msg.Content
+			if dateStr == "" {
+				dateStr = time.Now().UTC().Format("2006-01-02")
+			}
+			ch, err := getDailyChallengeVerse(dateStr, currentTransID)
+			if err != nil {
+				_ = conn.WriteJSON(Message{Type: "wrong", Content: "Could not load challenge: " + err.Error()})
+				continue
+			}
+			activeChallenge = ch
+			currentMode = "challenge"
+			challengeStartTime = time.Now()
+			client.VerseStartTime = challengeStartTime
+			if globalHub != nil {
+				globalHub.UpdateClientLocation(client, currentTransID, ch.BookName, ch.Chapter, ch.Verse)
+			}
+			guide, _ := getBookGuide(currentTransID, ch.BookName)
+			uComps, gComps, _ := store.GetVerseCompletions(ctx, uid, currentTransID, ch.BookName, ch.Chapter, ch.Verse)
+			if globalAngelManager != nil {
+				globalAngelManager.UpdateCompanionLocation(uid, currentTransID, ch.BookName, ch.Chapter, ch.Verse, ch.Text)
+			}
+			if globalDemonManager != nil {
+				globalDemonManager.UpdateDemonLocation(uid, currentTransID, ch.BookName, ch.Chapter, ch.Verse, ch.Text)
+			}
+			_ = conn.WriteJSON(Message{
+				Type:              "daily_challenge",
+				Mode:              "challenge",
+				Challenge:         ch,
+				Content:           ch.Text,
+				Guide:             &guide,
+				Translation:       currentTransID,
+				Category:          guide.Category,
+				UserCompletions:   uComps,
+				GlobalCompletions: gComps,
+			})
+
+		// ---- Live Presence & Ghost Cursor Messages ----
+		case "presence_cursor":
+			if globalHub != nil {
+				globalHub.UpdateCursor(client, msg.CharIndex, msg.WPM)
+			}
+
+		case "toggle_spectator":
+			client.IsSpectator = !client.IsSpectator
+			_ = conn.WriteJSON(Message{Type: "spectator_state", Content: fmt.Sprintf("%v", client.IsSpectator)})
+
+		// ---- Verse Comments & Reflection Messages ----
+		case "get_comments":
+			bName := msg.Book
+			if bName == "" {
+				bName = selectedBook
+			}
+			chNum := 1
+			vNum := 1
+			if msg.Verse != nil {
+				chNum = msg.Verse.Chapter
+				vNum = msg.Verse.Verse
+			}
+			cmts, _ := store.GetVerseComments(ctx, currentTransID, bName, chNum, vNum, uid)
+			_ = conn.WriteJSON(Message{
+				Type:     "verse_comments",
+				Comments: cmts,
+				Book:     bName,
+			})
+
+		case "add_comment":
+			bName := msg.Book
+			if bName == "" {
+				bName = selectedBook
+			}
+			chNum := 1
+			vNum := 1
+			if msg.Verse != nil {
+				chNum = msg.Verse.Chapter
+				vNum = msg.Verse.Verse
+			}
+			newCmt := VerseComment{
+				UID:         uid,
+				DisplayName: client.DisplayName,
+				AvatarColor: client.AvatarColor,
+				StreakDays:  client.StreakDays,
+				Translation: currentTransID,
+				BookName:    bName,
+				Chapter:     chNum,
+				Verse:       vNum,
+				PromptType:  msg.PromptType,
+				Content:     cleanVerseText(msg.Content),
+				IsPrivate:   msg.IsPrivate,
+				ParentID:    msg.ParentID,
+			}
+			saved, err := store.AddVerseComment(ctx, newCmt)
+			if err == nil {
+				_ = conn.WriteJSON(Message{Type: "comment_added_ack", Comment: saved})
+				if !saved.IsPrivate && globalHub != nil {
+					globalHub.BroadcastCommentAdded(*saved)
+				}
+			}
+
+		case "react_comment":
+			if msg.CommentID > 0 && msg.Reaction != "" {
+				_ = store.ReactVerseComment(ctx, msg.CommentID, msg.Reaction)
+				_ = conn.WriteJSON(Message{Type: "reaction_ack", CommentID: msg.CommentID, Reaction: msg.Reaction})
+			}
+
+		case "flag_comment":
+			if msg.CommentID > 0 {
+				_ = store.FlagVerseComment(ctx, msg.CommentID)
+				_ = conn.WriteJSON(Message{Type: "flag_ack", CommentID: msg.CommentID})
+			}
+
+		// ---- Live Fellowship Chat Messages ----
+		case "get_chat":
+			chName := msg.Channel
+			if chName == "" {
+				chName = "global"
+			}
+			history, _ := store.GetRecentChat(ctx, chName, 50)
+			_ = conn.WriteJSON(Message{
+				Type:        "chat_history",
+				Channel:     chName,
+				ChatHistory: history,
+			})
+
+		case "chat_message":
+			text := strings.TrimSpace(msg.Content)
+			if text != "" && len(text) <= 500 {
+				chName := msg.Channel
+				if chName == "" {
+					chName = "global"
+				}
+				chatMsg := ChatMessage{
+					UID:         uid,
+					DisplayName: client.DisplayName,
+					AvatarColor: client.AvatarColor,
+					Channel:     chName,
+					Content:     text,
+					CreatedAt:   time.Now().UTC(),
+				}
+				_ = store.AddChatMessage(ctx, chatMsg)
+				if globalHub != nil {
+					globalHub.BroadcastChatMessage(chatMsg)
+				}
+			}
+
+		// ---- Analytics & Leaderboard Messages ----
+		case "get_leaderboards":
+			todayStr := time.Now().UTC().Format("2006-01-02")
+			lbs, _ := store.GetLeaderboards(ctx, todayStr)
+			_ = conn.WriteJSON(Message{
+				Type:         "leaderboards",
+				Leaderboards: lbs,
+			})
+
+		case "get_analytics":
+			an, _ := store.GetUserAnalytics(ctx, uid)
+			_ = conn.WriteJSON(Message{
+				Type:      "user_analytics",
+				Analytics: an,
+			})
+
+		case "get_crowd_metrics":
+			cm, _ := store.GetCrowdMetrics(ctx)
+			_ = conn.WriteJSON(Message{
+				Type:    "crowd_metrics",
+				Metrics: cm,
+			})
+
+		// ---- Sanctuary & Customization Messages ----
+		case "get_sanctuary":
+			customs, _ := store.GetCustomizations(ctx, uid)
+			var topWPM int
+			an, _ := store.GetUserAnalytics(ctx, uid)
+			if an != nil {
+				topWPM = an.TopWPM
+			}
+			totVerses := 0
+			longStreak := 0
+			st, _ := store.GetStreak(ctx, uid)
+			if st != nil {
+				totVerses = st.TotalVersesTyped
+				longStreak = st.LongestStreak
+			}
+			booksDone := 0
+			allProg, _ := store.GetAllBookProgress(ctx, uid, currentTransID)
+			for _, bp := range allProg {
+				if bp.ReviewCompleted {
+					booksDone++
+				}
+			}
+			unlocks := GetAllCustomizationUnlocks(topWPM, totVerses, longStreak, booksDone)
+			_ = conn.WriteJSON(Message{
+				Type:      "sanctuary_state",
+				Sanctuary: customs,
+				Unlocks:   unlocks,
+			})
+
+		case "save_sanctuary":
+			if msg.Sanctuary != nil {
+				_ = store.SaveCustomizations(ctx, uid, *msg.Sanctuary)
+				_ = conn.WriteJSON(Message{
+					Type:      "sanctuary_saved",
+					Sanctuary: msg.Sanctuary,
+				})
+			}
+
+		// ---- Heavenly Angel Bot Messages ----
+		case "get_angels":
+			if globalAngelManager != nil {
+				_ = conn.WriteJSON(Message{
+					Type:   "angels_list",
+					Angels: globalAngelManager.GetAngelTemplatesForUser(uid),
+					Angel:  globalAngelManager.GetGlobalAngelStatus(),
+				})
+			}
+
+		case "summon_angel":
+			rank := msg.AngelRank
+			if rank == "" {
+				rank = msg.Content
+			}
+			if rank == "" {
+				rank = "guardian"
+			}
+			if globalAngelManager != nil {
+				var targetText string
+				var bName string
+				var chNum, vNum int
+				if currentMode == "boss_raid" && activeBossRaid != nil {
+					bName = activeBossRaid.BookName
+					chNum = activeBossRaid.Chapter
+					vNum = activeBossRaid.Verse
+					targetText = activeBossRaid.Text
+				} else if currentMode == "challenge" && activeChallenge != nil {
+					bName = activeChallenge.BookName
+					chNum = activeChallenge.Chapter
+					vNum = activeChallenge.Verse
+					targetText = activeChallenge.Text
+				} else if currentMode == "favorite" && activeFavorite != nil {
+					bName = activeFavorite.BookName
+					chNum = activeFavorite.Chapter
+					vNum = activeFavorite.Verse
+					targetText = activeFavorite.Text
+				} else if selectedBook != "" && activeVerseIdx < len(bookVerses) {
+					v := bookVerses[activeVerseIdx]
+					bName = v.BookName
+					chNum = v.Chapter
+					vNum = v.Verse
+					targetText = v.Text
+				}
+				if bName != "" && targetText != "" {
+					ang := globalAngelManager.SummonCompanionWithLevel(uid, rank, msg.AngelLevel, currentTransID, bName, chNum, vNum, targetText)
+					_ = conn.WriteJSON(Message{
+						Type:  "angel_summoned",
+						Angel: ang,
+					})
+				}
+			}
+
+		case "dismiss_angel":
+			if globalAngelManager != nil {
+				globalAngelManager.DismissCompanion(uid)
+				_ = conn.WriteJSON(Message{
+					Type: "angel_dismissed",
+				})
+			}
+
+		// ---- Demonic Adversary Messages ----
+		case "get_demons":
+			if globalDemonManager != nil {
+				vCount, loc, dWpm := globalDemonManager.GetDevil24_7Status()
+				_ = conn.WriteJSON(Message{
+					Type:                 "devil_24_7_status",
+					Devil24_7VersesCount: vCount,
+					Content:              loc,
+					DemonSpeed:           dWpm,
+					Demons:               globalDemonManager.GetDemonTemplates(),
+				})
+			}
+
+		case "summon_demon":
+			rank := msg.DemonRank
+			if rank == "" {
+				rank = "imp"
+			}
+			lvl := msg.DemonLevel
+			if lvl < 1 {
+				lvl = 1
+			}
+			if globalDemonManager != nil {
+				var targetText string
+				var bName string
+				var chNum, vNum int
+				if currentMode == "boss_raid" && activeBossRaid != nil {
+					bName = activeBossRaid.BookName
+					chNum = activeBossRaid.Chapter
+					vNum = activeBossRaid.Verse
+					targetText = activeBossRaid.Text
+				} else if currentMode == "challenge" && activeChallenge != nil {
+					bName = activeChallenge.BookName
+					chNum = activeChallenge.Chapter
+					vNum = activeChallenge.Verse
+					targetText = activeChallenge.Text
+				} else if currentMode == "favorite" && activeFavorite != nil {
+					bName = activeFavorite.BookName
+					chNum = activeFavorite.Chapter
+					vNum = activeFavorite.Verse
+					targetText = activeFavorite.Text
+				} else if selectedBook != "" && activeVerseIdx < len(bookVerses) {
+					v := bookVerses[activeVerseIdx]
+					bName = v.BookName
+					chNum = v.Chapter
+					vNum = v.Verse
+					targetText = v.Text
+				}
+				if bName != "" && targetText != "" {
+					dmn := globalDemonManager.SummonDemon(uid, rank, lvl, currentTransID, bName, chNum, vNum, targetText)
+					_ = conn.WriteJSON(Message{
+						Type:  "demon_summoned",
+						Demon: dmn,
+					})
+				}
+			}
+
+		case "dismiss_demon":
+			if globalDemonManager != nil {
+				globalDemonManager.DismissDemon(uid)
+				_ = conn.WriteJSON(Message{
+					Type: "demon_dismissed",
+				})
+			}
+
+		case "get_wild_demons":
+			sanctuary, _ := store.GetCustomizations(ctx, uid)
+			defCount := 0
+			unlocked := false
+			if sanctuary != nil {
+				defCount = sanctuary.DemonsDefeated
+				unlocked = sanctuary.DemonsDefeated >= 6
+			}
+			var list []WildDemon
+			activeCount := 0
+			if globalDemonManager != nil {
+				allDemons := globalDemonManager.GetWildDemons()
+				activeCount = len(allDemons)
+				if unlocked {
+					list = allDemons
+				}
+			}
+			sanctPct := 100
+			if activeCount > 0 {
+				sanctPct = int((1.0 - float64(activeCount)/666.0) * 100)
+				if sanctPct < 0 {
+					sanctPct = 0
+				}
+			}
+			_ = conn.WriteJSON(Message{
+				Type:            "wild_demons_list",
+				WildDemons:      list,
+				TrackerUnlocked: unlocked,
+				DemonsDefeated:  defCount,
+				ActiveDemons:    activeCount,
+				MaxDemons:       666,
+				Sanctification:  sanctPct,
+			})
+
+		case "confront_wild_demon":
+			if globalDemonManager == nil {
+				continue
+			}
+			demon := globalDemonManager.GetWildDemon(msg.DemonID)
+			if demon == nil {
+				continue
+			}
+			if td, ok := translations[demon.Translation]; ok {
+				currentTransID = demon.Translation
+				transData = td
+				if vList, ok := transData.VersesByBook[demon.BookName]; ok {
+					selectedBook = demon.BookName
+					bookVerses = vList
+					bookProgress, _ = store.GetBookProgress(ctx, uid, currentTransID, selectedBook, len(bookVerses))
+					foundIdx := -1
+					for i, v := range bookVerses {
+						if v.Chapter == demon.Chapter && v.Verse == demon.Verse {
+							foundIdx = i
+							break
+						}
+					}
+					if foundIdx >= 0 {
+						activeVerseIdx = foundIdx
+						currentMode = "verse"
+						if !bookProgress.IntroCompleted {
+							bookProgress.IntroCompleted = true
+							_ = store.UpdateBookProgress(ctx, uid, currentTransID, selectedBook, bookProgress)
+						}
+						if bookProgress.CurrentVerse < foundIdx {
+							bookProgress.CurrentVerse = foundIdx
+							_ = store.UpdateBookProgress(ctx, uid, currentTransID, selectedBook, bookProgress)
+						}
+						sendCurrentVerse()
+					}
+				}
+			}
+
+		case "wild_demon_strike":
+			if globalDemonManager == nil {
+				continue
+			}
+			demonID := msg.DemonID
+			damage := msg.Damage
+			if damage <= 0 {
+				damage = 1
+			}
+			updated, defeated := globalDemonManager.ApplyWildDemonDamage(demonID, damage)
+			if updated != nil {
+				if defeated {
+					newSettings, leveledUp, _ := store.RecordWildDemonDefeat(ctx, uid, updated.Rank, updated.Level)
+					if globalHub != nil {
+						globalHub.BroadcastWildDemonsList(globalDemonManager.GetWildDemons())
+					}
+					content := fmt.Sprintf("Exorcised %s (Lv. %d)! Total Defeated: %d", updated.Name, updated.Level, newSettings.DemonsDefeated)
+					if leveledUp {
+						content = fmt.Sprintf("Exorcised %s! Your Guardian Angel reached Level %d!", updated.Name, newSettings.GuardianLevel)
+					}
+					_ = conn.WriteJSON(Message{
+						Type:            "wild_demon_defeated",
+						WildDemon:       updated,
+						Sanctuary:       newSettings,
+						TrackerUnlocked: newSettings.TrackerUnlocked,
+						DemonsDefeated:  newSettings.DemonsDefeated,
+						DemonDefeated:   true,
+						Content:         content,
+					})
+				} else {
+					_ = conn.WriteJSON(Message{
+						Type:      "wild_demon_update",
+						WildDemon: updated,
+					})
+				}
+			}
+
+		case "demon_mistake_backlash":
+			if globalDemonManager == nil {
+				continue
+			}
+			demonID := msg.DemonID
+			enraged := globalDemonManager.EnrageWildDemonOnMistake(demonID)
+			if enraged != nil {
+				_ = conn.WriteJSON(Message{
+					Type:      "wild_demon_enraged",
+					WildDemon: enraged,
+					Content:   fmt.Sprintf("%s was empowered by your mistake! (+20%% HP, +2 WPM)", enraged.Name),
+				})
+			}
+
+		// ---- Celestial & Demonic Boss Raid Messages ----
+		case "get_boss_raid":
+			lvl := msg.BossLevel
+			if lvl < 1 {
+				lvl = 2
+			}
+			isDemon := msg.IsDemonBoss || (msg.BossRaid != nil && msg.BossRaid.IsDemonBoss) || msg.Content == "demon"
+			b, err := store.GetBossRaidForLevel(ctx, lvl, isDemon)
+			if err != nil || b == nil {
+				b, _ = store.GetBossRaid(ctx)
+			}
+			if b != nil {
+				_ = conn.WriteJSON(Message{
+					Type:     "boss_raid_update",
+					BossRaid: b,
+				})
+			}
+
+		case "start_boss_raid":
+			lvl := msg.BossLevel
+			if lvl < 1 {
+				lvl = 2
+			}
+			isDemon := msg.IsDemonBoss || (msg.BossRaid != nil && msg.BossRaid.IsDemonBoss) || msg.Content == "demon"
+			b, err := store.GetBossRaidForLevel(ctx, lvl, isDemon)
+			if err != nil || b == nil {
+				b, _ = store.GetBossRaid(ctx)
+			}
+			if b != nil {
+				currentMode = "boss_raid"
+				activeBossRaid = b
+				challengeStartTime = time.Now()
+				guide, _ := getBookGuide(currentTransID, b.BookName)
+				_ = conn.WriteJSON(Message{
+					Type:     "boss_raid_verse",
+					Content:  b.Text,
+					BossRaid: b,
+					Guide:    &guide,
+				})
+				if b.IsDemonBoss {
+					if globalDemonManager != nil {
+						dmn := globalDemonManager.SummonDemon(uid, "apollyon", b.Level, b.Translation, b.BookName, b.Chapter, b.Verse, b.Text)
+						_ = conn.WriteJSON(Message{
+							Type:  "demon_summoned",
+							Demon: dmn,
+						})
+					}
+				} else {
+					if globalAngelManager != nil {
+						ang := globalAngelManager.SummonCompanionWithLevel(uid, "michael", b.Level, b.Translation, b.BookName, b.Chapter, b.Verse, b.Text)
+						_ = conn.WriteJSON(Message{
+							Type:  "angel_summoned",
+							Angel: ang,
+						})
+					}
+				}
+			}
+
+		// ---- Offline Progress Sync ----
+		case "sync_offline_progress":
+			for _, item := range msg.SyncItems {
+				if item.BookName != "" && item.Verse > 0 {
+					bp, err := store.GetBookProgress(ctx, uid, item.Translation, item.BookName, 100)
+					if err == nil {
+						if item.Verse > bp.CurrentVerse {
+							bp.CurrentVerse = item.Verse
+						}
+						bp.CorrectEntries++
+						_ = store.UpdateBookProgress(ctx, uid, item.Translation, item.BookName, bp)
+						_ = store.RecordTypingSession(ctx, uid, item.Translation, item.BookName, item.Verse*30, item.Verse*30, item.WPM, item.Duration)
+						_, _ = store.RecordVerseCompleted(ctx, uid, item.Verse*30, item.Duration)
+					}
+				}
+			}
+			st, _ := store.GetStreak(ctx, uid)
+			allProg, _ := store.GetAllBookProgress(ctx, uid, currentTransID)
+			_ = conn.WriteJSON(Message{
+				Type:     "sync_complete",
+				Streak:   st,
+				Progress: allProg,
+			})
+
+		// ---- Core Typing Navigation & Selection ----
 		case "select_translation":
 			newTrans := strings.ToLower(strings.TrimSpace(msg.Content))
 			if td, ok := translations[newTrans]; ok {
 				currentTransID = newTrans
 				transData = td
+				client.Translation = newTrans
 
 				totalsMap := make(map[string]int, len(transData.VersesByBook))
 				for b, vList := range transData.VersesByBook {
@@ -1631,6 +1575,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				StartTime:      time.Now(),
 				VerseStartTime: time.Now(),
 			}
+			client.VerseStartTime = runtimeStats.VerseStartTime
 			activeVerseIdx = bookProgress.CurrentVerse
 			sendCurrentVerse()
 
@@ -1638,7 +1583,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if selectedBook == "" || bookProgress == nil || len(bookVerses) == 0 {
 				continue
 			}
-			// Intro must be completed before jumping verses
 			if !bookProgress.IntroCompleted {
 				_ = conn.WriteJSON(Message{
 					Type:    "wrong",
@@ -1655,7 +1599,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				targetVerseIdx = len(bookVerses) - 1
 			}
 
-			// User cannot skip passages or jump to ones that haven't been unlocked yet
 			if targetVerseIdx > bookProgress.CurrentVerse {
 				_ = conn.WriteJSON(Message{
 					Type:    "wrong",
@@ -1672,12 +1615,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if bName == "" {
 				bName = selectedBook
 			}
-			guide, ok := bookGuides[bName]
+			guide, ok := getBookGuide(currentTransID, bName)
 			if !ok {
 				continue
 			}
 			currentMode = "intro"
 			runtimeStats.VerseStartTime = time.Now()
+			client.VerseStartTime = runtimeStats.VerseStartTime
+			if globalHub != nil {
+				globalHub.UpdateClientLocation(client, currentTransID, bName, 0, 0)
+			}
 			_ = conn.WriteJSON(Message{
 				Type:         "intro",
 				Mode:         "intro",
@@ -1695,16 +1642,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if bName == "" {
 				bName = selectedBook
 			}
-			guide, ok := bookGuides[bName]
+			guide, ok := getBookGuide(currentTransID, bName)
 			if !ok {
 				continue
 			}
 
-			// Locked until all verses of this book are completed!
 			if bookProgress != nil && bookProgress.CurrentVerse < len(bookVerses) {
 				_ = conn.WriteJSON(Message{
 					Type:         "review_locked",
-					Content:      fmt.Sprintf("Review for %s is locked! Complete all %d verses to unlock the review.", bName, len(bookVerses)),
+					Content:      fmt.Sprintf("Review for %s is locked! Complete all %d verses to unlock the review.", guide.Name, len(bookVerses)),
 					ReviewLocked: true,
 				})
 				continue
@@ -1712,6 +1658,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 			currentMode = "review"
 			runtimeStats.VerseStartTime = time.Now()
+			client.VerseStartTime = runtimeStats.VerseStartTime
+			if globalHub != nil {
+				globalHub.UpdateClientLocation(client, currentTransID, bName, 999, 999)
+			}
 			_ = conn.WriteJSON(Message{
 				Type:         "review",
 				Mode:         "review",
@@ -1732,18 +1682,31 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					fCopy := f
 					activeFavorite = &fCopy
 					currentMode = "favorite"
-					guide := bookGuides[f.BookName]
+					guide, _ := getBookGuide(f.Translation, f.BookName)
 					runtimeStats.VerseStartTime = time.Now()
+					client.VerseStartTime = runtimeStats.VerseStartTime
+					if globalHub != nil {
+						globalHub.UpdateClientLocation(client, f.Translation, f.BookName, f.Chapter, f.Verse)
+					}
+					uComps, gComps, _ := store.GetVerseCompletions(ctx, uid, f.Translation, f.BookName, f.Chapter, f.Verse)
+					if globalAngelManager != nil {
+						globalAngelManager.UpdateCompanionLocation(uid, f.Translation, f.BookName, f.Chapter, f.Verse, f.Text)
+					}
+					if globalDemonManager != nil {
+						globalDemonManager.UpdateDemonLocation(uid, f.Translation, f.BookName, f.Chapter, f.Verse, f.Text)
+					}
 					_ = conn.WriteJSON(Message{
-						Type:         "favorite_verse",
-						Mode:         "favorite",
-						Content:      f.Text,
-						Favorite:     &f,
-						Guide:        &guide,
-						Stats:        &Stats{BookProgress: *bookProgress, RuntimeStats: runtimeStats},
-						Translation:  f.Translation,
-						Category:     guide.Category,
-						ReviewLocked: bookProgress.CurrentVerse < len(bookVerses),
+						Type:              "favorite_verse",
+						Mode:              "favorite",
+						Content:           f.Text,
+						Favorite:          &f,
+						Guide:             &guide,
+						Stats:             &Stats{BookProgress: *bookProgress, RuntimeStats: runtimeStats},
+						Translation:       f.Translation,
+						Category:          guide.Category,
+						ReviewLocked:      bookProgress.CurrentVerse < len(bookVerses),
+						UserCompletions:   uComps,
+						GlobalCompletions: gComps,
 					})
 					break
 				}
@@ -1813,6 +1776,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				Streak: st,
 			})
 
+		// ---- Core Content Submission (with Server-Side Integrity Verification) ----
 		case "content":
 			userInput := cleanVerseText(strings.TrimSpace(msg.Content))
 			if userInput == "" {
@@ -1821,15 +1785,25 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 			var targetText string
 			switch currentMode {
+			case "boss_raid":
+				if activeBossRaid != nil {
+					targetText = cleanVerseText(activeBossRaid.Text)
+				}
+			case "challenge":
+				if activeChallenge != nil {
+					targetText = cleanVerseText(activeChallenge.Text)
+				}
 			case "intro":
-				targetText = cleanVerseText(bookGuides[selectedBook].Description)
+				g, _ := getBookGuide(currentTransID, selectedBook)
+				targetText = cleanVerseText(g.Description)
 			case "review":
-				targetText = cleanVerseText(bookGuides[selectedBook].Review)
+				g, _ := getBookGuide(currentTransID, selectedBook)
+				targetText = cleanVerseText(g.Review)
 			case "favorite":
 				if activeFavorite != nil {
 					targetText = cleanVerseText(activeFavorite.Text)
 				}
-			default: // verse
+			default:
 				if selectedBook != "" && bookProgress != nil && activeVerseIdx < len(bookVerses) {
 					targetText = cleanVerseText(bookVerses[activeVerseIdx].Text)
 				}
@@ -1839,35 +1813,179 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			// Accurate WPM & duration calculation
-			verseSeconds := msg.Duration
-			if verseSeconds <= 0 {
-				verseSeconds = time.Since(runtimeStats.VerseStartTime).Seconds()
+			// Server-side timing verification (Section 9)
+			startTime := runtimeStats.VerseStartTime
+			if currentMode == "challenge" {
+				startTime = challengeStartTime
 			}
-			if verseSeconds < 0.5 {
-				verseSeconds = 0.5
-			}
-			verseElapsedMin := verseSeconds / 60.0
+			verifiedDuration, instantWPM, _ := verifySubmissionTiming(startTime, msg.Duration, targetText, msg.WPM)
 
-			if userInput == targetText {
-				inputLen := runeLen(userInput)
+			if matchesPassageText(userInput, targetText) {
+				inputLen := runeLen(targetText)
 				runtimeStats.CorrectChars += inputLen
 				runtimeStats.CharsTyped += inputLen
-
-				// Determine WPM: prefer client-measured active typing WPM, fallback to elapsed calculation
-				var instantWPM int
-				if msg.WPM > 0 && msg.WPM <= 250 {
-					instantWPM = msg.WPM
-				} else {
-					instantWPM = int((float64(inputLen) / 5.0) / verseElapsedMin)
-				}
 				runtimeStats.WPM = instantWPM
 
-				// Update streak
-				updatedStreak, _ := store.RecordVerseCompleted(ctx, uid, inputLen, verseSeconds)
+				// Record completed verse in streak
+				updatedStreak, _ := store.RecordVerseCompleted(ctx, uid, inputLen, verifiedDuration)
 				streak = updatedStreak
+				client.StreakDays = streak.CurrentStreak
+
+				// Record detailed session for analytics
+				bName := selectedBook
+				if currentMode == "challenge" && activeChallenge != nil {
+					bName = activeChallenge.BookName
+				} else if currentMode == "favorite" && activeFavorite != nil {
+					bName = activeFavorite.BookName
+				}
+				_ = store.RecordTypingSession(ctx, uid, currentTransID, bName, inputLen, inputLen, instantWPM, verifiedDuration)
 
 				var rewards []Badge
+				var uComps, gComps int
+				if currentMode == "challenge" && activeChallenge != nil {
+					uComps, gComps, _ = store.RecordVerseCompletion(ctx, uid, currentTransID, activeChallenge.BookName, activeChallenge.Chapter, activeChallenge.Verse)
+
+					// Save Daily Race result
+					_ = store.SaveRaceResult(ctx, RaceResult{
+						Date:        activeChallenge.Date,
+						UID:         uid,
+						DisplayName: client.DisplayName,
+						AvatarColor: client.AvatarColor,
+						WPM:         instantWPM,
+						Duration:    verifiedDuration,
+						Accuracy:    100,
+					})
+					rewards = checkAndAwardBadges(ctx, store, uid, currentTransID, activeChallenge.BookName, bookProgress, streak, instantWPM, true, "challenge")
+
+					todayStr := activeChallenge.Date
+					raceResults, _ := store.GetDailyRaceResults(ctx, todayStr)
+					rank := 1
+					for _, r := range raceResults {
+						if r.UID == uid && r.WPM == instantWPM {
+							rank = r.Rank
+							break
+						}
+					}
+
+					_ = conn.WriteJSON(Message{
+						Type:     "race_complete",
+						Content:  fmt.Sprintf("Praise God! Challenge complete: %d WPM (%.1fs) · Rank #%d", instantWPM, verifiedDuration, rank),
+						WPM:      instantWPM,
+						Duration: verifiedDuration,
+						RaceRank: rank,
+					})
+					_ = conn.WriteJSON(Message{
+						Type:              "correct",
+						Content:           "correct",
+						WPM:               instantWPM,
+						Duration:          verifiedDuration,
+						UserCompletions:   uComps,
+						GlobalCompletions: gComps,
+					})
+					_ = conn.WriteJSON(Message{Type: "streakUpdate", Streak: streak})
+
+					for _, badge := range rewards {
+						_ = conn.WriteJSON(Message{Type: "badgeUnlocked", Reward: &badge})
+					}
+					currentMode = "verse"
+					sendCurrentVerse()
+					continue
+				}
+
+				if currentMode == "boss_raid" && activeBossRaid != nil {
+					// Calculate Holy Strike Damage
+					damage := instantWPM
+					critMultiplier := 1.0
+					if instantWPM >= activeBossRaid.BossWPM {
+						critMultiplier = 3.0 // Outpaced the Archangel!
+					} else if instantWPM >= 120 {
+						critMultiplier = 2.0 // Divine Crit
+					} else if instantWPM >= 80 {
+						critMultiplier = 1.5 // Critical Strike
+					}
+					damage = int(float64(damage) * critMultiplier)
+
+					updatedBoss, _ := store.RecordBossStrike(ctx, uid, client.DisplayName, client.AvatarColor, instantWPM, damage)
+					if updatedBoss != nil {
+						activeBossRaid = updatedBoss
+						strikeHit := &BossConqueror{
+							UID:         uid,
+							DisplayName: client.DisplayName,
+							AvatarColor: client.AvatarColor,
+							WPM:         instantWPM,
+							Damage:      damage,
+							Timestamp:   time.Now().UTC(),
+						}
+						// Broadcast damage live to all fellowship connections!
+						if globalHub != nil {
+							globalHub.BroadcastBossRaidUpdate(*updatedBoss, strikeHit)
+						}
+					}
+
+					var bossNote string
+					targetName := activeBossRaid.BossName
+					if instantWPM >= activeBossRaid.BossWPM {
+						if activeBossRaid.IsDemonBoss {
+							bossNote = fmt.Sprintf("🔥 TRIUMPH OVER THE DESTROYER! Outpaced %s at %d WPM! Struck for %d holy damage!", targetName, instantWPM, damage)
+						} else {
+							bossNote = fmt.Sprintf("⚡ TRIUMPH OVER THE ARCHANGEL! Outpaced %s at %d WPM! Struck for %d holy damage!", targetName, instantWPM, damage)
+						}
+					} else {
+						bossNote = fmt.Sprintf("⚔️ Strike landed! %d WPM dealt %d holy damage to %s!", instantWPM, damage, targetName)
+					}
+
+					if updatedBoss != nil && updatedBoss.Conquered {
+						if activeBossRaid.IsDemonBoss {
+							bossNote += fmt.Sprintf(" 🏆 %s HAS BEEN BANISHED INTO THE PIT BY THE FELLOWSHIP!", strings.ToUpper(targetName))
+							slayerBadge := Badge{
+								ID:          "demon_boss_slayer",
+								Type:        "boss",
+								Name:        "Abaddon Banisher",
+								Description: fmt.Sprintf("Stood with the fellowship to triumph over %s (Lv. %d)!", targetName, activeBossRaid.Level),
+								Icon:        "🔥⚔️",
+							}
+							if awarded, _ := store.AwardBadge(ctx, uid, slayerBadge); awarded {
+								_ = conn.WriteJSON(Message{Type: "badgeUnlocked", Reward: &slayerBadge})
+							}
+						} else {
+							bossNote += fmt.Sprintf(" 🏆 %s'S TRIAL HAS BEEN CONQUERED BY THE FELLOWSHIP!", strings.ToUpper(targetName))
+							slayerBadge := Badge{
+								ID:          "archangel_slayer",
+								Type:        "boss",
+								Name:        "Archangel Victor",
+								Description: fmt.Sprintf("Stood with the fellowship to triumph over %s's trial (Lv. %d)!", targetName, activeBossRaid.Level),
+								Icon:        "⚔️",
+							}
+							if awarded, _ := store.AwardBadge(ctx, uid, slayerBadge); awarded {
+								_ = conn.WriteJSON(Message{Type: "badgeUnlocked", Reward: &slayerBadge})
+							}
+						}
+					}
+
+					_ = conn.WriteJSON(Message{
+						Type:     "boss_strike_result",
+						Content:  bossNote,
+						WPM:      instantWPM,
+						Duration: verifiedDuration,
+						BossRaid: updatedBoss,
+					})
+					_ = conn.WriteJSON(Message{
+						Type:     "correct",
+						Content:  "correct",
+						WPM:      instantWPM,
+						Duration: verifiedDuration,
+					})
+					_ = conn.WriteJSON(Message{Type: "streakUpdate", Streak: streak})
+
+					if globalAngelManager != nil {
+						globalAngelManager.UpdateCompanionWPM(uid)
+					}
+
+					currentMode = "verse"
+					sendCurrentVerse()
+					continue
+				}
+
 				if currentMode == "intro" {
 					bookProgress.IntroCompleted = true
 					_ = store.UpdateBookProgress(ctx, uid, currentTransID, selectedBook, bookProgress)
@@ -1880,9 +1998,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					_ = store.UpdateBookProgress(ctx, uid, currentTransID, selectedBook, bookProgress)
 					rewards = checkAndAwardBadges(ctx, store, uid, currentTransID, selectedBook, bookProgress, streak, instantWPM, true, "review")
 				} else if currentMode == "favorite" && activeFavorite != nil {
+					uComps, gComps, _ = store.RecordVerseCompletion(ctx, uid, activeFavorite.Translation, activeFavorite.BookName, activeFavorite.Chapter, activeFavorite.Verse)
 					_ = store.RecordFavoriteTyped(ctx, uid, activeFavorite.Translation, activeFavorite.BookName, activeFavorite.Chapter, activeFavorite.Verse)
 					rewards = checkAndAwardBadges(ctx, store, uid, activeFavorite.Translation, activeFavorite.BookName, bookProgress, streak, instantWPM, true, "favorite")
-				} else { // verse
+				} else {
+					if activeVerseIdx < len(bookVerses) {
+						vCompleted := bookVerses[activeVerseIdx]
+						uComps, gComps, _ = store.RecordVerseCompletion(ctx, uid, currentTransID, vCompleted.BookName, vCompleted.Chapter, vCompleted.Verse)
+					}
+
 					if activeVerseIdx == bookProgress.CurrentVerse {
 						bookProgress.CurrentVerse++
 						activeVerseIdx++
@@ -1904,7 +2028,37 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					RuntimeStats: runtimeStats,
 				}
 
-				_ = conn.WriteJSON(Message{Type: "correct", Content: "correct", Stats: stats, WPM: instantWPM})
+				// Check newly unlocked customizations based on speed, verses, streak
+				totVerses := 0
+				longStreak := 0
+				if streak != nil {
+					totVerses = streak.TotalVersesTyped
+					longStreak = streak.LongestStreak
+				}
+				an, _ := store.GetUserAnalytics(ctx, uid)
+				topWPM := instantWPM
+				if an != nil && an.TopWPM > topWPM {
+					topWPM = an.TopWPM
+				}
+				newUnlocks := FindNewlyUnlockedCustomizations(topWPM-instantWPM, topWPM, totVerses-1, totVerses, longStreak, longStreak, 0)
+				for _, unl := range newUnlocks {
+					unlCopy := unl
+					_ = conn.WriteJSON(Message{
+						Type:      "customization_unlocked",
+						NewUnlock: &unlCopy,
+						Content:   FormatUnlockToast(unlCopy),
+					})
+				}
+
+				_ = conn.WriteJSON(Message{
+					Type:              "correct",
+					Content:           "correct",
+					Stats:             stats,
+					WPM:               instantWPM,
+					Duration:          verifiedDuration,
+					UserCompletions:   uComps,
+					GlobalCompletions: gComps,
+				})
 				_ = conn.WriteJSON(Message{Type: "streakUpdate", Streak: streak})
 
 				for _, badge := range rewards {
@@ -1920,23 +2074,22 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					"progress": bookProgress,
 				})
 
-				// If completing an intro, notify completion and advance immediately into Chapter 1 Verse 1
 				if currentMode == "intro" {
+					g, _ := getBookGuide(currentTransID, selectedBook)
 					_ = conn.WriteJSON(Message{
 						Type:    "modeComplete",
 						Mode:    "intro",
-						Content: fmt.Sprintf("✓ %s Introduction completed! Chapter 1 unlocked.", selectedBook),
+						Content: fmt.Sprintf("✓ %s Introduction completed! Chapter 1 unlocked.", g.Name),
 					})
 					sendCurrentVerse()
 					continue
 				}
 
-				// If completing a review, send celebration
 				if currentMode == "review" {
-					guide := bookGuides[selectedBook]
+					guide, _ := getBookGuide(currentTransID, selectedBook)
 					_ = conn.WriteJSON(Message{
 						Type:         "complete",
-						Content:      "All done with " + selectedBook + "! Praise the Sun! \\[T]/",
+						Content:      "All done with " + guide.Name + "! Praise the Sun! \\[T]/",
 						Stats:        stats,
 						Guide:        &guide,
 						Translation:  currentTransID,
@@ -1947,7 +2100,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				// If completing a favorite, return to verse flow
 				if currentMode == "favorite" {
 					_ = conn.WriteJSON(Message{
 						Type:    "modeComplete",
@@ -1959,10 +2111,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				// Normal verse progression
+				if globalAngelManager != nil {
+					globalAngelManager.UpdateCompanionWPM(uid)
+				}
 				sendCurrentVerse()
 			} else {
-				// Typo / wrong
 				if bookProgress != nil {
 					bookProgress.Mistakes++
 					_ = store.UpdateBookProgress(ctx, uid, currentTransID, selectedBook, bookProgress)
@@ -1986,6 +2139,9 @@ func main() {
 	if err := loadTranslationsAndGuides(); err != nil {
 		log.Fatalf("Failed to initialize bible datasets: %v", err)
 	}
+
+	globalHub = newHub()
+	go globalHub.run()
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -2032,6 +2188,12 @@ func main() {
 		}
 		log.Println("Database initialized")
 	}
+
+	globalAngelManager = newAngelManager(store, globalHub)
+	globalAngelManager.StartGlobalAngel("michael")
+
+	globalDemonManager = newDemonManager(store, globalHub)
+	globalDemonManager.StartDevil24_7("imp", 1)
 
 	http.Handle("/", http.FileServer(http.FS(publicFS{appFS})))
 	http.HandleFunc("/ws", handleWebSocket)
