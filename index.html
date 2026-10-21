@@ -115,100 +115,159 @@
       .offline-banner.active { display: block; }
 
       .app {
-        max-width: 1080px;
+        max-width: 980px;
         margin: 0 auto;
-        padding: 1.25rem 1.5rem 2.5rem;
+        padding: 0.9rem 1.25rem 5.25rem;
         display: flex;
         flex-direction: column;
-        gap: 1.25rem;
+        gap: 0.85rem;
         flex: 1;
         width: 100%;
       }
 
-      /* Topbar */
+      /* Topbar: Prioritizes Version / Book / Verse Selection */
       .topbar {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+        padding: 0.65rem 1rem 0.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .topbar-main {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 1rem;
+        gap: 0.75rem;
         flex-wrap: wrap;
-        padding-bottom: 0.5rem;
       }
       .brand {
         display: flex;
         align-items: center;
-        gap: 0.85rem;
+        gap: 0.55rem;
+        flex-shrink: 0;
       }
       .brand-logo {
-        width: 38px;
-        height: 38px;
+        width: 30px;
+        height: 30px;
         filter: drop-shadow(0 2px 6px var(--accent-soft));
       }
       .brand-title {
         margin: 0;
-        font-size: 1.35rem;
+        font-size: 1.05rem;
         font-weight: 800;
-        letter-spacing: -0.5px;
+        letter-spacing: -0.4px;
         color: var(--text);
       }
       .brand-sub {
-        margin: 0;
-        font-size: 0.78rem;
-        font-weight: 500;
+        display: none;
+      }
+
+      /* Scripture Selector Strip (Version -> Book -> Verse) */
+      .scripture-nav-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex: 1;
+        justify-content: center;
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+      .nav-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        min-width: 0;
+      }
+      .nav-label {
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
         color: var(--muted);
+        user-select: none;
+      }
+      .nav-divider {
+        width: 1px;
+        height: 20px;
+        background: var(--border);
+        margin: 0 0.15rem;
+        flex-shrink: 0;
+      }
+      .top-system-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        flex-shrink: 0;
+      }
+      .top-progress {
+        height: 3px;
+        margin-top: 0.1rem;
+      }
+      .verse-count {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--muted);
+        margin-left: 0.15rem;
       }
 
       .top-actions {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        flex-wrap: wrap;
+        gap: 0.4rem;
+        flex-shrink: 0;
       }
 
       .trans-select {
-        height: 38px;
-        border-radius: 999px;
+        height: 36px;
+        border-radius: 9px;
         border: 1px solid var(--border);
         background: var(--card-solid);
         color: var(--text);
-        padding: 0 0.85rem;
-        font-weight: 600;
+        padding: 0 0.65rem;
+        font-weight: 700;
         font-size: 0.82rem;
         cursor: pointer;
         outline: none;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+      }
+      .trans-select:hover, .primary-select:hover {
+        border-color: var(--accent);
       }
 
       .streak-pill {
-        height: 38px;
+        height: 32px;
         border-radius: 999px;
-        padding: 0 0.85rem;
+        padding: 0 0.7rem;
         display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
+        gap: 0.3rem;
         background: var(--accent-soft);
         color: var(--accent-bright);
         border: 1px solid var(--accent);
         font-weight: 700;
-        font-size: 0.85rem;
+        font-size: 0.78rem;
         cursor: pointer;
       }
 
       .icon-btn {
-        height: 38px;
-        padding: 0 0.75rem;
-        border-radius: 999px;
+        height: 34px;
+        padding: 0 0.65rem;
+        border-radius: 8px;
         border: 1px solid var(--border);
         background: var(--card-solid);
         color: var(--text);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 0.35rem;
-        font-size: 0.85rem;
+        gap: 0.3rem;
+        font-size: 0.78rem;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.15s ease;
+        white-space: nowrap;
       }
       .icon-btn:hover {
         background: var(--bg-soft);
@@ -217,44 +276,32 @@
       }
 
       .account-btn {
-        padding: 0 0.65rem 0 0.4rem;
-        gap: 0.45rem;
+        padding: 0 0.6rem 0 0.35rem;
+        gap: 0.4rem;
       }
 
       .avatar-dot {
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
         border-radius: 50%;
         display: grid;
         place-items: center;
         color: #fff;
-        font-size: 0.68rem;
+        font-size: 0.65rem;
         font-weight: 800;
       }
 
-      /* Global Crowd Ticker */
+      /* Global Crowd Ticker (compact) */
       .crowd-ticker {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.8rem;
-        font-size: 0.75rem;
-        color: var(--muted);
-        background: var(--bg-soft);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 0.28rem 0.95rem;
-        margin: -0.25rem auto 0.25rem;
-        max-width: fit-content;
+        display: none;
       }
-      .crowd-ticker b { color: var(--accent); }
 
-      /* Layout */
+      /* Layout: Single focused typing column */
       .layout {
-        display: grid;
-        grid-template-columns: 1fr 300px;
-        gap: 1.25rem;
-        align-items: start;
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        flex: 1;
       }
 
       .panel {
@@ -263,10 +310,71 @@
         border-radius: var(--radius);
         box-shadow: var(--shadow);
         backdrop-filter: blur(12px);
-        padding: 1.35rem;
+        padding: 1.25rem 1.5rem;
         display: flex;
         flex-direction: column;
-        gap: 1.15rem;
+        gap: 0.9rem;
+      }
+
+      /* Consolidated Bottom Bar */
+      .bottom-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 500;
+        background: var(--card);
+        backdrop-filter: blur(16px);
+        border-top: 1px solid var(--border);
+        box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.25);
+        padding: 0.45rem 1rem;
+      }
+      .bottom-bar-inner {
+        max-width: 980px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .bottom-bar-inner::-webkit-scrollbar {
+        display: none;
+      }
+      .bottom-metrics {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-shrink: 0;
+      }
+      .metric-chip {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.25rem;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        padding: 0.22rem 0.55rem;
+        border-radius: 8px;
+        font-size: 0.72rem;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .metric-chip b {
+        font-size: 0.92rem;
+        font-weight: 800;
+        color: var(--text);
+      }
+      .metric-chip.accent b {
+        color: var(--accent);
+      }
+      .bottom-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        flex-wrap: nowrap;
+        flex-shrink: 0;
       }
 
       /* Mode Banner */
@@ -546,51 +654,45 @@
       }
       .btn-restart:hover { color: var(--text); }
 
-      /* Book Controls Row */
-      .book-controls-row {
-        display: flex;
-        align-items: center;
-        gap: 0.65rem;
-      }
-      .select-wrap { flex: 1; }
+      /* Book Controls Row (in topbar) */
       .primary-select {
-        width: 100%;
-        height: 40px;
-        border-radius: 10px;
+        height: 36px;
+        min-width: 165px;
+        border-radius: 9px;
         border: 1px solid var(--border);
         background: var(--card-solid);
         color: var(--text);
-        padding: 0 0.85rem;
+        padding: 0 0.7rem;
         font-weight: 700;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         cursor: pointer;
         outline: none;
       }
       .book-action-btn {
-        height: 40px;
-        padding: 0 0.95rem;
-        border-radius: 10px;
+        height: 36px;
+        padding: 0 0.65rem;
+        border-radius: 9px;
         border: 1px solid var(--border);
         background: var(--card-solid);
-        color: var(--text);
+        color: var(--text-sub);
         display: inline-flex;
         align-items: center;
-        gap: 0.4rem;
-        font-weight: 700;
-        font-size: 0.85rem;
+        gap: 0.3rem;
+        font-weight: 600;
+        font-size: 0.78rem;
         cursor: pointer;
       }
-      .book-action-btn:hover { border-color: var(--accent); }
-      .book-action-btn.locked { opacity: 0.6; }
+      .book-action-btn:hover { border-color: var(--accent); color: var(--text); }
+      .book-action-btn.locked { opacity: 0.55; }
 
       progress {
         width: 100%;
-        height: 8px;
+        height: 4px;
         border-radius: 999px;
         overflow: hidden;
         border: none;
         background: var(--bg-soft);
-        margin-top: 0.65rem;
+        margin: 0;
       }
       progress::-webkit-progress-bar { background: var(--bg-soft); }
       progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
@@ -1299,8 +1401,141 @@
         }
       }
 
-      @media (max-width: 860px) {
-        .layout { grid-template-columns: 1fr; }
+      /* Punctuation Checkpoint Marker in Verse Text */
+      .char.checkpoint-marker {
+        border-left: 2px solid #38bdf8;
+        padding-left: 2px;
+        margin-left: 1px;
+        background: linear-gradient(90deg, rgba(56, 189, 248, 0.22), transparent 85%);
+        border-radius: 2px;
+      }
+      .char.checkpoint-marker::before {
+        content: "🔖";
+        position: absolute;
+        top: -13px;
+        left: -6px;
+        font-size: 0.62rem;
+        line-height: 1;
+        pointer-events: none;
+        filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.8));
+      }
+
+      /* Vertical Split / Side-by-Side Multitasking Window Optimizations */
+      @media (max-width: 960px), (max-aspect-ratio: 4/3) {
+        .app {
+          padding: 0.55rem 0.65rem 4.35rem;
+          gap: 0.55rem;
+        }
+        .topbar {
+          padding: 0.45rem 0.65rem 0.35rem;
+          gap: 0.35rem;
+          border-radius: 11px;
+        }
+        .topbar-main {
+          gap: 0.4rem;
+        }
+        .brand-title {
+          display: none;
+        }
+        .brand-logo {
+          width: 24px;
+          height: 24px;
+        }
+        .nav-label,
+        .nav-divider {
+          display: none;
+        }
+        .scripture-nav-bar {
+          justify-content: flex-start;
+          gap: 0.3rem;
+        }
+        .trans-select,
+        .primary-select,
+        .book-action-btn,
+        .verse-ref-btn,
+        .nav-arrow {
+          height: 31px;
+          font-size: 0.76rem;
+          padding: 0 0.48rem;
+          border-radius: 7px;
+        }
+        .primary-select {
+          min-width: 110px;
+          max-width: 165px;
+        }
+        .panel {
+          padding: 0.75rem 0.85rem;
+          gap: 0.65rem;
+          border-radius: 12px;
+        }
+        .verse-card {
+          padding: 0.75rem 0.85rem;
+          gap: 0.65rem;
+        }
+        .typing-stage {
+          padding: 0.9rem 1rem;
+          min-height: 96px;
+        }
+        .verse-reader {
+          font-size: 1.18rem;
+          line-height: 1.68;
+        }
+        .angel-pace-hud {
+          padding: 0.45rem 0.65rem;
+          margin-bottom: 0.35rem;
+          font-size: 0.74rem;
+        }
+        .typing-footer {
+          flex-wrap: wrap;
+          gap: 0.4rem;
+          font-size: 0.74rem;
+        }
+        #userDisplayName {
+          display: none;
+        }
+        .account-btn {
+          padding: 0 0.35rem;
+        }
+        .bottom-bar {
+          padding: 0.35rem 0.6rem;
+        }
+        .bottom-bar-inner {
+          gap: 0.45rem;
+        }
+        .bottom-actions .icon-btn {
+          height: 30px;
+          padding: 0 0.45rem;
+          font-size: 0.73rem;
+        }
+        /* Compact text labels in bottom bar on narrow vertical splits so actions fit cleanly */
+        #btnDailyRace span:last-child,
+        #btnSanctuary span:last-child,
+        #btnStats span:last-child,
+        #btnReflections span:last-child,
+        #btnFellowship span:last-child,
+        #btnShareCard span:last-child,
+        #topAngelLabel,
+        #topBossLabel {
+          display: none;
+        }
+        .toast {
+          bottom: 3.6rem;
+          right: 0.75rem;
+          left: 0.75rem;
+          padding: 0.65rem 0.9rem;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .verse-count {
+          display: none;
+        }
+        .primary-select {
+          max-width: 130px;
+        }
+        #typingHint {
+          display: none;
+        }
       }
     </style>
   </head>
@@ -1309,119 +1544,89 @@
     <div id="offlineBanner" class="offline-banner">📡 Offline Mode — progress saved locally and will sync once reconnected.</div>
 
     <div class="app">
+      <!-- Top Bar: Prioritizes Version / Book / Verse Selection -->
       <header class="topbar">
-        <div class="brand">
-          <img class="brand-logo" src="./logo.svg" alt="" />
-          <div>
-            <h1 class="brand-title">Praise the Sun!</h1>
-            <p class="brand-sub">Holy Bible Typing Trainer &middot; \\[T]//</p>
+        <div class="topbar-main">
+          <div class="brand">
+            <img class="brand-logo" src="./logo.svg" alt="" />
+            <div>
+              <h1 class="brand-title">Praise the Sun!</h1>
+              <p class="brand-sub">Holy Bible Typing Trainer</p>
+            </div>
+          </div>
+
+          <div class="scripture-nav-bar">
+            <!-- 1. Version / Translation Selector -->
+            <div class="nav-group">
+              <span class="nav-label">Version</span>
+              <select id="transSelect" class="trans-select" title="Bible Translation">
+                <option value="kjv">KJV</option>
+                <option value="esv">ESV</option>
+                <option value="niv">NIV</option>
+                <option value="nlt">NLT</option>
+                <option value="hcsb">HCSB</option>
+                <option value="asv">ASV</option>
+                <option value="bbe">BBE</option>
+              </select>
+            </div>
+
+            <div class="nav-divider"></div>
+
+            <!-- 2. Book Selector & Book Modes -->
+            <div class="nav-group">
+              <span class="nav-label">Book</span>
+              <div class="select-wrap">
+                <select id="bookSelect" class="primary-select" title="Select Book"></select>
+              </div>
+              <button id="btnBookIntro" class="book-action-btn" title="Book Introduction">
+                <span>📖</span> Intro
+              </button>
+              <button id="btnBookReview" class="book-action-btn" title="Book Review & Reflection">
+                <span id="reviewLockIcon">🔒</span> Review
+              </button>
+            </div>
+
+            <div class="nav-divider"></div>
+
+            <!-- 3. Verse Selection & Prev/Next Navigation -->
+            <div class="nav-group">
+              <span class="nav-label">Verse</span>
+              <button id="btnPrevVerse" class="nav-arrow" title="Previous verse (Alt+Left)">◀</button>
+              <button id="verseRefBtn" class="verse-ref-btn" title="Jump to Chapter / Verse">
+                <span id="verseRef">Connecting&hellip;</span>
+                <span id="verseCount" class="verse-count"></span>
+                <span style="font-size: 0.7rem; opacity: 0.75;">▾</span>
+              </button>
+              <button id="btnNextVerse" class="nav-arrow" title="Next verse (Alt+Right)">▶</button>
+              <button id="favToggleBtn" class="fav-btn" title="Favorite this verse">☆</button>
+            </div>
+          </div>
+
+          <!-- Compact System / Account Controls -->
+          <div class="top-system-actions">
+            <button id="btnOpenAccount" class="icon-btn account-btn" title="Account & Identity">
+              <span id="userAvatarDot" class="avatar-dot" style="background: #6366f1;">👤</span>
+              <span id="userDisplayName" style="font-weight: 700; font-size: 0.78rem;">Guest</span>
+            </button>
+            <button id="soundToggle" class="icon-btn" title="Toggle Sound">
+              <span id="soundIcon">🔊</span>
+            </button>
+            <button id="themeToggle" class="icon-btn" title="Toggle Light/Dark Theme">🌙</button>
           </div>
         </div>
 
-        <div class="top-actions">
-          <!-- Translation Selector -->
-          <select id="transSelect" class="trans-select" title="Bible Translation">
-            <option value="kjv">KJV</option>
-            <option value="esv">ESV</option>
-            <option value="niv">NIV</option>
-            <option value="nlt">NLT</option>
-            <option value="hcsb">HCSB</option>
-            <option value="asv">ASV</option>
-            <option value="bbe">BBE</option>
-          </select>
-
-          <!-- Daily Streak Pill -->
-          <div id="streakPill" class="streak-pill" title="Daily typing streak">
-            <span>🔥</span>
-            <span id="streakCount">0</span>
-            <span style="font-size: 0.75rem; font-weight: 600;">days</span>
-          </div>
-
-          <!-- Daily Challenge Race -->
-          <button id="btnDailyRace" class="icon-btn" title="Verse of the Day Race" style="border-color: #f59e0b; color: #f59e0b;">
-            <span>⚡</span>
-            <span>Race</span>
-          </button>
-
-          <!-- Verse Reflections & Prayer -->
-          <button id="btnReflections" class="icon-btn" title="Verse Reflections & Community">
-            <span>🕊️</span>
-            <span>Reflect</span>
-          </button>
-
-          <!-- Fellowship Chat -->
-          <button id="btnFellowship" class="icon-btn" title="Fellowship Live Chat">
-            <span>💬</span>
-            <span>Chat</span>
-          </button>
-
-          <!-- Analytics & Leaderboards -->
-          <button id="btnStats" class="icon-btn" title="Analytics & Leaderboards">
-            <span>📊</span>
-            <span>Stats</span>
-          </button>
-
-          <!-- Favorites Drawer -->
-          <button id="btnOpenFavorites" class="icon-btn" title="Favorited Passages">
-            <span>⭐</span>
-            <span id="favCount">0</span>
-          </button>
-
-          <!-- Trophy Room -->
-          <button id="btnOpenBadges" class="icon-btn" title="Trophy Room">
-            <span>🏆</span>
-            <span id="badgeCount">0</span>
-          </button>
-
-          <!-- Sanctuary Customization Unlocks -->
-          <button id="btnSanctuary" class="icon-btn" title="Sanctuary Customizations & Scribe Unlocks" style="border-color: #a855f7; color: #a855f7;">
-            <span>🎨</span>
-            <span>Sanctuary</span>
-          </button>
-
-          <!-- Heavenly Angel Typist Bots -->
-          <button id="btnAngels" class="icon-btn" title="Heavenly Angel Scribes & Typist Companions" style="border-color: #38bdf8; color: #38bdf8;">
-            <span id="topAngelIcon">👼</span>
-            <span id="topAngelLabel">Angel</span>
-          </button>
-
-          <!-- Celestial Boss Raid -->
-          <button id="btnBossRaid" class="icon-btn" title="Celestial Boss Raid: Big Mike (160 WPM)" style="border-color: #ef4444; color: #ef4444;">
-            <span>⚔️</span>
-            <span id="topBossLabel">Boss Raid</span>
-          </button>
-
-          <!-- Wild Demon Tracker -->
-          <button id="btnDemonTracker" class="icon-btn" title="Demon Tracker (Exorcise 6 wild demons to unlock)" style="border-color: #f97316; color: #f97316;">
-            <span>🧭</span>
-            <span id="topTrackerLabel">Tracker (🔒 0/6)</span>
-          </button>
-
-          <!-- User Account / Profile Button -->
-          <button id="btnOpenAccount" class="icon-btn account-btn" title="Account & Identity">
-            <span id="userAvatarDot" class="avatar-dot" style="background: #6366f1;">👤</span>
-            <span id="userDisplayName" style="font-weight: 700; font-size: 0.8rem;">Guest</span>
-          </button>
-
-          <!-- Sound Toggle -->
-          <button id="soundToggle" class="icon-btn" title="Toggle Sound">
-            <span id="soundIcon">🔊</span>
-          </button>
-
-          <!-- Theme Toggle -->
-          <button id="themeToggle" class="icon-btn" title="Toggle Light/Dark Theme">🌙</button>
-        </div>
+        <progress id="progress" class="top-progress" value="0" max="100"></progress>
       </header>
 
-      <!-- Global Crowd Metrics Ticker -->
+      <!-- Hidden Crowd Ticker (kept in DOM for telemetry handlers) -->
       <div class="crowd-ticker" id="crowdTicker">
         <span id="crowdTypers">⚡ 1 online</span> &middot;
         <span id="crowdTrending">Trending: Genesis</span> &middot;
         <span id="crowdTodayVerses">0 verses today</span>
       </div>
 
+      <!-- Focused Typing Stage -->
       <main class="layout">
-        <!-- Main Typing Panel -->
         <section class="panel">
           <!-- Mode Banner -->
           <div id="modeBanner" class="mode-banner">
@@ -1430,22 +1635,6 @@
           </div>
 
           <div id="verse" class="verse-card">
-            <div class="verse-meta">
-              <div class="meta-left">
-                <button id="verseRefBtn" class="verse-ref-btn" title="Jump to Verse">
-                  <span id="verseRef">Connecting&hellip;</span>
-                  <span style="font-size: 0.75rem; opacity: 0.8;">▾</span>
-                </button>
-                <button id="favToggleBtn" class="fav-btn" title="Favorite this verse">☆</button>
-              </div>
-
-              <div class="meta-nav">
-                <button id="btnPrevVerse" class="nav-arrow" title="Previous verse (Alt+Left)">◀</button>
-                <span id="verseCount" class="verse-count"></span>
-                <button id="btnNextVerse" class="nav-arrow" title="Next verse (Alt+Right)">▶</button>
-              </div>
-            </div>
-
             <!-- Angel Companion Live Race / Pace HUD -->
             <div id="angelPaceHUD" class="angel-pace-hud" style="display: none;">
               <div class="angel-pace-header">
@@ -1464,9 +1653,10 @@
                   <span id="wildDemonIconName" style="font-weight: 800; color: #f87171; font-size: 0.9rem;">😈 Whispering Imp (Lv. 1)</span>
                   <span id="wildDemonPaceBadge" style="font-size: 0.7rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 7px; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700;">Target: 12 WPM</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                  <span id="checkpointBadge" style="font-size: 0.72rem; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: rgba(56, 189, 248, 0.14); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.35);" title="Every 2 punctuation marks typed locks in a Checkpoint so mistakes don't reset the whole verse!">🔖 CP: 0/2 Punct.</span>
                   <span id="syncStacksBadge" style="font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="Gain 1 stack per word typed in sync. Every 5 stacks increases damage!">🔥 0 Stacks</span>
-                  <span id="holyWardsBadge" style="font-size: 0.78rem; font-weight: 800; color: #38bdf8; text-shadow: 0 0 6px #38bdf8;" title="Holy Wards absorb mistakes before verse reset">🛡️ 0 Wards</span>
+                  <span id="holyWardsBadge" style="font-size: 0.78rem; font-weight: 800; color: #38bdf8; text-shadow: 0 0 6px #38bdf8;" title="Holy Wards absorb mistakes before checkpoint reset">🛡️ 0 Wards</span>
                   <span id="resonanceIndicator" style="font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,0.08); color: var(--muted); border: 1px solid var(--border);">⚖️ Out of Tune</span>
                 </div>
               </div>
@@ -1516,82 +1706,123 @@
               <button id="btnSubmitPassage" class="btn-submit-action">Submit ↵</button>
             </div>
 
-            <!-- Verse Presence & Actions Bar -->
-            <div class="verse-presence-bar">
-              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                <div class="presence-pill">
+            <!-- Compact Typing Footer -->
+            <div class="typing-footer">
+              <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <p id="typingHint" class="hint-text">
+                  <kbd>Backspace</kbd> fix &middot; <kbd>Enter</kbd> submit &middot; <kbd>Alt+◀/▶</kbd> verse
+                </p>
+                <div class="presence-pill" title="Active typists on this verse">
                   <span>👥</span>
                   <span id="verseTypersCount">1 typist on this verse</span>
                 </div>
-                <!-- Verse Completion Counters (Personal + Global Community) -->
                 <div class="presence-pill completions-pill" id="verseCompletionsPill" title="How many times this verse has been inscribed">
                   <span>📜</span>
-                  <span>Inscribed by you: <b id="verseUserCompletions">0×</b> &middot; Fellowship: <b id="verseGlobalCompletions">0×</b></span>
+                  <span>You: <b id="verseUserCompletions">0×</b> &middot; All: <b id="verseGlobalCompletions">0×</b></span>
                 </div>
               </div>
-              <div class="presence-actions">
-                <button id="btnAngelCompanionPill" class="presence-btn" title="Summon or configure an angel typist companion">👼 Angel Companion</button>
-                <button id="btnToggleSpectator" class="presence-btn" title="Spectate without typing">👁️ Watch Mode</button>
-                <button id="btnShareCard" class="presence-btn" title="Share streak & passage card">🔗 Share Card</button>
+              <div style="display: flex; align-items: center; gap: 0.45rem;">
+                <button id="btnToggleSpectator" class="presence-btn" title="Spectate without typing">👁️ Watch</button>
+                <button id="btnRestartVerse" class="btn-restart">↺ Restart</button>
               </div>
             </div>
-
-            <div class="typing-footer">
-              <p id="typingHint" class="hint-text">
-                Type directly on the verse above. <kbd>Backspace</kbd> to fix mistakes &middot; <kbd>Enter</kbd> to submit.
-              </p>
-              <button id="btnRestartVerse" class="btn-restart">↺ Restart</button>
-            </div>
           </div>
 
-          <div class="controls">
-            <div class="book-controls-row">
-              <div class="select-wrap">
-                <select id="bookSelect" class="primary-select"></select>
-              </div>
-              <button id="btnBookIntro" class="book-action-btn" title="Book Introduction">
-                <span>📖</span> Intro
-              </button>
-              <button id="btnBookReview" class="book-action-btn" title="Book Review & Reflection">
-                <span id="reviewLockIcon">🔒</span> Review
-              </button>
-            </div>
-
-            <progress id="progress" value="0" max="100"></progress>
-          </div>
-        </section>
-
-        <!-- Sidebar Panel -->
-        <aside class="panel side-panel">
-          <h2 class="side-title">Live Session</h2>
-          <div class="stats-grid">
-            <div class="stat accent"><b id="wpm">0</b><label>WPM</label></div>
-            <div class="stat"><b id="accuracy">100%</b><label>Accuracy</label></div>
-            <div class="stat"><b id="chars">0</b><label>Chars</label></div>
-            <div class="stat"><b id="mistakes">0</b><label>Mistakes</label></div>
-          </div>
-
-          <!-- Book Insight Quick Card -->
-          <div id="bookInsightCard" class="book-insight-card">
-            <p id="insightBookName" class="book-insight-title">Genesis</p>
-            <div class="book-insight-row">
-              <span>Category</span>
+          <!-- Hidden auxiliary DOM nodes preserved for JS state updates -->
+          <div style="display: none;">
+            <span id="chars">0</span>
+            <span id="mistakes">0</span>
+            <button id="btnAngelCompanionPill"></button>
+            <div id="bookInsightCard">
+              <p id="insightBookName">Genesis</p>
               <span id="insightCategory">Law / Pentateuch</span>
-            </div>
-            <div class="book-insight-row">
-              <span>Author</span>
               <span id="insightAuthor">Moses</span>
-            </div>
-            <div class="book-insight-row">
-              <span>Period</span>
               <span id="insightTime">c. 1440 BC</span>
             </div>
+            <div id="messages"></div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Consolidated Bottom Bar -->
+      <footer class="bottom-bar">
+        <div class="bottom-bar-inner">
+          <!-- Essential Live Metrics -->
+          <div class="bottom-metrics">
+            <div class="metric-chip accent" title="Words Per Minute">
+              <b id="wpm">0</b>
+              <label>WPM</label>
+            </div>
+            <div class="metric-chip" title="Typing Accuracy">
+              <b id="accuracy">100%</b>
+              <label>ACC</label>
+            </div>
+            <div id="streakPill" class="streak-pill" title="Daily typing streak">
+              <span>🔥</span>
+              <span id="streakCount">0</span>
+              <span style="font-size: 0.72rem; font-weight: 600;">d</span>
+            </div>
           </div>
 
-          <h2 class="side-title">Devotional Log</h2>
-          <div id="messages" class="log"></div>
-        </aside>
-      </main>
+          <!-- Consolidated Feature & Mode Actions -->
+          <div class="bottom-actions">
+            <button id="btnAngels" class="icon-btn" title="Heavenly Angel Scribes & Typist Companions" style="border-color: rgba(56, 189, 248, 0.45); color: #38bdf8;">
+              <span id="topAngelIcon">👼</span>
+              <span id="topAngelLabel">Angel</span>
+            </button>
+
+            <button id="btnBossRaid" class="icon-btn" title="Celestial Boss Raid: Big Mike (160 WPM)" style="border-color: rgba(239, 68, 68, 0.45); color: #ef4444;">
+              <span>⚔️</span>
+              <span id="topBossLabel">Boss Raid</span>
+            </button>
+
+            <button id="btnDemonTracker" class="icon-btn" title="Demon Tracker (Exorcise 6 wild demons to unlock)" style="border-color: rgba(249, 115, 22, 0.45); color: #f97316;">
+              <span>🧭</span>
+              <span id="topTrackerLabel">Tracker (🔒 0/6)</span>
+            </button>
+
+            <button id="btnDailyRace" class="icon-btn" title="Verse of the Day Race" style="border-color: rgba(245, 158, 11, 0.45); color: #f59e0b;">
+              <span>⚡</span>
+              <span>Race</span>
+            </button>
+
+            <button id="btnSanctuary" class="icon-btn" title="Sanctuary Customizations & Scribe Unlocks" style="border-color: rgba(168, 85, 247, 0.45); color: #a855f7;">
+              <span>🎨</span>
+              <span>Sanctuary</span>
+            </button>
+
+            <button id="btnStats" class="icon-btn" title="Analytics & Leaderboards">
+              <span>📊</span>
+              <span>Stats</span>
+            </button>
+
+            <button id="btnOpenFavorites" class="icon-btn" title="Favorited Passages">
+              <span>⭐</span>
+              <span id="favCount">0</span>
+            </button>
+
+            <button id="btnOpenBadges" class="icon-btn" title="Trophy Room">
+              <span>🏆</span>
+              <span id="badgeCount">0</span>
+            </button>
+
+            <button id="btnReflections" class="icon-btn" title="Verse Reflections & Community">
+              <span>🕊️</span>
+              <span>Reflect</span>
+            </button>
+
+            <button id="btnFellowship" class="icon-btn" title="Fellowship Live Chat">
+              <span>💬</span>
+              <span>Chat</span>
+            </button>
+
+            <button id="btnShareCard" class="icon-btn" title="Share streak & passage card">
+              <span>🔗</span>
+              <span>Share</span>
+            </button>
+          </div>
+        </div>
+      </footer>
     </div>
 
     <!-- Modals -->
@@ -2248,18 +2479,31 @@
       let selectedBossIsDemon = false;
 
       // Wild Demons & Resonance Combat State
-      // Centralized balance configuration for Demon Sync Stacks (keep in sync with DemonSyncBalanceConfig in demon.go)
+      // Centralized balance configuration for Demon Sync Stacks, Punctuation Checkpoints & Dynamic WPM Pacing
+      // (keep in sync with DemonSyncBalanceConfig in demon.go)
       const DEMON_SYNC_BALANCE = {
-        stacksPerWord: 1,         // Gain 1 stack per word typed in sync
-        stacksPerDamageTier: 5,   // Every 5 stacks increases damage
-        flatDamagePerTier: 1,     // Flat bonus damage per 5-stack tier
-        damageMultPerTier: 0.25,  // +25% bonus damage per 5-stack tier
-        maxStacks: 0,             // 0 = uncapped (tunable for future balancing)
-        charSyncTolerance: 2      // Within ±2 chars of demon cursor counts as in sync
+        stacksPerWord: 1,            // Gain 1 stack per word typed in sync
+        stacksPerDamageTier: 5,      // Every 5 stacks increases damage
+        flatDamagePerTier: 1,        // Flat bonus damage per 5-stack tier
+        damageMultPerTier: 0.25,     // +25% bonus damage per 5-stack tier
+        maxStacks: 0,                // 0 = uncapped (tunable for future balancing)
+        charSyncTolerance: 5,        // Widened radiance/resonance window: within ±5 chars of demon cursor
+        punctuationPerCheckpoint: 2, // Every 2 punctuation marks reached locks in a checkpoint
+        stacksLostOnBacklash: 2,     // Sync stacks lost on an unwarded mistake backlash
+        backlashHealPct: 0.10,       // Fraction of MaxHP healed by demon on mistake
+        paceAdjustThreshold: 5,      // At ±5 chars ahead/behind, demon WPM dynamically increases/decreases
+        paceStepChars: 3,            // Additional chars beyond threshold per WPM step
+        paceWpmPerStep: 2,           // WPM adjustment per step ahead/behind
+        minDemonWpm: 6,              // Minimum dynamic WPM floor when user types slower
+        maxDemonWpmBonus: 18,        // Maximum dynamic bonus WPM when user types ahead
+        maxDemonWpmReduction: 8      // Maximum dynamic WPM reduction when user types slower
       };
       let activeWildDemon = null;
+      let activeWildDemonBaseWPM = 12;
       let currentHolyWards = 0;
       let currentSyncStacks = 0;
+      let demonCheckpointIndex = 0;
+      let demonPunctuationCount = 0;
       const syncedWordEndIndices = new Set();
       let wildDemonsCache = [];
       let trackerUnlocked = false;
@@ -2416,6 +2660,7 @@
       const wildDemonHUD = document.getElementById("wildDemonHUD");
       const wildDemonIconName = document.getElementById("wildDemonIconName");
       const wildDemonPaceBadge = document.getElementById("wildDemonPaceBadge");
+      const checkpointBadge = document.getElementById("checkpointBadge");
       const syncStacksBadge = document.getElementById("syncStacksBadge");
       const holyWardsBadge = document.getElementById("holyWardsBadge");
       const resonanceIndicator = document.getElementById("resonanceIndicator");
@@ -2632,6 +2877,100 @@
         }
       }
 
+      function isCheckpointPunctuation(ch) {
+        return ch === "," || ch === ";" || ch === ":" || ch === "." || ch === "!" || ch === "?" || ch === "—" || ch === "-";
+      }
+
+      function calculatePunctuationCheckpoint(text, typedLen) {
+        if (!text || typedLen <= 0) return { checkpointIdx: 0, punctCount: 0 };
+        const limit = Math.min(typedLen, text.length);
+        const perCP = DEMON_SYNC_BALANCE.punctuationPerCheckpoint || 2;
+        let punctCount = 0;
+        let checkpointIdx = 0;
+        for (let i = 0; i < limit; i++) {
+          if (isCheckpointPunctuation(text[i])) {
+            punctCount++;
+            if (punctCount % perCP === 0) {
+              let nextIdx = i + 1;
+              if (nextIdx < text.length && text[nextIdx] === " " && nextIdx + 1 <= limit) {
+                nextIdx++;
+              }
+              checkpointIdx = nextIdx;
+            }
+          }
+        }
+        return { checkpointIdx, punctCount };
+      }
+
+      function updateCheckpointBadge() {
+        if (!checkpointBadge) return;
+        const perCP = DEMON_SYNC_BALANCE.punctuationPerCheckpoint || 2;
+        const progressInCycle = demonPunctuationCount % perCP;
+        if (demonCheckpointIndex > 0) {
+          const cpNum = Math.floor(demonPunctuationCount / perCP);
+          checkpointBadge.textContent = `🔖 CP #${cpNum} (Char ${demonCheckpointIndex} · ${progressInCycle}/${perCP} next)`;
+          checkpointBadge.style.background = "linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.35))";
+          checkpointBadge.style.color = "#bae6fd";
+          checkpointBadge.style.borderColor = "#38bdf8";
+        } else {
+          checkpointBadge.textContent = `🔖 CP: ${progressInCycle}/${perCP} Punct.`;
+          checkpointBadge.style.background = "rgba(56, 189, 248, 0.14)";
+          checkpointBadge.style.color = "#7dd3fc";
+          checkpointBadge.style.borderColor = "rgba(56, 189, 248, 0.35)";
+        }
+      }
+
+      function calculateDynamicDemonWPM(baseWpm, userCharIdx, demonCharIdx, userWpm) {
+        const minWpm = DEMON_SYNC_BALANCE.minDemonWpm || 6;
+        let base = Math.max(minWpm, baseWpm || 12);
+        const threshold = DEMON_SYNC_BALANCE.paceAdjustThreshold || 5;
+        const stepChars = DEMON_SYNC_BALANCE.paceStepChars || 3;
+        const wpmStep = DEMON_SYNC_BALANCE.paceWpmPerStep || 2;
+        const charDiff = userCharIdx - demonCharIdx;
+
+        // 1. User is typing 5+ chars ahead of the demon: demon WPM increases
+        if (charDiff >= threshold) {
+          const steps = 1 + Math.floor((charDiff - threshold) / stepChars);
+          let bonus = steps * wpmStep;
+          if (userWpm > base) {
+            bonus += Math.floor((userWpm - base) / 4);
+          }
+          if (DEMON_SYNC_BALANCE.maxDemonWpmBonus > 0) {
+            bonus = Math.min(bonus, DEMON_SYNC_BALANCE.maxDemonWpmBonus);
+          }
+          return base + bonus;
+        }
+
+        // 2. User is 5+ chars behind the demon: demon WPM decreases
+        if (charDiff <= -threshold) {
+          const behind = -charDiff;
+          const steps = 1 + Math.floor((behind - threshold) / stepChars);
+          let reduction = steps * wpmStep;
+          if (userWpm > 0 && userWpm < base) {
+            reduction += Math.floor((base - userWpm) / 4);
+          }
+          if (DEMON_SYNC_BALANCE.maxDemonWpmReduction > 0) {
+            reduction = Math.min(reduction, DEMON_SYNC_BALANCE.maxDemonWpmReduction);
+          }
+          return Math.max(minWpm, base - reduction);
+        }
+
+        // 3. Within the ±5 char radiance window: subtle adjustment to faster/slower live WPM
+        if (charDiff < 0 && userWpm > 0 && userWpm < base) {
+          let reduction = Math.max(1, Math.floor((base - userWpm) / 3));
+          const maxInWin = Math.floor((DEMON_SYNC_BALANCE.maxDemonWpmReduction || 8) / 2);
+          if (maxInWin > 0) reduction = Math.min(reduction, maxInWin);
+          return Math.max(minWpm, base - reduction);
+        }
+        if (charDiff > 0 && userWpm > base + 4) {
+          let bonus = Math.max(1, Math.floor((userWpm - base) / 5));
+          const maxInWin = Math.floor((DEMON_SYNC_BALANCE.maxDemonWpmBonus || 18) / 3);
+          if (maxInWin > 0) bonus = Math.min(bonus, maxInWin);
+          return base + bonus;
+        }
+        return base;
+      }
+
       function checkHolyResonance() {
         if (!activeWildDemon) {
           if (typingStage) typingStage.classList.remove("holy-resonance");
@@ -2640,9 +2979,25 @@
 
         const userIdx = currentTyped.length;
         const demonIdx = (activeWildDemon.char_index !== undefined) ? activeWildDemon.char_index : 0;
-        const charDiff = Math.abs(userIdx - demonIdx);
-        // User must be within charSyncTolerance (1 or 2) characters ahead or behind the demon!
-        const inResonance = (charDiff <= (DEMON_SYNC_BALANCE.charSyncTolerance || 2));
+        const signedDiff = userIdx - demonIdx;
+        const charDiff = Math.abs(signedDiff);
+        const tolerance = DEMON_SYNC_BALANCE.charSyncTolerance || 5;
+        // User is in Radiance/Resonance within ±5 characters of the demon!
+        const inResonance = (charDiff <= tolerance);
+
+        // Compute dynamic demon WPM based on lead/lag
+        const dynWpm = calculateDynamicDemonWPM(activeWildDemonBaseWPM, userIdx, demonIdx, liveWPM);
+        activeWildDemon.wpm = dynWpm;
+        if (wildDemonPaceBadge) {
+          const wpmDelta = dynWpm - activeWildDemonBaseWPM;
+          if (wpmDelta > 0) {
+            wildDemonPaceBadge.textContent = `⚡ Pace: ${dynWpm} WPM (+${wpmDelta} Surge · ±${tolerance} Chars)`;
+          } else if (wpmDelta < 0) {
+            wildDemonPaceBadge.textContent = `🐢 Pace: ${dynWpm} WPM (${wpmDelta} Eased · ±${tolerance} Chars)`;
+          } else {
+            wildDemonPaceBadge.textContent = `Pace: ~${dynWpm} WPM (Stay ±${tolerance} Chars)`;
+          }
+        }
 
         if (typingStage) {
           if (inResonance) {
@@ -2655,20 +3010,20 @@
         if (resonanceIndicator) {
           if (inResonance) {
             const relStr = userIdx === demonIdx ? "EXACT" : (userIdx > demonIdx ? `+${userIdx - demonIdx} CHAR` : `-${demonIdx - userIdx} CHAR`);
-            resonanceIndicator.textContent = `✨ RESONANCE ACTIVE (${relStr})`;
+            resonanceIndicator.textContent = `✨ RADIANCE ACTIVE (${relStr})`;
             resonanceIndicator.style.background = "linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(251, 191, 36, 0.45))";
             resonanceIndicator.style.color = "#fbbf24";
             resonanceIndicator.style.borderColor = "#f59e0b";
           } else {
-            if (userIdx > demonIdx + 2) {
+            if (userIdx > demonIdx + tolerance) {
               const ahead = userIdx - demonIdx;
-              resonanceIndicator.textContent = `⚡ TOO FAR AHEAD (+${ahead})`;
+              resonanceIndicator.textContent = `⚡ SURGING AHEAD (+${ahead} · Demon +WPM)`;
               resonanceIndicator.style.background = "rgba(239, 68, 68, 0.25)";
               resonanceIndicator.style.color = "#f87171";
               resonanceIndicator.style.borderColor = "#ef4444";
             } else {
               const behind = demonIdx - userIdx;
-              resonanceIndicator.textContent = `🏃 FALLING BEHIND (-${behind})`;
+              resonanceIndicator.textContent = `🏃 BEHIND (-${behind} · Demon -WPM)`;
               resonanceIndicator.style.background = "rgba(234, 179, 8, 0.2)";
               resonanceIndicator.style.color = "#fde047";
               resonanceIndicator.style.borderColor = "#eab308";
@@ -2684,14 +3039,17 @@
           const stackNote = tiers > 0
             ? ` · 🔥 ${currentSyncStacks} Sync Stacks (${curDmg} DMG/hit!)`
             : ` · 🔥 ${currentSyncStacks} Sync Stacks (${curDmg} DMG/hit, +DMG every 5 stacks)`;
+          const paceNote = signedDiff >= (DEMON_SYNC_BALANCE.paceAdjustThreshold || 5)
+            ? ` · ⚡ Demon WPM increased to ${dynWpm} WPM!`
+            : (signedDiff <= -(DEMON_SYNC_BALANCE.paceAdjustThreshold || 5) ? ` · 🐢 Demon slowed to ${dynWpm} WPM!` : "");
           if (inResonance) {
-            wildDemonStatusText.innerHTML = `✨ <strong style="color:#fbbf24;">Holy Resonance Active!</strong> Pacing beside ${escapeHtml(activeWildDemon.name)} (Within ${charDiff} chars)${stackNote}`;
-          } else if (userIdx < demonIdx - 2) {
+            wildDemonStatusText.innerHTML = `✨ <strong style="color:#fbbf24;">Holy Radiance Active!</strong> Pacing beside ${escapeHtml(activeWildDemon.name)} (Within ${charDiff}/${tolerance} chars)${paceNote}${stackNote}`;
+          } else if (userIdx < demonIdx - tolerance) {
             const behind = demonIdx - userIdx;
-            wildDemonStatusText.innerHTML = `🏃 <strong style="color:#60a5fa;">Falling behind!</strong> ${behind} char${behind === 1 ? '' : 's'} behind ${escapeHtml(activeWildDemon.name)} (${userIdx} / ${demonIdx}) · Speed up to get within 1-2 chars!${stackNote}`;
+            wildDemonStatusText.innerHTML = `🏃 <strong style="color:#60a5fa;">Behind by ${behind} chars!</strong> ${escapeHtml(activeWildDemon.name)} eased pace to <strong>${dynWpm} WPM</strong> so you can catch up (within ±${tolerance} chars)${stackNote}`;
           } else {
             const ahead = userIdx - demonIdx;
-            wildDemonStatusText.innerHTML = `⚠️ <strong style="color:#f87171;">Too far ahead!</strong> ${ahead} char${ahead === 1 ? '' : 's'} ahead of ${escapeHtml(activeWildDemon.name)} (${userIdx} / ${demonIdx}) · Slow down to stay within 1-2 chars!${stackNote}`;
+            wildDemonStatusText.innerHTML = `⚠️ <strong style="color:#f87171;">Ahead by ${ahead} chars!</strong> ${escapeHtml(activeWildDemon.name)} accelerated to <strong>${dynWpm} WPM</strong> to chase you (stay within ±${tolerance} chars)${stackNote}`;
           }
         }
 
@@ -2707,6 +3065,9 @@
         activeWildDemon = d;
         if (!isSameDemon) {
           currentSyncStacks = 0;
+          demonCheckpointIndex = 0;
+          demonPunctuationCount = 0;
+          activeWildDemonBaseWPM = d.wpm || 12;
         }
         syncedWordEndIndices.clear();
         const gLvl = currentCustomizations.guardian_level || 1;
@@ -2716,8 +3077,9 @@
           wildDemonIconName.textContent = `${d.icon || '😈'} ${d.name} (${d.rank ? d.rank.toUpperCase() : 'DEMON'} Lv. ${d.level || 1})`;
         }
         if (wildDemonPaceBadge) {
-          wildDemonPaceBadge.textContent = `Pace: ~${d.wpm} WPM (Stay ±1-2 Chars)`;
+          wildDemonPaceBadge.textContent = `Pace: ~${d.wpm} WPM (Stay ±${DEMON_SYNC_BALANCE.charSyncTolerance || 5} Chars)`;
         }
+        updateCheckpointBadge();
         updateSyncStacksBadge();
         updateHolyWardsBadge();
         renderGhostCursor({
@@ -2746,6 +3108,8 @@
         }
         activeWildDemon = null;
         currentSyncStacks = 0;
+        demonCheckpointIndex = 0;
+        demonPunctuationCount = 0;
         syncedWordEndIndices.clear();
         if (wildDemonHUD) wildDemonHUD.style.display = "none";
         if (typingStage) typingStage.classList.remove("holy-resonance");
@@ -2801,6 +3165,7 @@
       function onWildDemonEnraged(d, msg) {
         if (!d) return;
         activeWildDemon = d;
+        activeWildDemonBaseWPM = (activeWildDemonBaseWPM || d.wpm || 12) + 2;
         if (wildDemonPaceBadge) {
           wildDemonPaceBadge.textContent = `Enraged: ${d.wpm} WPM (+2)`;
         }
@@ -2809,8 +3174,8 @@
           typingStage.classList.add("demon-backlash-flash");
           setTimeout(() => typingStage.classList.remove("demon-backlash-flash"), 600);
         }
-        showToast("Adversary Enraged!", msg || `${d.name} gained strength from your error! (+20% HP, +2 WPM)`, "🔥");
-        appendMessage(`🔥 Demonic Backlash: ${d.name} healed +20% HP and sped up to ${d.wpm} WPM!`, "error-notice");
+        showToast("Adversary Enraged!", msg || `${d.name} gained strength from your error! (+10% HP, +2 WPM)`, "🔥");
+        appendMessage(`🔥 Demonic Backlash: ${d.name} healed +10% HP and sped up to ${d.wpm} WPM!`, "error-notice");
       }
 
       function onWildDemonDefeated(d, sanctuary, content) {
@@ -3117,6 +3482,10 @@
           span.className = "char";
           span.setAttribute("data-index", i);
 
+          if (activeWildDemon && demonCheckpointIndex > 0 && i === demonCheckpointIndex) {
+            span.classList.add("checkpoint-marker");
+          }
+
           if (i < typedLen) {
             span.classList.add(currentTyped[i] === currentTargetText[i] ? "correct" : "incorrect");
           } else if (i === typedLen) {
@@ -3241,8 +3610,20 @@
         recordKeystrokeForWPM();
 
         if (isCorrectKeystroke) {
-          // Wild Demon Combat Strike & Word-in-Sync Stack check
+          // Wild Demon Combat Strike, Punctuation Checkpoint & Word-in-Sync Stack check
           if (activeWildDemon) {
+            const cpInfo = calculatePunctuationCheckpoint(currentTargetText, currentTyped.length);
+            demonPunctuationCount = Math.max(demonPunctuationCount, cpInfo.punctCount);
+            if (cpInfo.checkpointIdx > demonCheckpointIndex) {
+              demonCheckpointIndex = cpInfo.checkpointIdx;
+              updateCheckpointBadge();
+              renderTypingStage();
+              const cpNum = Math.floor(demonPunctuationCount / (DEMON_SYNC_BALANCE.punctuationPerCheckpoint || 2));
+              showTempHint(`🔖 <strong>Checkpoint #${cpNum} Locked!</strong> Mistakes now reset to character ${demonCheckpointIndex} instead of verse start.`);
+            } else {
+              updateCheckpointBadge();
+            }
+
             const inResonance = checkHolyResonance();
 
             if (inResonance) {
@@ -3300,21 +3681,41 @@
               }
               showTempHint(`🛡️ <strong>Holy Ward Absorbed Backlash!</strong> (${currentHolyWards} Ward${currentHolyWards === 1 ? '' : 's'} Remaining)`);
             } else {
-              // Demonic Backlash: Reset user to start of passage!
-              currentTyped = "";
-              hiddenInput.value = "";
-              syncedWordEndIndices.clear();
+              // Demonic Backlash: Reset user to last Punctuation Checkpoint (or start if no checkpoint reached yet)!
+              const safeIdx = Math.min(demonCheckpointIndex || 0, currentTargetText.length);
+              currentTyped = currentTargetText.slice(0, safeIdx);
+              hiddenInput.value = currentTyped;
+              for (const idx of Array.from(syncedWordEndIndices)) {
+                if (idx >= safeIdx) {
+                  syncedWordEndIndices.delete(idx);
+                }
+              }
+              const stackLoss = DEMON_SYNC_BALANCE.stacksLostOnBacklash !== undefined ? DEMON_SYNC_BALANCE.stacksLostOnBacklash : 2;
+              currentSyncStacks = Math.max(0, currentSyncStacks - stackLoss);
+              updateSyncStacksBadge();
               renderTypingStage();
-              resetVerseTypingTimer();
+              if (safeIdx === 0) {
+                resetVerseTypingTimer();
+              }
+              checkHolyResonance();
               if (typingStage) {
                 typingStage.classList.add("demon-backlash-flash");
                 setTimeout(() => typingStage.classList.remove("demon-backlash-flash"), 600);
               }
-              showTempHint("💥 <strong>Demonic Backlash!</strong> Mistake reset your passage! The demon enrages and heals!");
+              if (safeIdx > 0) {
+                showTempHint(`🔖 <strong>Saved by Punctuation Checkpoint!</strong> Returned to checkpoint (char ${safeIdx}) instead of verse start!`);
+              } else {
+                showTempHint("💥 <strong>Demonic Backlash!</strong> Mistake reset your passage! Reach 2 punctuation marks to lock a checkpoint!");
+              }
               if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                   type: "demon_mistake_backlash",
                   demon_id: activeWildDemon.id
+                }));
+                ws.send(JSON.stringify({
+                  type: "presence_cursor",
+                  char_index: currentTyped.length,
+                  wpm: liveWPM
                 }));
               }
             }
@@ -3433,6 +3834,9 @@
         currentTyped = "";
         hiddenInput.value = "";
         syncedWordEndIndices.clear();
+        demonCheckpointIndex = 0;
+        demonPunctuationCount = 0;
+        updateCheckpointBadge();
         resetVerseTypingTimer();
         renderTypingStage();
         focusTyping();

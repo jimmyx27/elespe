@@ -9,25 +9,177 @@ import (
 	"time"
 )
 
-// DemonSyncBalanceConfig holds tunable parameters for word-in-sync combat stack scaling.
+// DemonSyncBalanceConfig holds tunable parameters for word-in-sync combat stack scaling,
+// punctuation checkpoints, and dynamic demon WPM rubber-banding within/around the radiance window.
 // Kept centralized here for future balancing adjustments.
 type DemonSyncBalanceConfig struct {
-	StacksPerWord       int     `json:"stacks_per_word"`       // Stacks gained per word typed in sync (default: 1)
-	StacksPerDamageTier int     `json:"stacks_per_damage_tier"` // Number of stacks required to increase damage (default: 5)
-	FlatDamagePerTier   int     `json:"flat_damage_per_tier"`   // Flat bonus damage per tier (every 5 stacks) (default: 1)
-	DamageMultPerTier   float64 `json:"damage_mult_per_tier"`   // Multiplicative bonus per tier (e.g. 0.25 = +25% per 5 stacks)
-	MaxStacks           int     `json:"max_stacks"`             // Optional cap on stacks (0 = uncapped)
-	CharSyncTolerance   int     `json:"char_sync_tolerance"`    // Max character distance from demon to count as "in sync" (default: 2)
+	StacksPerWord            int     `json:"stacks_per_word"`            // Stacks gained per word typed in sync (default: 1)
+	StacksPerDamageTier      int     `json:"stacks_per_damage_tier"`     // Number of stacks required to increase damage (default: 5)
+	FlatDamagePerTier        int     `json:"flat_damage_per_tier"`       // Flat bonus damage per tier (every 5 stacks) (default: 1)
+	DamageMultPerTier        float64 `json:"damage_mult_per_tier"`       // Multiplicative bonus per tier (e.g. 0.25 = +25% per 5 stacks)
+	MaxStacks                int     `json:"max_stacks"`                 // Optional cap on stacks (0 = uncapped)
+	CharSyncTolerance        int     `json:"char_sync_tolerance"`        // Max character distance from demon to count as "in sync" / radiance window (default: 5)
+	PunctuationPerCheckpoint int     `json:"punctuation_per_checkpoint"` // Number of punctuation marks reached to lock in a checkpoint (default: 2)
+	StacksLostOnBacklash     int     `json:"stacks_lost_on_backlash"`    // Sync stacks lost on unwarded mistake backlash (default: 2)
+	BacklashHealPct          float64 `json:"backlash_heal_pct"`          // Fraction of MaxHP healed by demon on mistake (default: 0.10)
+	PaceAdjustThreshold      int     `json:"pace_adjust_threshold"`      // Char lead/lag threshold where dynamic WPM increase/decrease kicks in (default: 5)
+	PaceStepChars            int     `json:"pace_step_chars"`            // Additional chars beyond threshold per WPM step (default: 3)
+	PaceWPMPerStep           int     `json:"pace_wpm_per_step"`          // WPM change per step ahead/behind (default: 2)
+	MinDemonWPM              int     `json:"min_demon_wpm"`              // Minimum dynamic WPM floor when user is slower (default: 6)
+	MaxDemonWPMBonus         int     `json:"max_demon_wpm_bonus"`        // Max bonus WPM above base when user is ahead (default: 18)
+	MaxDemonWPMReduction     int     `json:"max_demon_wpm_reduction"`    // Max WPM reduction below base when user is slower (default: 8)
 }
 
-// DefaultDemonSyncBalance defines the active balance values for demon sync stacks.
+// DefaultDemonSyncBalance defines the active balance values for demon sync stacks, checkpoints, and dynamic pacing.
 var DefaultDemonSyncBalance = DemonSyncBalanceConfig{
-	StacksPerWord:       1,
-	StacksPerDamageTier: 5,
-	FlatDamagePerTier:   1,
-	DamageMultPerTier:   0.25,
-	MaxStacks:           0,
-	CharSyncTolerance:   2,
+	StacksPerWord:            1,
+	StacksPerDamageTier:      5,
+	FlatDamagePerTier:        1,
+	DamageMultPerTier:        0.25,
+	MaxStacks:                0,
+	CharSyncTolerance:        5,
+	PunctuationPerCheckpoint: 2,
+	StacksLostOnBacklash:     2,
+	BacklashHealPct:          0.10,
+	PaceAdjustThreshold:      5,
+	PaceStepChars:            3,
+	PaceWPMPerStep:           2,
+	MinDemonWPM:              6,
+	MaxDemonWPMBonus:         18,
+	MaxDemonWPMReduction:     8,
+}
+
+// IsCheckpointPunctuation returns true if the character is a scripture punctuation mark that counts toward a checkpoint.
+func IsCheckpointPunctuation(r rune) bool {
+	switch r {
+	case ',', ';', ':', '.', '!', '?', '—', '-':
+		return true
+	default:
+		return false
+	}
+}
+
+// CalculatePunctuationCheckpoint returns the checkpoint character index and total punctuation marks crossed
+// for a given passage text and number of characters typed.
+func CalculatePunctuationCheckpoint(text string, typedLen int) (checkpointIdx int, punctCount int) {
+	return CalculatePunctuationCheckpointWithConfig(text, typedLen, DefaultDemonSyncBalance)
+}
+
+// CalculatePunctuationCheckpointWithConfig calculates the checkpoint index using a custom balance config.
+func CalculatePunctuationCheckpointWithConfig(text string, typedLen int, cfg DemonSyncBalanceConfig) (checkpointIdx int, punctCount int) {
+	runes := []rune(text)
+	if typedLen > len(runes) {
+		typedLen = len(runes)
+	}
+	if typedLen <= 0 {
+		return 0, 0
+	}
+	perCP := cfg.PunctuationPerCheckpoint
+	if perCP <= 0 {
+		perCP = 2
+	}
+	for i := 0; i < typedLen; i++ {
+		if IsCheckpointPunctuation(runes[i]) {
+			punctCount++
+			if punctCount%perCP == 0 {
+				nextIdx := i + 1
+				if nextIdx < len(runes) && runes[nextIdx] == ' ' && nextIdx+1 <= typedLen {
+					nextIdx++
+				}
+				checkpointIdx = nextIdx
+			}
+		}
+	}
+	return checkpointIdx, punctCount
+}
+
+// CalculateDynamicDemonWPM adjusts the demon's WPM dynamically based on whether the player is typing
+// 5+ chars ahead (increases demon WPM) or typing slower / falling behind (decreases demon WPM).
+func CalculateDynamicDemonWPM(baseWPM, userCharIdx, demonCharIdx, userWPM int) int {
+	return CalculateDynamicDemonWPMWithConfig(baseWPM, userCharIdx, demonCharIdx, userWPM, DefaultDemonSyncBalance)
+}
+
+// CalculateDynamicDemonWPMWithConfig computes dynamic demon WPM using a custom balance config.
+func CalculateDynamicDemonWPMWithConfig(baseWPM, userCharIdx, demonCharIdx, userWPM int, cfg DemonSyncBalanceConfig) int {
+	if baseWPM < cfg.MinDemonWPM {
+		baseWPM = cfg.MinDemonWPM
+	}
+	threshold := cfg.PaceAdjustThreshold
+	if threshold <= 0 {
+		threshold = 5
+	}
+	stepChars := cfg.PaceStepChars
+	if stepChars <= 0 {
+		stepChars = 3
+	}
+	wpmStep := cfg.PaceWPMPerStep
+	if wpmStep <= 0 {
+		wpmStep = 2
+	}
+
+	charDiff := userCharIdx - demonCharIdx
+
+	// 1. User is typing 5+ chars ahead of the demon: increase demon WPM
+	if charDiff >= threshold {
+		steps := 1 + (charDiff-threshold)/stepChars
+		bonus := steps * wpmStep
+		if userWPM > baseWPM {
+			bonus += (userWPM - baseWPM) / 4
+		}
+		if cfg.MaxDemonWPMBonus > 0 && bonus > cfg.MaxDemonWPMBonus {
+			bonus = cfg.MaxDemonWPMBonus
+		}
+		return baseWPM + bonus
+	}
+
+	// 2. User is 5+ chars behind the demon: decrease demon WPM so player can recover
+	if charDiff <= -threshold {
+		behind := -charDiff
+		steps := 1 + (behind-threshold)/stepChars
+		reduction := steps * wpmStep
+		if userWPM > 0 && userWPM < baseWPM {
+			reduction += (baseWPM - userWPM) / 4
+		}
+		if cfg.MaxDemonWPMReduction > 0 && reduction > cfg.MaxDemonWPMReduction {
+			reduction = cfg.MaxDemonWPMReduction
+		}
+		res := baseWPM - reduction
+		if res < cfg.MinDemonWPM {
+			res = cfg.MinDemonWPM
+		}
+		return res
+	}
+
+	// 3. Within the ±5 char radiance window: subtle dynamic response to faster/slower live WPM
+	if charDiff < 0 && userWPM > 0 && userWPM < baseWPM {
+		reduction := (baseWPM - userWPM) / 3
+		if reduction < 1 {
+			reduction = 1
+		}
+		maxInWindowRed := cfg.MaxDemonWPMReduction / 2
+		if maxInWindowRed > 0 && reduction > maxInWindowRed {
+			reduction = maxInWindowRed
+		}
+		res := baseWPM - reduction
+		if res < cfg.MinDemonWPM {
+			res = cfg.MinDemonWPM
+		}
+		return res
+	}
+
+	if charDiff > 0 && userWPM > baseWPM+4 {
+		bonus := (userWPM - baseWPM) / 5
+		if bonus < 1 {
+			bonus = 1
+		}
+		maxInWindowBonus := cfg.MaxDemonWPMBonus / 3
+		if maxInWindowBonus > 0 && bonus > maxInWindowBonus {
+			bonus = maxInWindowBonus
+		}
+		return baseWPM + bonus
+	}
+
+	return baseWPM
 }
 
 // GetSyncDamageTier returns the number of 5-stack damage tiers achieved for a given stack count.
@@ -786,13 +938,14 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 			continue
 		}
 
-		charDelay := time.Duration(float64(time.Minute) / float64(wpm*5))
-		if charDelay < 50*time.Millisecond {
-			charDelay = 50 * time.Millisecond
-		}
-
 		completed := true
 		for i := 0; i <= totalChars; i++ {
+			var playerCharIdx, playerWPM int
+			var hasActivePlayer bool
+			if m.hub != nil {
+				playerCharIdx, playerWPM, hasActivePlayer = m.hub.GetActivePlayerOnVerse(trans, book, ch, v)
+			}
+
 			m.mu.Lock()
 			if d.CurrentHP <= 0 {
 				m.mu.Unlock()
@@ -800,7 +953,18 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				break
 			}
 			d.CharIndex = i
+			if hasActivePlayer {
+				baseWPM, ok := m.wildDemonBases[d.ID]
+				if !ok || baseWPM <= 0 {
+					baseWPM = wpm
+				}
+				baseWPM += d.EnrageCount * 2
+				d.WPM = CalculateDynamicDemonWPM(baseWPM, playerCharIdx, i, playerWPM)
+			}
 			curWpm := d.WPM
+			if curWpm < DefaultDemonSyncBalance.MinDemonWPM {
+				curWpm = DefaultDemonSyncBalance.MinDemonWPM
+			}
 			curHP := d.CurrentHP
 			maxHP := d.MaxHP
 			m.mu.Unlock()
@@ -820,7 +984,11 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				})
 			}
 
-			time.Sleep(charDelay)
+			stepDelay := time.Duration(float64(time.Minute) / float64(curWpm*5))
+			if stepDelay < 50*time.Millisecond {
+				stepDelay = 50 * time.Millisecond
+			}
+			time.Sleep(stepDelay)
 		}
 
 		if completed {
@@ -973,15 +1141,40 @@ func (m *DemonManager) ApplyWildDemonDamage(demonID string, damage int) (*WildDe
 	return nil, false
 }
 
+// AdjustWildDemonPaceForPlayer updates the wild demon's WPM on the given verse when a player's cursor moves.
+func (m *DemonManager) AdjustWildDemonPaceForPlayer(trans, book string, chapter, verse, userCharIdx, userWPM int) *WildDemon {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, d := range m.wildDemons {
+		if d.Translation == trans && d.BookName == book && d.Chapter == chapter && d.Verse == verse && d.CurrentHP > 0 {
+			baseWPM, ok := m.wildDemonBases[d.ID]
+			if !ok || baseWPM <= 0 {
+				baseWPM = d.WPM
+				m.wildDemonBases[d.ID] = baseWPM
+			}
+			baseWPM += d.EnrageCount * 2
+			d.WPM = CalculateDynamicDemonWPM(baseWPM, userCharIdx, d.CharIndex, userWPM)
+			res := *d
+			return &res
+		}
+	}
+	return nil
+}
+
 func (m *DemonManager) EnrageWildDemonOnMistake(demonID string) *WildDemon {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	for _, d := range m.wildDemons {
 		if d.ID == demonID {
-			heal := int(float64(d.MaxHP) * 0.20)
-			if heal < 10 {
-				heal = 10
+			healPct := DefaultDemonSyncBalance.BacklashHealPct
+			if healPct <= 0 {
+				healPct = 0.10
+			}
+			heal := int(float64(d.MaxHP) * healPct)
+			if heal < 5 {
+				heal = 5
 			}
 			d.CurrentHP += heal
 			if d.CurrentHP > d.MaxHP {

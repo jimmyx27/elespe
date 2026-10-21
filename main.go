@@ -1030,6 +1030,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if globalHub != nil {
 				globalHub.UpdateCursor(client, msg.CharIndex, msg.WPM)
 			}
+			if globalDemonManager != nil && client.Book != "" {
+				if updated := globalDemonManager.AdjustWildDemonPaceForPlayer(client.Translation, client.Book, client.Chapter, client.Verse, msg.CharIndex, msg.WPM); updated != nil {
+					_ = conn.WriteJSON(Message{
+						Type:      "wild_demon_update",
+						WildDemon: updated,
+					})
+				}
+			}
 
 		case "toggle_spectator":
 			client.IsSpectator = !client.IsSpectator
@@ -1446,7 +1454,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				_ = conn.WriteJSON(Message{
 					Type:      "wild_demon_enraged",
 					WildDemon: enraged,
-					Content:   fmt.Sprintf("%s was empowered by your mistake! (+20%% HP, +2 WPM)", enraged.Name),
+					Content:   fmt.Sprintf("%s was empowered by your mistake! (+10%% HP, +2 WPM)", enraged.Name),
 				})
 			}
 

@@ -1500,13 +1500,13 @@ func TestWildDemonsRoamingAndCombat(t *testing.T) {
 		t.Errorf("Expected HP %d, got %d", initialHP-25, updated.CurrentHP)
 	}
 
-	// Test Mistake Backlash: Heals +20% max HP, increases WPM by +2, enrage count increments
+	// Test Mistake Backlash: Heals BacklashHealPct max HP, increases WPM by +2, enrage count increments
 	baseWPM := updated.WPM
 	enraged := dm.EnrageWildDemonOnMistake(genesisDemon.ID)
 	if enraged.WPM != baseWPM+2 {
 		t.Errorf("Expected WPM %d after enrage, got %d", baseWPM+2, enraged.WPM)
 	}
-	expectedHeal := int(float64(enraged.MaxHP) * 0.20)
+	expectedHeal := int(float64(enraged.MaxHP) * DefaultDemonSyncBalance.BacklashHealPct)
 	if enraged.CurrentHP != updated.CurrentHP+expectedHeal {
 		t.Errorf("Expected enraged HP %d, got %d", updated.CurrentHP+expectedHeal, enraged.CurrentHP)
 	}
@@ -2120,7 +2120,7 @@ func TestBigMikeRenameAndDemonSyncStacks(t *testing.T) {
 		FlatDamagePerTier:   3,
 		DamageMultPerTier:   0.50,
 		MaxStacks:           10,
-		CharSyncTolerance:   2,
+		CharSyncTolerance:   5,
 	}
 	if got := CalculateSyncStackDamageWithConfig(2, 5, customCfg); got != 5 {
 		t.Errorf("Expected custom config at 5 stacks (base 2 + 3 flat) = 5, got %d", got)
@@ -2128,6 +2128,55 @@ func TestBigMikeRenameAndDemonSyncStacks(t *testing.T) {
 	// MaxStacks cap at 10 (2 tiers) even if 20 stacks passed
 	if got := CalculateSyncStackDamageWithConfig(2, 20, customCfg); got != 8 {
 		t.Errorf("Expected custom config capped at 10 stacks (base 2 + 2*3 flat) = 8, got %d", got)
+	}
+
+	// 4. Verify Widened Radiance Window (±5 chars) & Dynamic Demon WPM Scaling
+	if DefaultDemonSyncBalance.CharSyncTolerance != 5 {
+		t.Errorf("Expected widened radiance window CharSyncTolerance=5, got %d", DefaultDemonSyncBalance.CharSyncTolerance)
+	}
+
+	baseWPM := 14
+	// At equal position and pace -> stays at baseWPM
+	if w := CalculateDynamicDemonWPM(baseWPM, 20, 20, 14); w != baseWPM {
+		t.Errorf("Expected base WPM %d when tied, got %d", baseWPM, w)
+	}
+	// User typing 5 chars ahead -> demon WPM increases!
+	wAhead5 := CalculateDynamicDemonWPM(baseWPM, 25, 20, 22)
+	if wAhead5 <= baseWPM {
+		t.Errorf("Expected demon WPM to increase when user is 5 chars ahead, got %d (base %d)", wAhead5, baseWPM)
+	}
+	// User typing 11 chars ahead -> demon WPM increases even further!
+	wAhead11 := CalculateDynamicDemonWPM(baseWPM, 31, 20, 30)
+	if wAhead11 <= wAhead5 {
+		t.Errorf("Expected demon WPM at +11 chars (%d) > at +5 chars (%d)", wAhead11, wAhead5)
+	}
+	// User typing slower / 5 chars behind -> demon WPM decreases!
+	wBehind5 := CalculateDynamicDemonWPM(baseWPM, 15, 20, 10)
+	if wBehind5 >= baseWPM {
+		t.Errorf("Expected demon WPM to decrease when user is 5 chars behind, got %d (base %d)", wBehind5, baseWPM)
+	}
+	// User typing slower inside window -> demon WPM also eases down
+	wSlowerInWin := CalculateDynamicDemonWPM(baseWPM, 18, 20, 8)
+	if wSlowerInWin >= baseWPM {
+		t.Errorf("Expected demon WPM to ease down when user types slower behind demon, got %d (base %d)", wSlowerInWin, baseWPM)
+	}
+
+	// 5. Verify Punctuation Checkpoints
+	sampleVerse := "Be sober, be vigilant; because your adversary the devil, as a roaring lion, walketh about:"
+	// Before 2nd punctuation mark (only 1st comma at index 8 crossed): checkpoint still 0
+	cp1, pCount1 := CalculatePunctuationCheckpoint(sampleVerse, 15)
+	if pCount1 != 1 || cp1 != 0 {
+		t.Errorf("Expected 1 punctuation mark and checkpoint 0 at len 15, got punct=%d, cp=%d", pCount1, cp1)
+	}
+	// After 2nd punctuation mark (semicolon at index 21 crossed): checkpoint locks in after '; '!
+	cp2, pCount2 := CalculatePunctuationCheckpoint(sampleVerse, 25)
+	if pCount2 != 2 || cp2 != 23 {
+		t.Errorf("Expected 2 punctuation marks and checkpoint 23 ('because...'), got punct=%d, cp=%d", pCount2, cp2)
+	}
+	// After 4th punctuation mark (comma after 'lion' at index 74 crossed): checkpoint advances again!
+	cp4, pCount4 := CalculatePunctuationCheckpoint(sampleVerse, 80)
+	if pCount4 != 4 || cp4 <= cp2 {
+		t.Errorf("Expected 4 punctuation marks and advanced checkpoint > %d, got punct=%d, cp=%d", cp2, pCount4, cp4)
 	}
 }
 

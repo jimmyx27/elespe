@@ -333,6 +333,17 @@ func (h *Hub) HasClientsOnVerse(trans, book string, chapter, verse int) bool {
 	return false
 }
 
+func (h *Hub) GetActivePlayerOnVerse(trans, book string, chapter, verse int) (charIndex int, wpm int, ok bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for peer := range h.clients {
+		if !peer.IsSpectator && peer.Translation == trans && peer.Book == book && peer.Chapter == chapter && peer.Verse == verse {
+			return peer.CharIndex, peer.WPM, true
+		}
+	}
+	return 0, 0, false
+}
+
 func (h *Hub) BroadcastWildDemonsList(demons []WildDemon) {
 	h.mu.RLock()
 	conns := make([]*safeConn, 0, len(h.clients))
