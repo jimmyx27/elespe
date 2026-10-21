@@ -1350,7 +1350,7 @@ func defaultBossRaidForLevel(level int, isDemon bool) *BossRaid {
 	}
 	return &BossRaid{
 		ID:          fmt.Sprintf("boss-michael-lv%d", level),
-		BossName:    "Archangel Michael",
+		BossName:    "Big Mike",
 		BossTitle:   titles[level-1],
 		BossRank:    "michael",
 		BossWPM:     wpms[level-1],
@@ -1378,6 +1378,9 @@ func (s *localStore) GetBossRaid(ctx context.Context) (*BossRaid, error) {
 	if s.data.BossRaid == nil {
 		s.data.BossRaid = defaultBossRaid()
 	}
+	if s.data.BossRaid.BossName == "Archangel Michael" {
+		s.data.BossRaid.BossName = "Big Mike"
+	}
 	res := *s.data.BossRaid
 	return &res, nil
 }
@@ -1387,6 +1390,9 @@ func (s *localStore) GetBossRaidForLevel(ctx context.Context, level int, isDemon
 	defer s.mu.Unlock()
 
 	if s.data.BossRaid != nil && s.data.BossRaid.Level == level && s.data.BossRaid.IsDemonBoss == isDemon {
+		if s.data.BossRaid.BossName == "Archangel Michael" {
+			s.data.BossRaid.BossName = "Big Mike"
+		}
 		res := *s.data.BossRaid
 		return &res, nil
 	}

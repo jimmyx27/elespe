@@ -85,7 +85,7 @@ func GetAllCustomizationUnlocks(topWPM, totalVerses, longestStreak, booksComplet
 			Category:    "color",
 			Name:        "Archangel Gold",
 			Value:       "gold",
-			Description: "Pure sunlight with a celestial halo glow, fitting for Archangel Michael.",
+			Description: "Pure sunlight with a celestial halo glow, fitting for Big Mike.",
 			Requirement: "Achieve 160+ WPM or Complete 1 Full Book",
 			Unlocked:    topWPM >= 160 || booksCompleted >= 1,
 			Preview:     "#ffd700",

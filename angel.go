@@ -64,14 +64,14 @@ var angelTemplates = map[string]AngelInfo{
 	"michael": {
 		ID:          "angel-michael",
 		Rank:        "michael",
-		Name:        "Archangel Michael",
+		Name:        "Big Mike",
 		Title:       "Leader of the Heavenly Hosts",
-		Description: "Armed with the sword of holy truth! Inscribes sacred verses at a blazing speed of 160 WPM.",
+		Description: "Armed with the sword of holy truth! Inscribes sacred verses BLAZINGLY FAST!",
 		WPM:         160,
 		Color:       "#f97316",
 		Icon:        "⚔️",
-		Level:       2,
-		MaxLevel:    4,
+		Level:       777,
+		MaxLevel:    7777,
 	},
 }
 
@@ -102,11 +102,11 @@ func GetAngelWPM(rank string, level int) int {
 	case "michael":
 		// Michael: Lv.1 140 WPM, Lv.2 160 WPM, Lv.3 180 WPM, Lv.4 200 WPM
 		if level > 4 {
-			level = 4
+			level = 777
 		}
 		return 140 + (level-1)*20
 	default:
-		return 20
+		return 777
 	}
 }
 

@@ -2,11 +2,76 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
 	"sync"
 	"time"
 )
+
+// DemonSyncBalanceConfig holds tunable parameters for word-in-sync combat stack scaling.
+// Kept centralized here for future balancing adjustments.
+type DemonSyncBalanceConfig struct {
+	StacksPerWord       int     `json:"stacks_per_word"`       // Stacks gained per word typed in sync (default: 1)
+	StacksPerDamageTier int     `json:"stacks_per_damage_tier"` // Number of stacks required to increase damage (default: 5)
+	FlatDamagePerTier   int     `json:"flat_damage_per_tier"`   // Flat bonus damage per tier (every 5 stacks) (default: 1)
+	DamageMultPerTier   float64 `json:"damage_mult_per_tier"`   // Multiplicative bonus per tier (e.g. 0.25 = +25% per 5 stacks)
+	MaxStacks           int     `json:"max_stacks"`             // Optional cap on stacks (0 = uncapped)
+	CharSyncTolerance   int     `json:"char_sync_tolerance"`    // Max character distance from demon to count as "in sync" (default: 2)
+}
+
+// DefaultDemonSyncBalance defines the active balance values for demon sync stacks.
+var DefaultDemonSyncBalance = DemonSyncBalanceConfig{
+	StacksPerWord:       1,
+	StacksPerDamageTier: 5,
+	FlatDamagePerTier:   1,
+	DamageMultPerTier:   0.25,
+	MaxStacks:           0,
+	CharSyncTolerance:   2,
+}
+
+// GetSyncDamageTier returns the number of 5-stack damage tiers achieved for a given stack count.
+func GetSyncDamageTier(syncStacks int) int {
+	return GetSyncDamageTierWithConfig(syncStacks, DefaultDemonSyncBalance)
+}
+
+// GetSyncDamageTierWithConfig returns the damage tier count using a custom balance config.
+func GetSyncDamageTierWithConfig(syncStacks int, cfg DemonSyncBalanceConfig) int {
+	if syncStacks < 0 {
+		return 0
+	}
+	if cfg.MaxStacks > 0 && syncStacks > cfg.MaxStacks {
+		syncStacks = cfg.MaxStacks
+	}
+	step := cfg.StacksPerDamageTier
+	if step <= 0 {
+		step = 5
+	}
+	return syncStacks / step
+}
+
+// CalculateSyncStackDamage computes the total strike damage given a base damage and current sync stacks.
+// Every 5 stacks (StacksPerDamageTier) increases the damage done to the demon.
+func CalculateSyncStackDamage(baseDamage, syncStacks int) int {
+	return CalculateSyncStackDamageWithConfig(baseDamage, syncStacks, DefaultDemonSyncBalance)
+}
+
+// CalculateSyncStackDamageWithConfig computes sync-scaled damage with a custom balance configuration.
+func CalculateSyncStackDamageWithConfig(baseDamage, syncStacks int, cfg DemonSyncBalanceConfig) int {
+	if baseDamage < 1 {
+		baseDamage = 1
+	}
+	tiers := GetSyncDamageTierWithConfig(syncStacks, cfg)
+	if tiers <= 0 {
+		return baseDamage
+	}
+	multDamage := int(math.Round(float64(baseDamage) * (1.0 + float64(tiers)*cfg.DamageMultPerTier)))
+	flatDamage := baseDamage + tiers*cfg.FlatDamagePerTier
+	if multDamage > flatDamage {
+		return multDamage
+	}
+	return flatDamage
+}
 
 // Predefined Demon Adversary Profiles with Levels
 var demonTemplates = map[string]DemonInfo{
@@ -736,6 +801,8 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 			}
 			d.CharIndex = i
 			curWpm := d.WPM
+			curHP := d.CurrentHP
+			maxHP := d.MaxHP
 			m.mu.Unlock()
 
 			if m.hub != nil {
@@ -748,6 +815,8 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 					IsDemon:     true,
 					DemonRank:   d.Rank,
 					DemonLevel:  d.Level,
+					CurrentHP:   curHP,
+					MaxHP:       maxHP,
 				})
 			}
 
@@ -815,7 +884,7 @@ func (m *DemonManager) AdvanceWildDemonToNextVerse(demonID string) (*WildDemon, 
 	return &demonCopy, nextV, true
 }
 
-// SlayWildDemonByMichael purges a wild demon when Archangel Michael completes or sanctifies its verse
+// SlayWildDemonByMichael purges a wild demon when Big Mike completes or sanctifies its verse
 func (m *DemonManager) SlayWildDemonByMichael(trans, book string, chapter, verse int) *WildDemon {
 	m.mu.Lock()
 	var slain *WildDemon
@@ -836,7 +905,7 @@ func (m *DemonManager) SlayWildDemonByMichael(trans, book string, chapter, verse
 	m.mu.Unlock()
 
 	if slain != nil && m.hub != nil {
-		content := fmt.Sprintf("⚔️ Archangel Michael sanctified %s %d:%d and slew %s %s (Lv. %d)!", book, chapter, verse, slain.Icon, slain.Name, slain.Level)
+		content := fmt.Sprintf("⚔️ Big Mike sanctified %s %d:%d and slew %s %s (Lv. %d)!", book, chapter, verse, slain.Icon, slain.Name, slain.Level)
 		m.hub.BroadcastMichaelSlay(trans, book, chapter, verse, *slain, content)
 		m.hub.BroadcastWildDemonsList(allDemons)
 	}

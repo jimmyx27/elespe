@@ -403,6 +403,8 @@ type GhostCursor struct {
 	IsDemon     bool   `json:"is_demon,omitempty"`
 	DemonRank   string `json:"demon_rank,omitempty"`
 	DemonLevel  int    `json:"demon_level,omitempty"`
+	CurrentHP   int    `json:"current_hp,omitempty"`
+	MaxHP       int    `json:"max_hp,omitempty"`
 	CastAbility string `json:"cast_ability,omitempty"` // "shroud", "typo", ""
 	ShroudRange int    `json:"shroud_range,omitempty"` // number of chars to shroud
 }
@@ -512,6 +514,7 @@ type Message struct {
 	HolyWards       int          `json:"holy_wards,omitempty"`
 	DemonID         string       `json:"demon_id,omitempty"`
 	Damage          int          `json:"damage,omitempty"`
+	SyncStacks      int          `json:"sync_stacks,omitempty"`
 	EncounterChance int          `json:"encounter_chance,omitempty"`
 	IsAmbush        bool         `json:"is_ambush,omitempty"`
 	ActiveDemons    int          `json:"active_demons,omitempty"`

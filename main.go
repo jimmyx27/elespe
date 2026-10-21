@@ -426,7 +426,7 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 			ID:          "speed_160",
 			Type:        "speed",
 			Name:        "Sword of Michael",
-			Description: "Achieved 160+ Words Per Minute! Inscribing at Archangel Michael lightning speed!",
+			Description: "Achieved 160+ Words Per Minute! Inscribing at Big Mike lightning speed!",
 			Icon:        "⚔️",
 			EarnedAt:    now,
 		})
@@ -1401,6 +1401,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if damage <= 0 {
 				damage = 1
 			}
+			if msg.SyncStacks > 0 {
+				damage = CalculateSyncStackDamage(damage, msg.SyncStacks)
+			}
 			updated, defeated := globalDemonManager.ApplyWildDemonDamage(demonID, damage)
 			if updated != nil {
 				if defeated {
@@ -1419,12 +1422,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						TrackerUnlocked: newSettings.TrackerUnlocked,
 						DemonsDefeated:  newSettings.DemonsDefeated,
 						DemonDefeated:   true,
+						Damage:          damage,
+						SyncStacks:      msg.SyncStacks,
 						Content:         content,
 					})
 				} else {
 					_ = conn.WriteJSON(Message{
-						Type:      "wild_demon_update",
-						WildDemon: updated,
+						Type:       "wild_demon_update",
+						WildDemon:  updated,
+						Damage:     damage,
+						SyncStacks: msg.SyncStacks,
 					})
 				}
 			}
@@ -1897,13 +1904,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					damage := instantWPM
 					critMultiplier := 1.0
 					if instantWPM >= activeBossRaid.BossWPM {
-						critMultiplier = 3.0 // Outpaced the Archangel!
+						critMultiplier = 3.0 // Outpaced Big Mike / Boss!
 					} else if instantWPM >= 120 {
 						critMultiplier = 2.0 // Divine Crit
 					} else if instantWPM >= 80 {
 						critMultiplier = 1.5 // Critical Strike
 					}
 					damage = int(float64(damage) * critMultiplier)
+					if activeBossRaid.IsDemonBoss && msg.SyncStacks > 0 {
+						damage = CalculateSyncStackDamage(damage, msg.SyncStacks)
+					}
 
 					updatedBoss, _ := store.RecordBossStrike(ctx, uid, client.DisplayName, client.AvatarColor, instantWPM, damage)
 					if updatedBoss != nil {
@@ -1928,7 +1938,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						if activeBossRaid.IsDemonBoss {
 							bossNote = fmt.Sprintf("🔥 TRIUMPH OVER THE DESTROYER! Outpaced %s at %d WPM! Struck for %d holy damage!", targetName, instantWPM, damage)
 						} else {
-							bossNote = fmt.Sprintf("⚡ TRIUMPH OVER THE ARCHANGEL! Outpaced %s at %d WPM! Struck for %d holy damage!", targetName, instantWPM, damage)
+							bossNote = fmt.Sprintf("⚡ TRIUMPH OVER BIG MIKE! Outpaced %s at %d WPM! Struck for %d holy damage!", targetName, instantWPM, damage)
 						}
 					} else {
 						bossNote = fmt.Sprintf("⚔️ Strike landed! %d WPM dealt %d holy damage to %s!", instantWPM, damage, targetName)

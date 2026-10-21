@@ -973,28 +973,36 @@
         opacity: 0.7;
       }
 
-      /* Ghost Cursor: Demonic Adversaries (DEMONS CAN BLOCK TEXT & CAST TYPOS) */
+      /* Ghost Cursor: Demonic Adversaries (CURSOR DOUBLES AS SHRINKING HEALTHBAR) */
       .ghost-cursor.is-demon {
+        --demon-hp-pct: 100%;
+        --demon-hp-ratio: 1;
         z-index: 25;
         pointer-events: none;
         transform: translate(-50%, -100%);
         filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.85));
+        transition: left 0.12s ease-out, top 0.12s ease-out, transform 0.15s ease-out;
       }
       .ghost-cursor.is-demon .ghost-tag {
-        background: linear-gradient(135deg, #b91c1c, #450a0a) !important;
+        background: linear-gradient(90deg, #dc2626 var(--demon-hp-pct, 100%), rgba(20, 5, 10, 0.92) var(--demon-hp-pct, 100%)) !important;
         box-shadow: 0 0 12px rgba(220, 38, 38, 0.75);
-        border: 1px solid rgba(248, 113, 113, 0.6);
+        border: 1px solid rgba(248, 113, 113, 0.75);
         font-weight: 900;
         font-size: 0.65rem;
         padding: 1px 6px;
         border-radius: 4px;
         color: #fef2f2;
+        transform: scale(calc(0.55 + 0.45 * var(--demon-hp-ratio, 1)));
+        transform-origin: bottom center;
+        transition: transform 0.15s ease, background 0.15s ease;
       }
       .ghost-cursor.is-demon .ghost-caret {
-        width: 3px;
-        height: 22px;
-        background: #ef4444 !important;
+        width: 5px;
+        height: calc(2px + 22px * var(--demon-hp-ratio, 1));
+        border-radius: 999px;
+        background: linear-gradient(180deg, #f87171, #ef4444, #991b1b) !important;
         box-shadow: 0 0 10px #ef4444;
+        transition: height 0.15s ease, width 0.15s ease, opacity 0.15s ease;
       }
 
       /* Demonic Text Shroud & Typo Glitch */
@@ -1378,7 +1386,7 @@
           </button>
 
           <!-- Celestial Boss Raid -->
-          <button id="btnBossRaid" class="icon-btn" title="Celestial Boss Raid: Archangel Michael (160 WPM)" style="border-color: #ef4444; color: #ef4444;">
+          <button id="btnBossRaid" class="icon-btn" title="Celestial Boss Raid: Big Mike (160 WPM)" style="border-color: #ef4444; color: #ef4444;">
             <span>⚔️</span>
             <span id="topBossLabel">Boss Raid</span>
           </button>
@@ -1457,6 +1465,7 @@
                   <span id="wildDemonPaceBadge" style="font-size: 0.7rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 7px; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700;">Target: 12 WPM</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                  <span id="syncStacksBadge" style="font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="Gain 1 stack per word typed in sync. Every 5 stacks increases damage!">🔥 0 Stacks</span>
                   <span id="holyWardsBadge" style="font-size: 0.78rem; font-weight: 800; color: #38bdf8; text-shadow: 0 0 6px #38bdf8;" title="Holy Wards absorb mistakes before verse reset">🛡️ 0 Wards</span>
                   <span id="resonanceIndicator" style="font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,0.08); color: var(--muted); border: 1px solid var(--border);">⚖️ Out of Tune</span>
                 </div>
@@ -2066,7 +2075,7 @@
           <!-- Boss Type Toggle -->
           <div style="display: flex; gap: 0.5rem; margin-bottom: 0.8rem;">
             <button type="button" id="btnBossTypeMichael" class="presence-btn active" style="flex:1; font-weight:700; font-size:0.85rem; padding:0.45rem 0.6rem; border-radius:8px;">
-              ⚔️ Archangel Michael (Celestial)
+              ⚔️ Big Mike (Celestial)
             </button>
             <button type="button" id="btnBossTypeApollyon" class="presence-btn" style="flex:1; font-weight:700; font-size:0.85rem; padding:0.45rem 0.6rem; border-radius:8px; border-color:rgba(239,68,68,0.4); color:#ef4444;">
               🔥 Apollyon (Infernal Pit)
@@ -2086,7 +2095,7 @@
 
           <div style="background: radial-gradient(ellipse at top, rgba(239, 68, 68, 0.15), rgba(15, 23, 42, 0.8)); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 14px; padding: 1.25rem; text-align: center; position: relative;">
             <div id="bossCardIcon" style="display: inline-block; font-size: 3rem; margin-bottom: 0.2rem; filter: drop-shadow(0 0 16px rgba(245, 158, 11, 0.7));">⚔️</div>
-            <h3 style="margin: 0.2rem 0; font-size: 1.4rem; color: #f87171;" id="bossCardName">Archangel Michael</h3>
+            <h3 style="margin: 0.2rem 0; font-size: 1.4rem; color: #f87171;" id="bossCardName">Big Mike</h3>
             <span style="font-size: 0.82rem; font-weight: 700; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.5px;" id="bossCardTitle">Captain of the Heavenly Host &middot; 160 WPM</span>
             
             <!-- Boss Health Bar -->
@@ -2239,8 +2248,19 @@
       let selectedBossIsDemon = false;
 
       // Wild Demons & Resonance Combat State
+      // Centralized balance configuration for Demon Sync Stacks (keep in sync with DemonSyncBalanceConfig in demon.go)
+      const DEMON_SYNC_BALANCE = {
+        stacksPerWord: 1,         // Gain 1 stack per word typed in sync
+        stacksPerDamageTier: 5,   // Every 5 stacks increases damage
+        flatDamagePerTier: 1,     // Flat bonus damage per 5-stack tier
+        damageMultPerTier: 0.25,  // +25% bonus damage per 5-stack tier
+        maxStacks: 0,             // 0 = uncapped (tunable for future balancing)
+        charSyncTolerance: 2      // Within ±2 chars of demon cursor counts as in sync
+      };
       let activeWildDemon = null;
       let currentHolyWards = 0;
+      let currentSyncStacks = 0;
+      const syncedWordEndIndices = new Set();
       let wildDemonsCache = [];
       let trackerUnlocked = false;
       let demonsDefeatedCount = 0;
@@ -2396,6 +2416,7 @@
       const wildDemonHUD = document.getElementById("wildDemonHUD");
       const wildDemonIconName = document.getElementById("wildDemonIconName");
       const wildDemonPaceBadge = document.getElementById("wildDemonPaceBadge");
+      const syncStacksBadge = document.getElementById("syncStacksBadge");
       const holyWardsBadge = document.getElementById("holyWardsBadge");
       const resonanceIndicator = document.getElementById("resonanceIndicator");
       const wildDemonHPBar = document.getElementById("wildDemonHPBar");
@@ -2573,6 +2594,44 @@
       });
 
       // ---- Wild Demon Roaming & Resonance Combat (Section 15) ----
+      function getSyncDamageTier(stacks = currentSyncStacks) {
+        let s = Math.max(0, stacks || 0);
+        if (DEMON_SYNC_BALANCE.maxStacks > 0 && s > DEMON_SYNC_BALANCE.maxStacks) {
+          s = DEMON_SYNC_BALANCE.maxStacks;
+        }
+        const step = DEMON_SYNC_BALANCE.stacksPerDamageTier || 5;
+        return Math.floor(s / step);
+      }
+
+      function calculateSyncStackDamage(baseDamage, stacks = currentSyncStacks) {
+        const base = Math.max(1, baseDamage || 1);
+        const tiers = getSyncDamageTier(stacks);
+        if (tiers <= 0) return base;
+        const multDamage = Math.round(base * (1.0 + tiers * DEMON_SYNC_BALANCE.damageMultPerTier));
+        const flatDamage = base + tiers * DEMON_SYNC_BALANCE.flatDamagePerTier;
+        return Math.max(multDamage, flatDamage);
+      }
+
+      function updateSyncStacksBadge() {
+        if (!syncStacksBadge) return;
+        const tiers = getSyncDamageTier(currentSyncStacks);
+        const gPower = currentCustomizations.guardian_power || 10;
+        const baseDmg = Math.max(1, Math.round(gPower / 10));
+        const curDmg = calculateSyncStackDamage(baseDmg, currentSyncStacks);
+        if (tiers > 0) {
+          syncStacksBadge.textContent = `🔥 ${currentSyncStacks} Stack${currentSyncStacks === 1 ? '' : 's'} (Tier ${tiers} · ${curDmg} DMG)`;
+          syncStacksBadge.style.background = "linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(239, 68, 68, 0.35))";
+          syncStacksBadge.style.color = "#fde047";
+          syncStacksBadge.style.borderColor = "#f59e0b";
+        } else {
+          const nextIn = (DEMON_SYNC_BALANCE.stacksPerDamageTier || 5) - (currentSyncStacks % (DEMON_SYNC_BALANCE.stacksPerDamageTier || 5));
+          syncStacksBadge.textContent = `🔥 ${currentSyncStacks} Stack${currentSyncStacks === 1 ? '' : 's'} (${nextIn} to +DMG)`;
+          syncStacksBadge.style.background = "rgba(245, 158, 11, 0.15)";
+          syncStacksBadge.style.color = "#fbbf24";
+          syncStacksBadge.style.borderColor = "rgba(245, 158, 11, 0.4)";
+        }
+      }
+
       function checkHolyResonance() {
         if (!activeWildDemon) {
           if (typingStage) typingStage.classList.remove("holy-resonance");
@@ -2582,8 +2641,8 @@
         const userIdx = currentTyped.length;
         const demonIdx = (activeWildDemon.char_index !== undefined) ? activeWildDemon.char_index : 0;
         const charDiff = Math.abs(userIdx - demonIdx);
-        // User must be within 1 or 2 characters ahead or behind the demon!
-        const inResonance = (charDiff <= 2);
+        // User must be within charSyncTolerance (1 or 2) characters ahead or behind the demon!
+        const inResonance = (charDiff <= (DEMON_SYNC_BALANCE.charSyncTolerance || 2));
 
         if (typingStage) {
           if (inResonance) {
@@ -2618,14 +2677,21 @@
         }
 
         if (wildDemonStatusText) {
+          const gPower = currentCustomizations.guardian_power || 10;
+          const baseDmg = Math.max(1, Math.round(gPower / 10));
+          const curDmg = calculateSyncStackDamage(baseDmg, currentSyncStacks);
+          const tiers = getSyncDamageTier(currentSyncStacks);
+          const stackNote = tiers > 0
+            ? ` · 🔥 ${currentSyncStacks} Sync Stacks (${curDmg} DMG/hit!)`
+            : ` · 🔥 ${currentSyncStacks} Sync Stacks (${curDmg} DMG/hit, +DMG every 5 stacks)`;
           if (inResonance) {
-            wildDemonStatusText.innerHTML = `✨ <strong style="color:#fbbf24;">Holy Resonance Active!</strong> Pacing beside ${escapeHtml(activeWildDemon.name)} (Within ${charDiff} chars) · Strikes deal damage!`;
+            wildDemonStatusText.innerHTML = `✨ <strong style="color:#fbbf24;">Holy Resonance Active!</strong> Pacing beside ${escapeHtml(activeWildDemon.name)} (Within ${charDiff} chars)${stackNote}`;
           } else if (userIdx < demonIdx - 2) {
             const behind = demonIdx - userIdx;
-            wildDemonStatusText.innerHTML = `🏃 <strong style="color:#60a5fa;">Falling behind!</strong> ${behind} char${behind === 1 ? '' : 's'} behind ${escapeHtml(activeWildDemon.name)} (${userIdx} / ${demonIdx}) · Speed up to get within 1-2 chars!`;
+            wildDemonStatusText.innerHTML = `🏃 <strong style="color:#60a5fa;">Falling behind!</strong> ${behind} char${behind === 1 ? '' : 's'} behind ${escapeHtml(activeWildDemon.name)} (${userIdx} / ${demonIdx}) · Speed up to get within 1-2 chars!${stackNote}`;
           } else {
             const ahead = userIdx - demonIdx;
-            wildDemonStatusText.innerHTML = `⚠️ <strong style="color:#f87171;">Too far ahead!</strong> ${ahead} char${ahead === 1 ? '' : 's'} ahead of ${escapeHtml(activeWildDemon.name)} (${userIdx} / ${demonIdx}) · Slow down to stay within 1-2 chars!`;
+            wildDemonStatusText.innerHTML = `⚠️ <strong style="color:#f87171;">Too far ahead!</strong> ${ahead} char${ahead === 1 ? '' : 's'} ahead of ${escapeHtml(activeWildDemon.name)} (${userIdx} / ${demonIdx}) · Slow down to stay within 1-2 chars!${stackNote}`;
           }
         }
 
@@ -2637,7 +2703,12 @@
           clearWildDemon();
           return;
         }
+        const isSameDemon = activeWildDemon && activeWildDemon.id === d.id;
         activeWildDemon = d;
+        if (!isSameDemon) {
+          currentSyncStacks = 0;
+        }
+        syncedWordEndIndices.clear();
         const gLvl = currentCustomizations.guardian_level || 1;
         currentHolyWards = wards !== undefined ? wards : Math.floor((gLvl - 1) / 3);
         if (wildDemonHUD) wildDemonHUD.style.display = "flex";
@@ -2647,15 +2718,61 @@
         if (wildDemonPaceBadge) {
           wildDemonPaceBadge.textContent = `Pace: ~${d.wpm} WPM (Stay ±1-2 Chars)`;
         }
+        updateSyncStacksBadge();
         updateHolyWardsBadge();
+        renderGhostCursor({
+          uid: d.id,
+          display_name: `${d.icon || '😈'} ${d.name}`,
+          avatar_color: d.color || "#ef4444",
+          char_index: d.char_index || 0,
+          wpm: d.wpm || 12,
+          is_demon: true,
+          demon_rank: d.rank,
+          demon_level: d.level,
+          current_hp: d.current_hp,
+          max_hp: d.max_hp
+        });
         updateWildDemonHPUI(d);
         checkHolyResonance();
       }
 
       function clearWildDemon() {
+        if (activeWildDemon && activeWildDemon.id) {
+          const oldEl = activeGhosts.get(activeWildDemon.id);
+          if (oldEl) {
+            oldEl.remove();
+            activeGhosts.delete(activeWildDemon.id);
+          }
+        }
         activeWildDemon = null;
+        currentSyncStacks = 0;
+        syncedWordEndIndices.clear();
         if (wildDemonHUD) wildDemonHUD.style.display = "none";
         if (typingStage) typingStage.classList.remove("holy-resonance");
+      }
+
+      function updateDemonCursorHealth(d) {
+        if (!d || !d.id) return;
+        const gEl = activeGhosts.get(d.id);
+        if (!gEl) return;
+        const maxHp = d.max_hp || 100;
+        const curHp = Math.max(0, d.current_hp !== undefined ? d.current_hp : maxHp);
+        const ratio = maxHp > 0 ? Math.max(0, Math.min(1, curHp / maxHp)) : 1;
+        const pct = Math.round(ratio * 100);
+
+        gEl.style.setProperty("--demon-hp-pct", `${pct}%`);
+        gEl.style.setProperty("--demon-hp-ratio", ratio.toFixed(3));
+
+        const tagEl = gEl.querySelector(".ghost-tag");
+        if (tagEl) {
+          const dispName = d.icon ? `${d.icon} ${d.name}` : (d.name || "Demon");
+          tagEl.textContent = `${dispName} (${curHp}/${maxHp} HP)`;
+        }
+        const caretEl = gEl.querySelector(".ghost-caret");
+        if (caretEl) {
+          caretEl.style.height = `${Math.max(0, Math.round(24 * ratio))}px`;
+          caretEl.style.width = `${Math.max(2, Math.round(2 + 3 * ratio))}px`;
+        }
       }
 
       function updateWildDemonHPUI(d) {
@@ -2667,6 +2784,7 @@
           const pct = Math.max(0, Math.min(100, Math.round((d.current_hp / d.max_hp) * 100)));
           wildDemonHPBar.style.width = pct + "%";
         }
+        updateDemonCursorHealth(d);
       }
 
       function updateHolyWardsBadge() {
@@ -3123,21 +3241,47 @@
         recordKeystrokeForWPM();
 
         if (isCorrectKeystroke) {
-          // Wild Demon Combat Strike check
+          // Wild Demon Combat Strike & Word-in-Sync Stack check
           if (activeWildDemon) {
             const inResonance = checkHolyResonance();
 
             if (inResonance) {
+              // Gain a stack for every word typed in sync
+              const completedIdx = currentTyped.length - 1;
+              const isWordEnd = completedIdx >= 0 &&
+                currentTargetText[completedIdx] !== " " &&
+                (completedIdx + 1 === currentTargetText.length || currentTargetText[completedIdx + 1] === " ");
+
+              if (isWordEnd && !syncedWordEndIndices.has(completedIdx)) {
+                syncedWordEndIndices.add(completedIdx);
+                const prevTier = getSyncDamageTier(currentSyncStacks);
+                currentSyncStacks += (DEMON_SYNC_BALANCE.stacksPerWord || 1);
+                if (DEMON_SYNC_BALANCE.maxStacks > 0 && currentSyncStacks > DEMON_SYNC_BALANCE.maxStacks) {
+                  currentSyncStacks = DEMON_SYNC_BALANCE.maxStacks;
+                }
+                const newTier = getSyncDamageTier(currentSyncStacks);
+                updateSyncStacksBadge();
+                checkHolyResonance();
+                if (newTier > prevTier) {
+                  const gPower = currentCustomizations.guardian_power || 10;
+                  const baseDmg = Math.max(1, Math.round(gPower / 10));
+                  const boostedDmg = calculateSyncStackDamage(baseDmg, currentSyncStacks);
+                  showTempHint(`🔥 <strong>${currentSyncStacks} Sync Stacks!</strong> Damage increased to <strong>${boostedDmg} DMG</strong> per strike!`);
+                }
+              }
+
               const gPower = currentCustomizations.guardian_power || 10;
-              const damage = Math.max(1, Math.round(gPower / 10));
-              activeWildDemon.current_hp = Math.max(0, activeWildDemon.current_hp - damage);
+              const baseDamage = Math.max(1, Math.round(gPower / 10));
+              const totalDamage = calculateSyncStackDamage(baseDamage, currentSyncStacks);
+              activeWildDemon.current_hp = Math.max(0, activeWildDemon.current_hp - totalDamage);
               updateWildDemonHPUI(activeWildDemon);
 
               if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                   type: "wild_demon_strike",
                   demon_id: activeWildDemon.id,
-                  damage: damage
+                  damage: baseDamage,
+                  sync_stacks: currentSyncStacks
                 }));
               }
             }
@@ -3159,6 +3303,7 @@
               // Demonic Backlash: Reset user to start of passage!
               currentTyped = "";
               hiddenInput.value = "";
+              syncedWordEndIndices.clear();
               renderTypingStage();
               resetVerseTypingTimer();
               if (typingStage) {
@@ -3278,7 +3423,8 @@
           type: "content",
           content: currentTyped,
           wpm: liveWPM,
-          duration: totalDurationSec
+          duration: totalDurationSec,
+          sync_stacks: currentSyncStacks
         }));
       }
 
@@ -3286,6 +3432,7 @@
       btnRestartVerse.onclick = () => {
         currentTyped = "";
         hiddenInput.value = "";
+        syncedWordEndIndices.clear();
         resetVerseTypingTimer();
         renderTypingStage();
         focusTyping();
@@ -3447,12 +3594,6 @@
             }
             if (angelProgressBar) angelProgressBar.style.width = "0%";
 
-            if (msg.wild_demon) {
-              setWildDemon(msg.wild_demon, msg.holy_wards);
-            } else {
-              clearWildDemon();
-            }
-
             if (msg.guide) {
               currentGuide = msg.guide;
               updateBookInsight(msg.guide);
@@ -3462,6 +3603,11 @@
             if (msg.stats) updateStatsUI(msg.stats, msg.wpm);
             updateNavigationState();
             renderTypingStage();
+            if (msg.wild_demon) {
+              setWildDemon(msg.wild_demon, msg.holy_wards);
+            } else {
+              clearWildDemon();
+            }
             focusTyping();
           }
 
@@ -3872,7 +4018,7 @@
               clearWildDemon();
               fireCelebrationFX("gold");
             }
-            showToast("Archangel Michael Smote Adversary!", msg.content || `Archangel Michael slew ${msg.wild_demon.name}!`, "⚔️");
+            showToast("Big Mike Smote Adversary!", msg.content || `Big Mike slew ${msg.wild_demon.name}!`, "⚔️");
             appendMessage(`⚔️ ${msg.content}`, "badge-notice");
           }
 
@@ -3890,7 +4036,7 @@
               }
             }
             if (msg.boss_raid.conquered || msg.boss_raid.is_defeated) {
-              const bTitle = msg.boss_raid.is_demon_boss ? "Apollyon Banished!" : "Archangel Michael Bested!";
+              const bTitle = msg.boss_raid.is_demon_boss ? "Apollyon Banished!" : "Big Mike Bested!";
               const bDesc = msg.boss_raid.is_demon_boss ? "The fellowship sealed the pit! Badge unlocked!" : "The fellowship conquered the trial! Badge unlocked!";
               showToast(bTitle, bDesc, "👑");
               fireCelebrationFX();
@@ -3899,7 +4045,7 @@
 
           if (msg.type === "boss_raid_verse") {
             clearDemonEffects();
-            const bName = msg.boss_raid ? msg.boss_raid.boss_name : (msg.is_demon_boss ? "Apollyon" : "Archangel Michael");
+            const bName = msg.boss_raid ? msg.boss_raid.boss_name : (msg.is_demon_boss ? "Apollyon" : "Big Mike");
             const bWpm = msg.boss_raid ? (msg.boss_raid.boss_wpm || 160) : 160;
             const bIcon = (msg.boss_raid && msg.boss_raid.is_demon_boss) ? "🔥" : "⚔️";
             setTypingMode("boss_raid", `${bIcon} Boss Raid: ${bName} (${bWpm} WPM Target)`);
@@ -4007,7 +4153,19 @@
           if (activeWildDemon && activeWildDemon.id === ghost.uid) {
             activeWildDemon.char_index = ghost.char_index;
             if (ghost.wpm) activeWildDemon.wpm = ghost.wpm;
+            if (ghost.max_hp) activeWildDemon.max_hp = ghost.max_hp;
+            if (ghost.current_hp !== undefined && ghost.current_hp > 0 && ghost.current_hp < activeWildDemon.current_hp) {
+              activeWildDemon.current_hp = ghost.current_hp;
+            }
+            updateDemonCursorHealth(activeWildDemon);
             checkHolyResonance();
+          } else if (ghost.max_hp > 0) {
+            updateDemonCursorHealth({
+              id: ghost.uid,
+              name: ghost.display_name,
+              current_hp: ghost.current_hp,
+              max_hp: ghost.max_hp
+            });
           }
 
           // Ability interference: shroud blocks text for 2.8s; typo corrupts character for 3.2s
@@ -4787,7 +4945,7 @@
           { rank: "cherub", name: "Guardian Cherub", title: "Gentle Guardian", wpm: 20, color: "#60a5fa", icon: "🕊️", description: "Steady, comforting pace for beginners and contemplation." },
           { rank: "seraph", name: "Seraph Herald", title: "Faithful Messenger", wpm: 60, color: "#fbbf24", icon: "📯", description: "Faithful messenger typing with disciplined devotion." },
           { rank: "gabriel", name: "Archangel Gabriel", title: "Divine Announcer", wpm: 100, color: "#22d3ee", icon: "🎺", description: "Swift, unerring herald of sacred revelations." },
-          { rank: "michael", name: "Archangel Michael", title: "Leader of Heavenly Hosts", wpm: 160, color: "#f97316", icon: "⚔️", description: "Armed with holy truth at a blazing 160 WPM pace!" },
+          { rank: "michael", name: "Big Mike", title: "Leader of the Heavenly Hosts", wpm: 160, color: "#f97316", icon: "⚔️", description: "Armed with the sword of holy truth! Inscribes sacred verses BLAZINGLY FAST!" },
         ];
 
         list.forEach((ang) => {
@@ -4982,7 +5140,9 @@
         }
 
         if (topAngelLabel) {
-          topAngelLabel.textContent = activeAngelCompanion ? `${activeAngelCompanion.name.split(" ")[0]} (${activeAngelCompanion.wpm}wpm)` : "Angels";
+          topAngelLabel.textContent = activeAngelCompanion
+            ? `${activeAngelCompanion.rank === "michael" ? activeAngelCompanion.name : activeAngelCompanion.name.split(" ")[0]} (${activeAngelCompanion.wpm}wpm)`
+            : "Angels";
         }
       }
 
@@ -5101,10 +5261,10 @@
 
         if (topBossLabel) {
           if (isConquered) {
-            topBossLabel.textContent = isDemon ? "Apollyon Banished!" : "Michael Conquered!";
+            topBossLabel.textContent = isDemon ? "Apollyon Banished!" : "Big Mike Conquered!";
           } else {
             const pct = Math.max(0, Math.round((currentHp / maxHp) * 100));
-            topBossLabel.textContent = `${isDemon ? 'Apollyon' : 'Michael'} (${pct}%)`;
+            topBossLabel.textContent = `${isDemon ? 'Apollyon' : 'Big Mike'} (${pct}%)`;
           }
         }
 
@@ -5135,14 +5295,14 @@
         if (btnEnterBossRaid) {
           if (isConquered) {
             btnEnterBossRaid.disabled = true;
-            btnEnterBossRaid.textContent = isDemon ? "👑 Apollyon Banished! Pit Sealed!" : "👑 Archangel Bested! Fellowship Victorious!";
+            btnEnterBossRaid.textContent = isDemon ? "👑 Apollyon Banished! Pit Sealed!" : "👑 Big Mike Bested! Fellowship Victorious!";
             btnEnterBossRaid.style.opacity = "0.7";
             btnEnterBossRaid.style.cursor = "default";
           } else {
             btnEnterBossRaid.disabled = false;
             btnEnterBossRaid.textContent = isDemon
               ? `🔥 Challenge Apollyon (Lv. ${raid.level || selectedBossLevel} · ${bossWpm} WPM)`
-              : `⚔️ Challenge Archangel Michael (Lv. ${raid.level || selectedBossLevel} · ${bossWpm} WPM)`;
+              : `⚔️ Challenge Big Mike (Lv. ${raid.level || selectedBossLevel} · ${bossWpm} WPM)`;
             btnEnterBossRaid.style.opacity = "1";
             btnEnterBossRaid.style.cursor = "pointer";
           }

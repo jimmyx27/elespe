@@ -1219,6 +1219,9 @@ func (s *postgresStore) GetBossRaid(ctx context.Context) (*BossRaid, error) {
 	if b.Conquerors == nil {
 		b.Conquerors = []BossConqueror{}
 	}
+	if b.BossName == "Archangel Michael" {
+		b.BossName = "Big Mike"
+	}
 	return &b, nil
 }
 
@@ -1244,6 +1247,9 @@ func (s *postgresStore) GetBossRaidForLevel(ctx context.Context, level int, isDe
 	}
 	if b.Conquerors == nil {
 		b.Conquerors = []BossConqueror{}
+	}
+	if b.BossName == "Archangel Michael" {
+		b.BossName = "Big Mike"
 	}
 	b.Level = level
 	b.MaxLevel = 4

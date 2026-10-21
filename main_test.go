@@ -926,7 +926,7 @@ func TestAngelBotEngine(t *testing.T) {
 	if ang == nil {
 		t.Fatalf("Expected companion to be summoned successfully")
 	}
-	if ang.Rank != "michael" || ang.WPM != 160 {
+	if ang.Rank != "michael" || ang.Name != "Big Mike" || ang.WPM != 160 {
 		t.Errorf("Summoned angel has unexpected stats: %+v", ang)
 	}
 
@@ -1230,7 +1230,7 @@ func TestBossRaidMechanics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get boss raid: %v", err)
 	}
-	if raid.BossName != "Archangel Michael" || raid.MaxHP != 5000 || raid.CurrentHP != 5000 {
+	if raid.BossName != "Big Mike" || raid.MaxHP != 5000 || raid.CurrentHP != 5000 {
 		t.Fatalf("Unexpected initial boss raid state: %+v", raid)
 	}
 	if raid.BossWPM != 160 {
@@ -2075,5 +2075,61 @@ func TestSpanishTranslationGuidesAndLenientMatching(t *testing.T) {
 		t.Errorf("Expected wrong words not to match target")
 	}
 }
+
+func TestBigMikeRenameAndDemonSyncStacks(t *testing.T) {
+	// 1. Verify Big Mike rename in Angel templates
+	tpl, ok := angelTemplates["michael"]
+	if !ok || tpl.Name != "Big Mike" {
+		t.Fatalf("Expected michael template to be named 'Big Mike', got %+v", tpl)
+	}
+
+	// 2. Verify Sync Stack Damage Scaling (every 5 stacks increases damage)
+	// Base damage 1 (Level 1 Guardian)
+	d0 := CalculateSyncStackDamage(1, 0)
+	d4 := CalculateSyncStackDamage(1, 4)
+	d5 := CalculateSyncStackDamage(1, 5)
+	d9 := CalculateSyncStackDamage(1, 9)
+	d10 := CalculateSyncStackDamage(1, 10)
+	d15 := CalculateSyncStackDamage(1, 15)
+
+	if d0 != 1 || d4 != 1 {
+		t.Errorf("Expected 0-4 stacks to deal base damage 1, got d0=%d, d4=%d", d0, d4)
+	}
+	if d5 <= d4 || d9 != d5 {
+		t.Errorf("Expected 5-9 stacks to increase damage over 0-4 stacks, got d4=%d, d5=%d, d9=%d", d4, d5, d9)
+	}
+	if d10 <= d9 {
+		t.Errorf("Expected 10 stacks to increase damage over 5-9 stacks, got d9=%d, d10=%d", d9, d10)
+	}
+	if d15 <= d10 {
+		t.Errorf("Expected 15 stacks to increase damage over 10 stacks, got d10=%d, d15=%d", d10, d15)
+	}
+
+	// Base damage 10 (Higher power)
+	h0 := CalculateSyncStackDamage(10, 0)
+	h5 := CalculateSyncStackDamage(10, 5)
+	h10 := CalculateSyncStackDamage(10, 10)
+	if h0 != 10 || h5 <= h0 || h10 <= h5 {
+		t.Errorf("Expected monotonic damage scaling every 5 stacks for base 10: h0=%d, h5=%d, h10=%d", h0, h5, h10)
+	}
+
+	// 3. Verify custom DemonSyncBalanceConfig for future balancing
+	customCfg := DemonSyncBalanceConfig{
+		StacksPerWord:       1,
+		StacksPerDamageTier: 5,
+		FlatDamagePerTier:   3,
+		DamageMultPerTier:   0.50,
+		MaxStacks:           10,
+		CharSyncTolerance:   2,
+	}
+	if got := CalculateSyncStackDamageWithConfig(2, 5, customCfg); got != 5 {
+		t.Errorf("Expected custom config at 5 stacks (base 2 + 3 flat) = 5, got %d", got)
+	}
+	// MaxStacks cap at 10 (2 tiers) even if 20 stacks passed
+	if got := CalculateSyncStackDamageWithConfig(2, 20, customCfg); got != 8 {
+		t.Errorf("Expected custom config capped at 10 stacks (base 2 + 2*3 flat) = 8, got %d", got)
+	}
+}
+
 
 
