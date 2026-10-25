@@ -562,6 +562,7 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 
 		textRunes := []rune(text)
 		totalChars := len(textRunes)
+		completed := true
 
 		for i := 0; i <= totalChars; i++ {
 			select {
@@ -581,6 +582,11 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 				bot.mu.Unlock()
 				return
 			}
+			if bot.Translation != trans || bot.BookName != book || bot.Chapter != ch || bot.Verse != v {
+				bot.mu.Unlock()
+				completed = false
+				break
+			}
 			bot.CharIndex = i
 			bot.mu.Unlock()
 
@@ -598,6 +604,10 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 			}
 
 			time.Sleep(charDelay)
+		}
+
+		if !completed {
+			continue
 		}
 
 		// When companion completes the passage:

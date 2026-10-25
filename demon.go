@@ -10,27 +10,34 @@ import (
 )
 
 // DemonSyncBalanceConfig holds tunable parameters for word-in-sync combat stack scaling,
-// punctuation checkpoints, and dynamic demon WPM rubber-banding within/around the radiance window.
+// punctuation checkpoints, dynamic demon WPM rubber-banding, and passage finish burst damage.
 // Kept centralized here for future balancing adjustments.
 type DemonSyncBalanceConfig struct {
-	StacksPerWord            int     `json:"stacks_per_word"`            // Stacks gained per word typed in sync (default: 1)
-	StacksPerDamageTier      int     `json:"stacks_per_damage_tier"`     // Number of stacks required to increase damage (default: 5)
-	FlatDamagePerTier        int     `json:"flat_damage_per_tier"`       // Flat bonus damage per tier (every 5 stacks) (default: 1)
-	DamageMultPerTier        float64 `json:"damage_mult_per_tier"`       // Multiplicative bonus per tier (e.g. 0.25 = +25% per 5 stacks)
-	MaxStacks                int     `json:"max_stacks"`                 // Optional cap on stacks (0 = uncapped)
-	CharSyncTolerance        int     `json:"char_sync_tolerance"`        // Max character distance from demon to count as "in sync" / radiance window (default: 5)
-	PunctuationPerCheckpoint int     `json:"punctuation_per_checkpoint"` // Number of punctuation marks reached to lock in a checkpoint (default: 2)
-	StacksLostOnBacklash     int     `json:"stacks_lost_on_backlash"`    // Sync stacks lost on unwarded mistake backlash (default: 2)
-	BacklashHealPct          float64 `json:"backlash_heal_pct"`          // Fraction of MaxHP healed by demon on mistake (default: 0.10)
-	PaceAdjustThreshold      int     `json:"pace_adjust_threshold"`      // Char lead/lag threshold where dynamic WPM increase/decrease kicks in (default: 5)
-	PaceStepChars            int     `json:"pace_step_chars"`            // Additional chars beyond threshold per WPM step (default: 3)
-	PaceWPMPerStep           int     `json:"pace_wpm_per_step"`          // WPM change per step ahead/behind (default: 2)
-	MinDemonWPM              int     `json:"min_demon_wpm"`              // Minimum dynamic WPM floor when user is slower (default: 6)
-	MaxDemonWPMBonus         int     `json:"max_demon_wpm_bonus"`        // Max bonus WPM above base when user is ahead (default: 18)
-	MaxDemonWPMReduction     int     `json:"max_demon_wpm_reduction"`    // Max WPM reduction below base when user is slower (default: 8)
+	StacksPerWord            int     `json:"stacks_per_word"`              // Stacks gained per word typed in sync (default: 1)
+	StacksPerDamageTier      int     `json:"stacks_per_damage_tier"`       // Number of stacks required to increase damage (default: 5)
+	FlatDamagePerTier        int     `json:"flat_damage_per_tier"`         // Flat bonus damage per tier (every 5 stacks) (default: 1)
+	DamageMultPerTier        float64 `json:"damage_mult_per_tier"`         // Multiplicative bonus per tier (e.g. 0.25 = +25% per 5 stacks)
+	MaxStacks                int     `json:"max_stacks"`                   // Optional cap on stacks (0 = uncapped)
+	CharSyncTolerance        int     `json:"char_sync_tolerance"`          // Max character distance from demon to count as "in sync" / radiance window (default: 5)
+	PunctuationPerCheckpoint int     `json:"punctuation_per_checkpoint"`   // Number of punctuation marks reached to lock in a checkpoint (default: 2)
+	StacksLostOnBacklash     int     `json:"stacks_lost_on_backlash"`      // Sync stacks lost on unwarded mistake backlash (default: 2)
+	BacklashHealPct          float64 `json:"backlash_heal_pct"`            // Fraction of MaxHP healed by demon on mistake (default: 0.10)
+	PaceAdjustThreshold      int     `json:"pace_adjust_threshold"`        // Char lead/lag threshold where dynamic WPM increase/decrease kicks in (default: 5)
+	PaceStepChars            int     `json:"pace_step_chars"`              // Additional chars beyond threshold per WPM step (default: 3)
+	PaceWPMPerStep           int     `json:"pace_wpm_per_step"`            // WPM change per step ahead/behind (default: 2)
+	MinDemonWPM              int     `json:"min_demon_wpm"`                // Minimum dynamic WPM floor when user is slower (default: 6)
+	MaxDemonWPMBonus         int     `json:"max_demon_wpm_bonus"`          // Max bonus WPM above base when user is ahead (default: 18)
+	MaxDemonWPMReduction     int     `json:"max_demon_wpm_reduction"`      // Max WPM reduction below base when user is slower (default: 8)
+	PassageBurstBaseDamage   int     `json:"passage_burst_base_damage"`    // Base burst damage when user finishes a passage before the demon (default: 30)
+	PassageBurstPerCharAhead int     `json:"passage_burst_per_char_ahead"` // Bonus burst damage per char the demon has left when user finishes (default: 1)
+	PassageBurstMaxCharBonus int     `json:"passage_burst_max_char_bonus"` // Cap on bonus damage from char lead at passage finish (default: 30)
+	PassageBurstPerSyncStack int     `json:"passage_burst_per_sync_stack"` // Bonus burst damage per active sync stack on passage finish (default: 2)
+	PassageBurstMultiplier   float64 `json:"passage_burst_multiplier"`     // Adjustable multiplier for passage finish burst damage (default: 1.0)
+	MinPassageBurstDamage    int     `json:"min_passage_burst_damage"`     // Minimum burst damage floor (default: 5)
+	MaxPassageBurstDamage    int     `json:"max_passage_burst_damage"`     // Maximum burst damage cap (default: 300)
 }
 
-// DefaultDemonSyncBalance defines the active balance values for demon sync stacks, checkpoints, and dynamic pacing.
+// DefaultDemonSyncBalance defines the active balance values for demon sync stacks, checkpoints, dynamic pacing, and burst damage.
 var DefaultDemonSyncBalance = DemonSyncBalanceConfig{
 	StacksPerWord:            1,
 	StacksPerDamageTier:      5,
@@ -47,6 +54,13 @@ var DefaultDemonSyncBalance = DemonSyncBalanceConfig{
 	MinDemonWPM:              6,
 	MaxDemonWPMBonus:         18,
 	MaxDemonWPMReduction:     8,
+	PassageBurstBaseDamage:   30,
+	PassageBurstPerCharAhead: 1,
+	PassageBurstMaxCharBonus: 30,
+	PassageBurstPerSyncStack: 2,
+	PassageBurstMultiplier:   1.0,
+	MinPassageBurstDamage:    5,
+	MaxPassageBurstDamage:    300,
 }
 
 // IsCheckpointPunctuation returns true if the character is a scripture punctuation mark that counts toward a checkpoint.
@@ -223,6 +237,77 @@ func CalculateSyncStackDamageWithConfig(baseDamage, syncStacks int, cfg DemonSyn
 		return multDamage
 	}
 	return flatDamage
+}
+
+// CalculatePassageFinishBurstDamage computes the burst damage applied when a user finishes
+// typing a passage before a wild demon. customBaseBurst overrides the default base burst if > 0.
+func CalculatePassageFinishBurstDamage(baseStrikeDamage, syncStacks, charsAhead, customBaseBurst int) int {
+	return CalculatePassageFinishBurstDamageWithConfig(baseStrikeDamage, syncStacks, charsAhead, customBaseBurst, DefaultDemonSyncBalance)
+}
+
+// CalculatePassageFinishBurstDamageWithConfig computes passage finish burst damage using a custom balance config.
+func CalculatePassageFinishBurstDamageWithConfig(baseStrikeDamage, syncStacks, charsAhead, customBaseBurst int, cfg DemonSyncBalanceConfig) int {
+	if baseStrikeDamage < 1 {
+		baseStrikeDamage = 1
+	}
+	if syncStacks < 0 {
+		syncStacks = 0
+	}
+	if cfg.MaxStacks > 0 && syncStacks > cfg.MaxStacks {
+		syncStacks = cfg.MaxStacks
+	}
+	if charsAhead < 0 {
+		charsAhead = 0
+	}
+
+	burst := cfg.PassageBurstBaseDamage
+	if burst <= 0 {
+		burst = 30
+	}
+	if customBaseBurst > 0 {
+		burst = customBaseBurst
+	}
+
+	// Guardian power scaling (+5 burst per strike damage point above 1)
+	if baseStrikeDamage > 1 {
+		burst += (baseStrikeDamage - 1) * 5
+	}
+
+	// Bonus for characters the demon still had remaining when user finished
+	if charsAhead > 0 && cfg.PassageBurstPerCharAhead > 0 {
+		charBonus := charsAhead * cfg.PassageBurstPerCharAhead
+		if cfg.PassageBurstMaxCharBonus > 0 && charBonus > cfg.PassageBurstMaxCharBonus {
+			charBonus = cfg.PassageBurstMaxCharBonus
+		}
+		burst += charBonus
+	}
+
+	// Flat bonus per active sync stack
+	if syncStacks > 0 && cfg.PassageBurstPerSyncStack > 0 {
+		burst += syncStacks * cfg.PassageBurstPerSyncStack
+	}
+
+	// Apply sync stack damage tier scaling
+	burst = CalculateSyncStackDamageWithConfig(burst, syncStacks, cfg)
+
+	// Apply configurable burst multiplier
+	mult := cfg.PassageBurstMultiplier
+	if mult <= 0 {
+		mult = 1.0
+	}
+	burst = int(math.Round(float64(burst) * mult))
+
+	minBurst := cfg.MinPassageBurstDamage
+	if minBurst <= 0 {
+		minBurst = 5
+	}
+	if burst < minBurst {
+		burst = minBurst
+	}
+	if cfg.MaxPassageBurstDamage > 0 && burst > cfg.MaxPassageBurstDamage {
+		burst = cfg.MaxPassageBurstDamage
+	}
+	return burst
 }
 
 // Predefined Demon Adversary Profiles with Levels
@@ -626,6 +711,7 @@ func (m *DemonManager) runDemonCompanionLoop(uid string, bot *DemonBot) {
 
 		textRunes := []rune(text)
 		totalChars := len(textRunes)
+		completed := true
 
 		for i := 0; i <= totalChars; i++ {
 			select {
@@ -638,6 +724,12 @@ func (m *DemonManager) runDemonCompanionLoop(uid string, bot *DemonBot) {
 			if !bot.IsRunning {
 				bot.mu.Unlock()
 				return
+			}
+			// If user moved to a new passage while the demon was mid-verse, restart on the new passage
+			if bot.Translation != trans || bot.BookName != book || bot.Chapter != ch || bot.Verse != v {
+				completed = false
+				bot.mu.Unlock()
+				break
 			}
 			bot.CharIndex = i
 			bot.mu.Unlock()
@@ -672,6 +764,10 @@ func (m *DemonManager) runDemonCompanionLoop(uid string, bot *DemonBot) {
 			}
 
 			time.Sleep(charDelay)
+		}
+
+		if !completed {
+			continue
 		}
 
 		// When demon completes the passage before the user:
@@ -881,6 +977,7 @@ func initWildDemons() []*WildDemon {
 	}
 	now := time.Now().UTC()
 	for _, d := range demons {
+		d.BaseWPM = d.WPM
 		d.SpawnedAt = now.Add(-10 * time.Minute)
 		d.LastEvolve = d.SpawnedAt
 		d.MaxLevel = 5
@@ -901,6 +998,11 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 		ch := d.Chapter
 		v := d.Verse
 		hp := d.CurrentHP
+		epoch := d.verseEpoch
+		prevBook := d.prevBook
+		prevCh := d.prevChapter
+		prevV := d.prevVerse
+		escapedAt := d.escapedAt
 		m.mu.RUnlock()
 
 		if hp <= 0 {
@@ -916,6 +1018,13 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 
 		// Optimization for 666 demons: if no human players are on this verse, advance in background ticks
 		if m.hub != nil && !m.hub.HasClientsOnVerse(trans, book, ch, v) {
+			// If this demon just escaped from the previous verse and a player is still finishing that previous verse,
+			// hold at the start of the new verse briefly so the player can pursue it onto the next passage!
+			if !escapedAt.IsZero() && time.Since(escapedAt) < 30*time.Second && prevBook != "" && m.hub.HasClientsOnVerse(trans, prevBook, prevCh, prevV) {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+
 			charsPerTick := int(float64(wpm*5) * (2.0 / 60.0))
 			if charsPerTick < 2 {
 				charsPerTick = 2
@@ -926,6 +1035,11 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 			if d.CurrentHP <= 0 {
 				m.mu.Unlock()
 				return
+			}
+			// If the demon's verse changed or a player arrived while sleeping, restart cleanly at char 0
+			if d.verseEpoch != epoch || d.Translation != trans || d.BookName != book || d.Chapter != ch || d.Verse != v || (m.hub != nil && m.hub.HasClientsOnVerse(trans, book, ch, v)) {
+				m.mu.Unlock()
+				continue
 			}
 			d.CharIndex += charsPerTick
 			reachedEnd := d.CharIndex >= totalChars
@@ -952,12 +1066,28 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				completed = false
 				break
 			}
+			if d.verseEpoch != epoch || d.Translation != trans || d.BookName != book || d.Chapter != ch || d.Verse != v {
+				m.mu.Unlock()
+				completed = false
+				break
+			}
+			// If the player has already reached the end of the passage (completion submission in flight),
+			// hold the demon at totalChars-1 so the player's finish & burst damage take precedence.
+			if hasActivePlayer && playerCharIdx >= totalChars && i >= totalChars {
+				if totalChars > 0 {
+					d.CharIndex = totalChars - 1
+				}
+				m.mu.Unlock()
+				completed = false
+				break
+			}
 			d.CharIndex = i
 			if hasActivePlayer {
 				baseWPM, ok := m.wildDemonBases[d.ID]
 				if !ok || baseWPM <= 0 {
 					baseWPM = wpm
 				}
+				d.BaseWPM = baseWPM
 				baseWPM += d.EnrageCount * 2
 				d.WPM = CalculateDynamicDemonWPM(baseWPM, playerCharIdx, i, playerWPM)
 			}
@@ -1022,31 +1152,127 @@ func (m *DemonManager) AdvanceWildDemonToNextVerse(demonID string) (*WildDemon, 
 	nextV, ok := getNextCanonicalVerse(oldTrans, oldBook, oldCh, oldV)
 	if !ok {
 		target.CharIndex = 0
+		target.verseEpoch++
 		res := *target
 		m.mu.Unlock()
 		return &res, Verse{}, false
 	}
 
-	// Step past occupied verses if needed (up to 10 steps)
-	for step := 0; step < 10 && m.isVerseOccupiedLocked(nextV.BookName, nextV.Chapter, nextV.Verse); step++ {
-		if cand, ok2 := getNextCanonicalVerse(oldTrans, nextV.BookName, nextV.Chapter, nextV.Verse); ok2 {
-			nextV = cand
-		} else {
-			break
+	hasPlayerFighting := m.hub != nil && m.hub.HasClientsOnVerse(oldTrans, oldBook, oldCh, oldV)
+	if hasPlayerFighting {
+		// Ensure the demon lands directly on the next passage so the player can continue fighting it seamlessly.
+		// If another background demon occupies nextV, relocate that other demon.
+		for _, other := range m.wildDemons {
+			if other.ID != target.ID && other.BookName == nextV.BookName && other.Chapter == nextV.Chapter && other.Verse == nextV.Verse {
+				shiftWildDemonLocation(other)
+				other.CharIndex = 0
+				other.verseEpoch++
+			}
+		}
+	} else {
+		// Step past occupied verses if needed (up to 10 steps)
+		for step := 0; step < 10 && m.isVerseOccupiedLocked(nextV.BookName, nextV.Chapter, nextV.Verse); step++ {
+			if cand, ok2 := getNextCanonicalVerse(oldTrans, nextV.BookName, nextV.Chapter, nextV.Verse); ok2 {
+				nextV = cand
+			} else {
+				break
+			}
 		}
 	}
 
+	target.prevBook = oldBook
+	target.prevChapter = oldCh
+	target.prevVerse = oldV
+	target.escapedAt = time.Now().UTC()
 	target.BookName = nextV.BookName
 	target.Chapter = nextV.Chapter
 	target.Verse = nextV.Verse
 	target.Text = cleanVerseText(nextV.Text)
 	target.CharIndex = 0
+	target.verseEpoch++
+	if baseWPM, ok := m.wildDemonBases[target.ID]; ok && baseWPM > 0 {
+		target.BaseWPM = baseWPM
+		target.WPM = baseWPM + target.EnrageCount*2
+	}
 	demonCopy := *target
 	allDemons := m.getWildDemonsLocked()
 	m.mu.Unlock()
 
 	if m.hub != nil {
 		m.hub.BroadcastDemonEscaped(oldTrans, oldBook, oldCh, oldV, demonCopy, nextV)
+		m.hub.BroadcastWildDemonsList(allDemons)
+	}
+	return &demonCopy, nextV, true
+}
+
+// DriveWildDemonToNextVerse drives a surviving wild demon onto the user's next passage when the user finishes a passage before the demon.
+func (m *DemonManager) DriveWildDemonToNextVerse(demonID string, destVerse *Verse) (*WildDemon, Verse, bool) {
+	m.mu.Lock()
+	var target *WildDemon
+	for _, d := range m.wildDemons {
+		if d.ID == demonID && d.CurrentHP > 0 {
+			target = d
+			break
+		}
+	}
+	if target == nil {
+		m.mu.Unlock()
+		return nil, Verse{}, false
+	}
+
+	oldTrans := target.Translation
+	oldBook := target.BookName
+	oldCh := target.Chapter
+	oldV := target.Verse
+
+	var nextV Verse
+	var ok bool
+	if destVerse != nil && destVerse.BookName != "" {
+		nextV = *destVerse
+		ok = true
+	} else {
+		nextV, ok = getNextCanonicalVerse(oldTrans, oldBook, oldCh, oldV)
+	}
+	if !ok {
+		target.CharIndex = 0
+		target.verseEpoch++
+		if baseWPM, okB := m.wildDemonBases[target.ID]; okB && baseWPM > 0 {
+			target.BaseWPM = baseWPM
+			target.WPM = baseWPM + target.EnrageCount*2
+		}
+		res := *target
+		m.mu.Unlock()
+		return &res, Verse{}, false
+	}
+
+	// If another demon occupies nextV, shift that other demon so this pursued demon stays with the user
+	for _, other := range m.wildDemons {
+		if other.ID != target.ID && other.BookName == nextV.BookName && other.Chapter == nextV.Chapter && other.Verse == nextV.Verse {
+			shiftWildDemonLocation(other)
+			other.CharIndex = 0
+			other.verseEpoch++
+		}
+	}
+
+	target.prevBook = oldBook
+	target.prevChapter = oldCh
+	target.prevVerse = oldV
+	target.escapedAt = time.Now().UTC()
+	target.BookName = nextV.BookName
+	target.Chapter = nextV.Chapter
+	target.Verse = nextV.Verse
+	target.Text = cleanVerseText(nextV.Text)
+	target.CharIndex = 0
+	target.verseEpoch++
+	if baseWPM, okB := m.wildDemonBases[target.ID]; okB && baseWPM > 0 {
+		target.BaseWPM = baseWPM
+		target.WPM = baseWPM + target.EnrageCount*2
+	}
+	demonCopy := *target
+	allDemons := m.getWildDemonsLocked()
+	m.mu.Unlock()
+
+	if m.hub != nil {
 		m.hub.BroadcastWildDemonsList(allDemons)
 	}
 	return &demonCopy, nextV, true
@@ -1153,6 +1379,7 @@ func (m *DemonManager) AdjustWildDemonPaceForPlayer(trans, book string, chapter,
 				baseWPM = d.WPM
 				m.wildDemonBases[d.ID] = baseWPM
 			}
+			d.BaseWPM = baseWPM
 			baseWPM += d.EnrageCount * 2
 			d.WPM = CalculateDynamicDemonWPM(baseWPM, userCharIdx, d.CharIndex, userWPM)
 			res := *d
@@ -1198,7 +1425,9 @@ func (m *DemonManager) RespawnWildDemon(demonID string) *WildDemon {
 			d.CurrentHP = d.MaxHP
 			d.EnrageCount = 0
 			d.CharIndex = 0
+			d.verseEpoch++
 			if base, ok := m.wildDemonBases[d.ID]; ok {
+				d.BaseWPM = base
 				d.WPM = base
 			}
 			shiftWildDemonLocation(d)
@@ -1212,7 +1441,9 @@ func (m *DemonManager) RespawnWildDemon(demonID string) *WildDemon {
 		d.CurrentHP = d.MaxHP
 		d.EnrageCount = 0
 		d.CharIndex = 0
+		d.verseEpoch++
 		if base, ok := m.wildDemonBases[d.ID]; ok {
+			d.BaseWPM = base
 			d.WPM = base
 		}
 		shiftWildDemonLocation(d)
@@ -1360,8 +1591,19 @@ func (m *DemonManager) Stop() {
 // - Extreme Limit (> 600 demons, > 90% of 666): overcrowding resistance slows spawning to 360s (6 mins)
 func (m *DemonManager) GetDynamicSpawnInterval() time.Duration {
 	m.mu.RLock()
+	override := m.spawnInterval
 	count := len(m.wildDemons)
 	m.mu.RUnlock()
+
+	if override > 0 && override != 45*time.Second {
+		return override
+	}
+	if globalAdmin != nil {
+		opts := globalAdmin.GetOptions()
+		if opts.SpawnIntervalOverrideSec > 0 {
+			return time.Duration(opts.SpawnIntervalOverrideSec) * time.Second
+		}
+	}
 
 	if count < 66 {
 		return 45 * time.Second
@@ -1465,6 +1707,10 @@ func (m *DemonManager) EvolveLivingDemons() []WildDemon {
 			d.CurrentHP += 50
 			if d.WPM < 24 {
 				d.WPM++
+			}
+			if base, ok := m.wildDemonBases[d.ID]; ok && base < 24 {
+				m.wildDemonBases[d.ID] = base + 1
+				d.BaseWPM = base + 1
 			}
 			// Update title to reflect ancient growing power
 			prefix := ""
@@ -1677,6 +1923,7 @@ func (m *DemonManager) SpawnPeriodicWildDemon() *WildDemon {
 		Verse:       v,
 		Text:        text,
 		WPM:         wpm,
+		BaseWPM:     wpm,
 		MaxHP:       hp,
 		CurrentHP:   hp,
 		EnrageCount: 0,
@@ -1695,8 +1942,24 @@ func (m *DemonManager) SpawnPeriodicWildDemon() *WildDemon {
 // CalculateEncounterChance computes the ambush probability based on completed verses in the current book.
 // The more verses completed in a book, the higher the chance of coming across a demon!
 func CalculateEncounterChance(completedVerses, totalVerses int) float64 {
-	if totalVerses <= 0 || completedVerses < 2 {
-		return 0.0 // Peaceful opening for the first 2 verses of any book
+	peacefulVerses := 2
+	baseChance := 0.04
+	maxChance := 0.50
+	if globalAdmin != nil {
+		opts := globalAdmin.GetOptions()
+		if opts.EncounterPeacefulIntroVerses >= 0 {
+			peacefulVerses = opts.EncounterPeacefulIntroVerses
+		}
+		if opts.EncounterBaseChance > 0 {
+			baseChance = opts.EncounterBaseChance
+		}
+		if opts.EncounterMaxChance > 0 {
+			maxChance = opts.EncounterMaxChance
+		}
+	}
+
+	if totalVerses <= 0 || completedVerses < peacefulVerses {
+		return 0.0 // Peaceful opening for the first N verses of any book
 	}
 
 	ratio := float64(completedVerses) / float64(totalVerses)
@@ -1709,12 +1972,12 @@ func CalculateEncounterChance(completedVerses, totalVerses int) float64 {
 		verseBonus = 0.20
 	}
 
-	chance := 0.04 + (ratio * 0.30) + verseBonus
-	if chance > 0.50 {
-		chance = 0.50
+	chance := baseChance + (ratio * 0.30) + verseBonus
+	if chance > maxChance {
+		chance = maxChance
 	}
-	if chance < 0.04 {
-		chance = 0.04
+	if chance < baseChance {
+		chance = baseChance
 	}
 	return chance
 }
@@ -1727,6 +1990,13 @@ func (m *DemonManager) CheckOrSpawnWildDemonForUser(trans string, v Verse, curre
 	// 1. Check if a wild demon is already roaming on this verse (lives until defeated)
 	for _, d := range m.wildDemons {
 		if d.Translation == trans && d.BookName == v.BookName && d.Chapter == v.Chapter && d.Verse == v.Verse {
+			// Reset CharIndex to 0 and restore base WPM when a user arrives on the verse so the duel starts cleanly
+			d.CharIndex = 0
+			d.verseEpoch++
+			if baseWPM, ok := m.wildDemonBases[d.ID]; ok && baseWPM > 0 {
+				d.BaseWPM = baseWPM
+				d.WPM = baseWPM + d.EnrageCount*2
+			}
 			res := *d
 			return &res, 1.0, false
 		}
@@ -1831,6 +2101,7 @@ func (m *DemonManager) createDemonForProgress(trans string, v Verse, progressRat
 		Verse:       v.Verse,
 		Text:        cleanVerseText(v.Text),
 		WPM:         wpm,
+		BaseWPM:     wpm,
 		MaxHP:       hp,
 		CurrentHP:   hp,
 		EnrageCount: 0,

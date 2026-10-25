@@ -588,6 +588,97 @@
         cursor: pointer;
       }
 
+      /* Voice Mode Control Bar */
+      .voice-mode-bar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+        padding: 0.55rem 0.85rem;
+        background: var(--bg-soft);
+        border: 1px solid var(--accent);
+        border-radius: 10px;
+        box-shadow: 0 0 14px var(--accent-soft);
+      }
+      .voice-mode-bar.active {
+        display: flex;
+      }
+      .voice-mic-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--card-solid);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--text);
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 0.3rem 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .voice-mic-btn.listening {
+        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.14);
+        color: #fca5a5;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+      }
+      .voice-pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+        display: inline-block;
+      }
+      .voice-mic-btn.listening .voice-pulse-dot {
+        background: #ef4444;
+        box-shadow: 0 0 8px #ef4444;
+        animation: voicePulse 1.2s infinite ease-in-out;
+      }
+      @keyframes voicePulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.35); opacity: 0.55; }
+      }
+      .voice-transcript-box {
+        flex: 1;
+        min-width: 180px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.78rem;
+        color: var(--muted);
+        overflow: hidden;
+      }
+      .voice-next-word-pill {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+        padding: 0.15rem 0.55rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .voice-transcript-preview {
+        font-style: italic;
+        color: var(--text-sub);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .voice-controls-group {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+      }
+      .voice-mode-btn.active {
+        color: #f87171 !important;
+        border-color: #ef4444 !important;
+        background: rgba(239, 68, 68, 0.14) !important;
+      }
+
       /* Verse Presence Bar */
       .verse-presence-bar {
         display: flex;
@@ -1654,6 +1745,12 @@
                   <span id="wildDemonPaceBadge" style="font-size: 0.7rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 7px; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700;">Target: 12 WPM</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                  <span id="burstDamageBadge" style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: rgba(168, 85, 247, 0.2); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.45);" title="Adjustable Passage Finish Burst Damage — applied to the demon when you finish a passage before it!">
+                    <span>💥 Burst:</span>
+                    <button type="button" id="btnBurstDamageDown" style="background: rgba(0,0,0,0.35); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.4); border-radius: 4px; padding: 0 4px; font-size: 0.68rem; font-weight: 900; cursor: pointer; line-height: 1.2;" title="Decrease base passage burst damage (-5)">−</button>
+                    <strong id="burstDamageValue" style="min-width: 22px; text-align: center; color: #f3e8ff;">30</strong>
+                    <button type="button" id="btnBurstDamageUp" style="background: rgba(0,0,0,0.35); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.4); border-radius: 4px; padding: 0 4px; font-size: 0.68rem; font-weight: 900; cursor: pointer; line-height: 1.2;" title="Increase base passage burst damage (+5)">+</button>
+                  </span>
                   <span id="checkpointBadge" style="font-size: 0.72rem; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: rgba(56, 189, 248, 0.14); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.35);" title="Every 2 punctuation marks typed locks in a Checkpoint so mistakes don't reset the whole verse!">🔖 CP: 0/2 Punct.</span>
                   <span id="syncStacksBadge" style="font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="Gain 1 stack per word typed in sync. Every 5 stacks increases damage!">🔥 0 Stacks</span>
                   <span id="holyWardsBadge" style="font-size: 0.78rem; font-weight: 800; color: #38bdf8; text-shadow: 0 0 6px #38bdf8;" title="Holy Wards absorb mistakes before checkpoint reset">🛡️ 0 Wards</span>
@@ -1697,6 +1794,27 @@
               </span>
             </div>
 
+            <!-- Optional Voice Mode Bar (Speak the Verse Aloud) -->
+            <div id="voiceModeBar" class="voice-mode-bar">
+              <div style="display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;">
+                <button type="button" id="btnVoiceMic" class="voice-mic-btn" title="Start or pause microphone recognition">
+                  <span class="voice-pulse-dot"></span>
+                  <span id="voiceMicLabel">🎙️ Start Mic</span>
+                </button>
+                <span id="voiceNextWordPill" class="voice-next-word-pill" title="Next expected word to speak">Next: &mdash;</span>
+              </div>
+              <div class="voice-transcript-box">
+                <span id="voiceTranscriptPreview" class="voice-transcript-preview">Speak the verse aloud to advance words automatically&hellip;</span>
+              </div>
+              <div class="voice-controls-group">
+                <button type="button" id="btnSpeakVerseTTS" class="presence-btn" title="Listen to the verse read aloud (Text-to-Speech)">🔊 Hear Verse</button>
+                <button type="button" id="btnVoiceSkipWord" class="presence-btn" title="Complete next word if microphone misses a word">⏭ Word</button>
+                <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: var(--muted); cursor: pointer; user-select: none;" title="Automatically submit the passage once all words are spoken">
+                  <input type="checkbox" id="voiceAutoSubmitCheck" checked /> Auto-submit
+                </label>
+              </div>
+            </div>
+
             <!-- Submit Prompt Bar -->
             <div id="submitPromptBar" class="submit-prompt-bar">
               <div class="submit-prompt-content">
@@ -1722,6 +1840,7 @@
                 </div>
               </div>
               <div style="display: flex; align-items: center; gap: 0.45rem;">
+                <button id="btnToggleVoiceMode" class="presence-btn voice-mode-btn" title="Toggle Voice Mode — Speak the verse aloud (Alt+V)">🎙️ Voice</button>
                 <button id="btnToggleSpectator" class="presence-btn" title="Spectate without typing">👁️ Watch</button>
                 <button id="btnRestartVerse" class="btn-restart">↺ Restart</button>
               </div>
@@ -2496,10 +2615,19 @@
         paceWpmPerStep: 2,           // WPM adjustment per step ahead/behind
         minDemonWpm: 6,              // Minimum dynamic WPM floor when user types slower
         maxDemonWpmBonus: 18,        // Maximum dynamic bonus WPM when user types ahead
-        maxDemonWpmReduction: 8      // Maximum dynamic WPM reduction when user types slower
+        maxDemonWpmReduction: 8,     // Maximum dynamic WPM reduction when user types slower
+        passageBurstBaseDamage: 30,  // Default base burst damage when finishing a passage before a demon
+        passageBurstPerCharAhead: 1, // Bonus burst damage per character ahead when finishing a passage
+        passageBurstMaxCharBonus: 30,// Maximum bonus burst damage from character lead
+        passageBurstPerSyncStack: 2, // Bonus burst damage per sync stack on passage finish
+        passageBurstMultiplier: 1.0, // Global multiplier for passage finish burst damage
+        minPassageBurstDamage: 5,    // Minimum adjustable passage burst damage
+        maxPassageBurstDamage: 300   // Maximum adjustable passage burst damage
       };
       let activeWildDemon = null;
       let activeWildDemonBaseWPM = 12;
+      let pursuedDemonId = null;
+      let pursuedSyncStacks = 0;
       let currentHolyWards = 0;
       let currentSyncStacks = 0;
       let demonCheckpointIndex = 0;
@@ -2660,6 +2788,10 @@
       const wildDemonHUD = document.getElementById("wildDemonHUD");
       const wildDemonIconName = document.getElementById("wildDemonIconName");
       const wildDemonPaceBadge = document.getElementById("wildDemonPaceBadge");
+      const burstDamageBadge = document.getElementById("burstDamageBadge");
+      const burstDamageValue = document.getElementById("burstDamageValue");
+      const btnBurstDamageDown = document.getElementById("btnBurstDamageDown");
+      const btnBurstDamageUp = document.getElementById("btnBurstDamageUp");
       const checkpointBadge = document.getElementById("checkpointBadge");
       const syncStacksBadge = document.getElementById("syncStacksBadge");
       const holyWardsBadge = document.getElementById("holyWardsBadge");
@@ -2704,8 +2836,12 @@
       }
 
       function updateSpanishAccentBarVisibility() {
-        if (!spanishAccentBar) return;
-        spanishAccentBar.style.display = isSpanishTrans(currentTrans) ? "flex" : "none";
+        if (spanishAccentBar) {
+          spanishAccentBar.style.display = isSpanishTrans(currentTrans) ? "flex" : "none";
+        }
+        if (typeof updateVoiceRecognitionLang === "function") {
+          updateVoiceRecognitionLang();
+        }
       }
 
       // ---- Dynamic Atmospheric Background Theme by Biblical Category ----
@@ -2855,6 +2991,84 @@
         const multDamage = Math.round(base * (1.0 + tiers * DEMON_SYNC_BALANCE.damageMultPerTier));
         const flatDamage = base + tiers * DEMON_SYNC_BALANCE.flatDamagePerTier;
         return Math.max(multDamage, flatDamage);
+      }
+
+      function getAdjustedBaseBurstDamage() {
+        const minB = DEMON_SYNC_BALANCE.minPassageBurstDamage || 5;
+        const maxB = DEMON_SYNC_BALANCE.maxPassageBurstDamage || 300;
+        let val = (currentCustomizations && currentCustomizations.passage_burst_damage > 0)
+          ? currentCustomizations.passage_burst_damage
+          : (DEMON_SYNC_BALANCE.passageBurstBaseDamage || 30);
+        return Math.max(minB, Math.min(maxB, val));
+      }
+
+      function calculatePassageFinishBurstDamage(baseStrikeDamage, syncStacks = currentSyncStacks, charsAhead = 0, customBaseBurst = getAdjustedBaseBurstDamage()) {
+        const minB = DEMON_SYNC_BALANCE.minPassageBurstDamage || 5;
+        const maxB = DEMON_SYNC_BALANCE.maxPassageBurstDamage || 300;
+        let burst = customBaseBurst > 0 ? customBaseBurst : (DEMON_SYNC_BALANCE.passageBurstBaseDamage || 30);
+        const strike = Math.max(1, baseStrikeDamage || 1);
+        if (strike > 1) {
+          burst += (strike - 1) * 5;
+        }
+        if (charsAhead > 0 && (DEMON_SYNC_BALANCE.passageBurstPerCharAhead || 1) > 0) {
+          let charBonus = charsAhead * (DEMON_SYNC_BALANCE.passageBurstPerCharAhead || 1);
+          if (DEMON_SYNC_BALANCE.passageBurstMaxCharBonus > 0) {
+            charBonus = Math.min(charBonus, DEMON_SYNC_BALANCE.passageBurstMaxCharBonus);
+          }
+          burst += charBonus;
+        }
+        const stacks = Math.max(0, syncStacks || 0);
+        if (stacks > 0 && (DEMON_SYNC_BALANCE.passageBurstPerSyncStack || 2) > 0) {
+          burst += stacks * (DEMON_SYNC_BALANCE.passageBurstPerSyncStack || 2);
+        }
+        burst = calculateSyncStackDamage(burst, stacks);
+        const mult = DEMON_SYNC_BALANCE.passageBurstMultiplier > 0 ? DEMON_SYNC_BALANCE.passageBurstMultiplier : 1.0;
+        const total = Math.round(burst * mult);
+        return Math.max(minB, Math.min(maxB, total));
+      }
+
+      function updateBurstDamageBadge() {
+        if (!burstDamageValue) return;
+        const baseBurst = getAdjustedBaseBurstDamage();
+        const gPower = currentCustomizations.guardian_power || 10;
+        const baseStrike = Math.max(1, Math.round(gPower / 10));
+        const userIdx = currentTyped ? currentTyped.length : 0;
+        const demonIdx = (activeWildDemon && activeWildDemon.char_index !== undefined) ? activeWildDemon.char_index : 0;
+        const charsAhead = Math.max(0, userIdx - demonIdx);
+        const estTotal = calculatePassageFinishBurstDamage(baseStrike, currentSyncStacks, charsAhead, baseBurst);
+        burstDamageValue.textContent = `${baseBurst}`;
+        if (burstDamageBadge) {
+          burstDamageBadge.title = `Passage Finish Burst Damage: Base ${baseBurst} (Est. ${estTotal} total DMG if you finish before the demon). Click −/+ to adjust!`;
+        }
+      }
+
+      function adjustPassageBurstDamage(delta) {
+        const minB = DEMON_SYNC_BALANCE.minPassageBurstDamage || 5;
+        const maxB = DEMON_SYNC_BALANCE.maxPassageBurstDamage || 300;
+        const cur = getAdjustedBaseBurstDamage();
+        const next = Math.max(minB, Math.min(maxB, cur + delta));
+        currentCustomizations.passage_burst_damage = next;
+        localStorage.setItem("sanctuary_settings", JSON.stringify(currentCustomizations));
+        updateBurstDamageBadge();
+        checkHolyResonance();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "save_sanctuary", sanctuary: currentCustomizations }));
+        }
+      }
+
+      if (btnBurstDamageDown) {
+        btnBurstDamageDown.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          adjustPassageBurstDamage(-5);
+          focusTyping();
+        });
+      }
+      if (btnBurstDamageUp) {
+        btnBurstDamageUp.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          adjustPassageBurstDamage(5);
+          focusTyping();
+        });
       }
 
       function updateSyncStacksBadge() {
@@ -3036,9 +3250,12 @@
           const baseDmg = Math.max(1, Math.round(gPower / 10));
           const curDmg = calculateSyncStackDamage(baseDmg, currentSyncStacks);
           const tiers = getSyncDamageTier(currentSyncStacks);
+          const charsAhead = Math.max(0, userIdx - demonIdx);
+          const estBurst = calculatePassageFinishBurstDamage(baseDmg, currentSyncStacks, charsAhead, getAdjustedBaseBurstDamage());
+          updateBurstDamageBadge();
           const stackNote = tiers > 0
-            ? ` · 🔥 ${currentSyncStacks} Sync Stacks (${curDmg} DMG/hit!)`
-            : ` · 🔥 ${currentSyncStacks} Sync Stacks (${curDmg} DMG/hit, +DMG every 5 stacks)`;
+            ? ` · 🔥 ${currentSyncStacks} Sync Stacks (${curDmg} DMG/hit · 💥 ${estBurst} Finish Burst)`
+            : ` · 🔥 ${currentSyncStacks} Sync Stacks (${curDmg} DMG/hit · 💥 ${estBurst} Finish Burst)`;
           const paceNote = signedDiff >= (DEMON_SYNC_BALANCE.paceAdjustThreshold || 5)
             ? ` · ⚡ Demon WPM increased to ${dynWpm} WPM!`
             : (signedDiff <= -(DEMON_SYNC_BALANCE.paceAdjustThreshold || 5) ? ` · 🐢 Demon slowed to ${dynWpm} WPM!` : "");
@@ -3061,15 +3278,25 @@
           clearWildDemon();
           return;
         }
-        const isSameDemon = activeWildDemon && activeWildDemon.id === d.id;
+        const isSameDemon = (activeWildDemon && activeWildDemon.id === d.id) || (pursuedDemonId && pursuedDemonId === d.id);
+        const isDifferentPassage = !activeWildDemon || activeWildDemon.book_name !== d.book_name || activeWildDemon.chapter !== d.chapter || activeWildDemon.verse !== d.verse;
+        if (pursuedDemonId && pursuedDemonId === d.id && (!activeWildDemon || activeWildDemon.id !== d.id)) {
+          currentSyncStacks = pursuedSyncStacks;
+        }
+        pursuedDemonId = d.id;
+        pursuedSyncStacks = currentSyncStacks;
+
         activeWildDemon = d;
+        activeWildDemonBaseWPM = d.base_wpm || d.wpm || 12;
         if (!isSameDemon) {
           currentSyncStacks = 0;
+          pursuedSyncStacks = 0;
+        }
+        if (!isSameDemon || isDifferentPassage || currentTyped.length === 0) {
           demonCheckpointIndex = 0;
           demonPunctuationCount = 0;
-          activeWildDemonBaseWPM = d.wpm || 12;
+          syncedWordEndIndices.clear();
         }
-        syncedWordEndIndices.clear();
         const gLvl = currentCustomizations.guardian_level || 1;
         currentHolyWards = wards !== undefined ? wards : Math.floor((gLvl - 1) / 3);
         if (wildDemonHUD) wildDemonHUD.style.display = "flex";
@@ -3082,6 +3309,7 @@
         updateCheckpointBadge();
         updateSyncStacksBadge();
         updateHolyWardsBadge();
+        updateBurstDamageBadge();
         renderGhostCursor({
           uid: d.id,
           display_name: `${d.icon || '😈'} ${d.name}`,
@@ -3098,7 +3326,14 @@
         checkHolyResonance();
       }
 
-      function clearWildDemon() {
+      function clearWildDemon(preservePursuit = false) {
+        if (preservePursuit && activeWildDemon && activeWildDemon.id) {
+          pursuedDemonId = activeWildDemon.id;
+          pursuedSyncStacks = currentSyncStacks;
+        } else if (!preservePursuit) {
+          pursuedDemonId = null;
+          pursuedSyncStacks = 0;
+        }
         if (activeWildDemon && activeWildDemon.id) {
           const oldEl = activeGhosts.get(activeWildDemon.id);
           if (oldEl) {
@@ -3107,12 +3342,21 @@
           }
         }
         activeWildDemon = null;
-        currentSyncStacks = 0;
+        if (!preservePursuit) {
+          currentSyncStacks = 0;
+        }
         demonCheckpointIndex = 0;
         demonPunctuationCount = 0;
         syncedWordEndIndices.clear();
         if (wildDemonHUD) wildDemonHUD.style.display = "none";
         if (typingStage) typingStage.classList.remove("holy-resonance");
+      }
+
+      function clearAllGhostCursors() {
+        activeGhosts.forEach((el) => {
+          if (el && el.remove) el.remove();
+        });
+        activeGhosts.clear();
       }
 
       function updateDemonCursorHealth(d) {
@@ -3418,6 +3662,9 @@
         lastKeystrokeTime = null;
         accumulatedTypingMs = 0;
         liveWPM = 0;
+        if (typeof resetVoiceVerseState === "function") {
+          resetVoiceVerseState();
+        }
       }
 
       function recordKeystrokeForWPM() {
@@ -3511,6 +3758,9 @@
         } else {
           submitPromptBar.classList.remove("active");
           typingStage.classList.remove("is-complete");
+        }
+        if (typeof updateVoiceProgressUI === "function") {
+          updateVoiceProgressUI();
         }
       }
 
@@ -3802,6 +4052,10 @@
 
       function submitTyping() {
         if (!currentTyped || currentTyped !== currentTargetText) return;
+        if (voiceAutoSubmitTimer) {
+          clearTimeout(voiceAutoSubmitTimer);
+          voiceAutoSubmitTimer = null;
+        }
         const totalDurationSec = Math.max(accumulatedTypingMs / 1000, 0.5);
 
         // If offline, save to local write queue
@@ -3813,7 +4067,8 @@
             verse: currentVerseObj ? currentVerseObj.verse : currentVerseNum,
             wpm: liveWPM,
             duration: totalDurationSec,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            voice_mode: isVoiceMode
           });
           playVictoryChime();
           showToast("Saved Offline", "Passage saved locally. Will sync when online.", "💾");
@@ -3825,7 +4080,10 @@
           content: currentTyped,
           wpm: liveWPM,
           duration: totalDurationSec,
-          sync_stacks: currentSyncStacks
+          sync_stacks: currentSyncStacks,
+          demon_id: activeWildDemon ? activeWildDemon.id : undefined,
+          burst_damage: getAdjustedBaseBurstDamage(),
+          voice_mode: isVoiceMode
         }));
       }
 
@@ -3838,9 +4096,575 @@
         demonPunctuationCount = 0;
         updateCheckpointBadge();
         resetVerseTypingTimer();
+        resetVoiceVerseState();
         renderTypingStage();
         focusTyping();
       };
+
+      // ---- Optional Voice Mode (Speak the Verse Aloud) ----
+      const voiceModeBar = document.getElementById("voiceModeBar");
+      const btnToggleVoiceMode = document.getElementById("btnToggleVoiceMode");
+      const btnVoiceMic = document.getElementById("btnVoiceMic");
+      const voiceMicLabel = document.getElementById("voiceMicLabel");
+      const voiceNextWordPill = document.getElementById("voiceNextWordPill");
+      const voiceTranscriptPreview = document.getElementById("voiceTranscriptPreview");
+      const btnSpeakVerseTTS = document.getElementById("btnSpeakVerseTTS");
+      const btnVoiceSkipWord = document.getElementById("btnVoiceSkipWord");
+      const voiceAutoSubmitCheck = document.getElementById("voiceAutoSubmitCheck");
+
+      let isVoiceMode = localStorage.getItem("voice_mode") === "true";
+      let isVoiceListening = false;
+      let voiceAutoSubmit = localStorage.getItem("voice_auto_submit") !== "false";
+      let speechRecognition = null;
+      let lastSpeechResultsSnapshot = [];
+      let voiceConsumedCounts = {};
+      let voiceAutoSubmitTimer = null;
+
+      if (voiceAutoSubmitCheck) {
+        voiceAutoSubmitCheck.checked = voiceAutoSubmit;
+        voiceAutoSubmitCheck.onchange = () => {
+          voiceAutoSubmit = voiceAutoSubmitCheck.checked;
+          localStorage.setItem("voice_auto_submit", String(voiceAutoSubmit));
+        };
+      }
+
+      const VOICE_NUMBER_EQUIV = {
+        "0": ["zero", "cero"],
+        "1": ["one", "first", "uno", "un", "una", "primero"],
+        "2": ["two", "second", "dos", "segundo"],
+        "3": ["three", "third", "tres", "tercero"],
+        "4": ["four", "fourth", "cuatro"],
+        "5": ["five", "fifth", "cinco"],
+        "6": ["six", "sixth", "seis"],
+        "7": ["seven", "seventh", "siete"],
+        "8": ["eight", "eighth", "ocho"],
+        "9": ["nine", "ninth", "nueve"],
+        "10": ["ten", "tenth", "diez"],
+        "11": ["eleven", "once"],
+        "12": ["twelve", "doce"],
+        "13": ["thirteen", "trece"],
+        "14": ["fourteen", "catorce"],
+        "15": ["fifteen", "quince"],
+        "20": ["twenty", "veinte"],
+        "30": ["thirty", "treinta"],
+        "40": ["forty", "cuarenta"],
+        "50": ["fifty", "cincuenta"],
+        "100": ["hundred", "cien", "ciento"],
+        "1000": ["thousand", "mil"]
+      };
+
+      const VOICE_KJV_EQUIV = {
+        "thee": ["the", "dee", "they"],
+        "thou": ["though", "now", "you"],
+        "thy": ["thigh", "the", "my", "by"],
+        "thine": ["mine", "line", "fine", "sign"],
+        "ye": ["you", "yeah", "yay", "he", "we"],
+        "saith": ["says", "sayeth", "seth", "said"],
+        "hath": ["has", "have", "half", "hat", "had"],
+        "doth": ["does", "dot"],
+        "shalt": ["shall", "shout"],
+        "wilt": ["will", "wild"],
+        "art": ["are", "heart"],
+        "wast": ["was", "west"],
+        "wert": ["were", "work"],
+        "unto": ["onto", "into", "on"],
+        "shew": ["show"],
+        "shewed": ["showed"],
+        "spake": ["spoke", "speak"],
+        "begat": ["begot", "began"],
+        "whosoever": ["whoever"],
+        "whatsoever": ["whatever"]
+      };
+
+      function normalizeWordForVoice(w) {
+        if (!w) return "";
+        let res = "";
+        for (const ch of String(w)) {
+          const mapped = SPANISH_DIACRITIC_MAP[ch] || ch;
+          const lower = mapped.toLowerCase();
+          if ((lower >= "a" && lower <= "z") || (lower >= "0" && lower <= "9")) {
+            res += lower;
+          }
+        }
+        return res;
+      }
+
+      function editDistanceLevenshtein(a, b) {
+        if (a === b) return 0;
+        const m = a.length;
+        const n = b.length;
+        if (Math.abs(m - n) > 2) return 99;
+        const dp = Array.from({ length: m + 1 }, (_, i) => i);
+        for (let j = 1; j <= n; j++) {
+          let prev = dp[0];
+          dp[0] = j;
+          for (let i = 1; i <= m; i++) {
+            const temp = dp[i];
+            if (a[i - 1] === b[j - 1]) {
+              dp[i] = prev;
+            } else {
+              dp[i] = 1 + Math.min(prev, dp[i], dp[i - 1]);
+            }
+            prev = temp;
+          }
+        }
+        return dp[m];
+      }
+
+      function voiceWordsMatch(spokenNorm, targetNorm) {
+        if (!spokenNorm || !targetNorm) return false;
+        if (spokenNorm === targetNorm) return true;
+
+        // Number equivalences (both directions)
+        if (VOICE_NUMBER_EQUIV[targetNorm] && VOICE_NUMBER_EQUIV[targetNorm].includes(spokenNorm)) return true;
+        if (VOICE_NUMBER_EQUIV[spokenNorm] && VOICE_NUMBER_EQUIV[spokenNorm].includes(targetNorm)) return true;
+
+        // KJV & homophone equivalences
+        if (VOICE_KJV_EQUIV[targetNorm] && VOICE_KJV_EQUIV[targetNorm].includes(spokenNorm)) return true;
+        if (VOICE_KJV_EQUIV[spokenNorm] && VOICE_KJV_EQUIV[spokenNorm].includes(targetNorm)) return true;
+
+        // Archaic -eth / -est verb endings (e.g., maketh <-> makes/make, leadeth <-> leads/lead, lovest <-> loves/love)
+        if (targetNorm.length >= 5 && targetNorm.endsWith("eth")) {
+          const stem = targetNorm.slice(0, -3);
+          if (spokenNorm === stem || spokenNorm === stem + "s" || spokenNorm === stem + "es" || spokenNorm === stem + "ed") {
+            return true;
+          }
+        }
+        if (targetNorm.length >= 5 && targetNorm.endsWith("est")) {
+          const stem = targetNorm.slice(0, -3);
+          if (spokenNorm === stem || spokenNorm === stem + "s" || spokenNorm === stem + "es") {
+            return true;
+          }
+        }
+
+        // Phonetic / minor STT variance on longer words (e.g. biblical names like Melchizedek, Nebuchadnezzar)
+        if (targetNorm.length >= 6 && spokenNorm.length >= 5 && targetNorm[0] === spokenNorm[0]) {
+          const dist = editDistanceLevenshtein(spokenNorm, targetNorm);
+          if (dist <= 1) return true;
+          if (targetNorm.length >= 8 && dist <= 2) return true;
+        }
+        return false;
+      }
+
+      function parseTargetWords(text) {
+        if (!text) return [];
+        const words = [];
+        let i = 0;
+        const n = text.length;
+        while (i < n) {
+          // Skip spaces and non-alphanumeric leading punctuation
+          while (i < n && normalizeWordForVoice(text[i]) === "") {
+            i++;
+          }
+          if (i >= n) break;
+          const startIdx = i;
+          // Consume word characters (allowing internal apostrophes like don't / Lord's)
+          while (i < n) {
+            if (normalizeWordForVoice(text[i]) !== "") {
+              i++;
+            } else if ((text[i] === "'" || text[i] === "’") && i + 1 < n && normalizeWordForVoice(text[i + 1]) !== "") {
+              i++;
+            } else {
+              break;
+            }
+          }
+          const rawWord = text.slice(startIdx, i);
+          const normWord = normalizeWordForVoice(rawWord);
+          // Also include trailing punctuation + single space up to the next word so completing this word lands cleanly at the start of the next word
+          let advanceEndIdx = i;
+          while (advanceEndIdx < n && text[advanceEndIdx] !== " " && normalizeWordForVoice(text[advanceEndIdx]) === "") {
+            advanceEndIdx++;
+          }
+          if (advanceEndIdx < n && text[advanceEndIdx] === " ") {
+            advanceEndIdx++;
+          }
+          words.push({
+            raw: rawWord,
+            norm: normWord,
+            startIdx: startIdx,
+            wordEndIdx: i,
+            advanceEndIdx: advanceEndIdx
+          });
+        }
+        return words;
+      }
+
+      function trimMistypedSuffixForVoice() {
+        if (!currentTargetText || !currentTyped) return;
+        let validLen = 0;
+        while (validLen < currentTyped.length && validLen < currentTargetText.length && currentTyped[validLen] === currentTargetText[validLen]) {
+          validLen++;
+        }
+        if (validLen < currentTyped.length) {
+          currentTyped = currentTargetText.slice(0, validLen);
+          hiddenInput.value = currentTyped;
+          renderTypingStage();
+        }
+      }
+
+      function getCurrentTargetWordIndex(words) {
+        const typedLen = currentTyped ? currentTyped.length : 0;
+        for (let idx = 0; idx < words.length; idx++) {
+          if (typedLen < words[idx].wordEndIdx) {
+            return idx;
+          }
+        }
+        return words.length;
+      }
+
+      function updateVoiceProgressUI() {
+        if (!voiceNextWordPill) return;
+        if (!currentTargetText) {
+          voiceNextWordPill.textContent = "Next: —";
+          return;
+        }
+        const words = parseTargetWords(currentTargetText);
+        const curIdx = getCurrentTargetWordIndex(words);
+        if (curIdx >= words.length || currentTyped === currentTargetText) {
+          voiceNextWordPill.textContent = `✓ All ${words.length} words spoken!`;
+        } else {
+          voiceNextWordPill.textContent = `Next: "${words[curIdx].raw}" (${curIdx}/${words.length})`;
+        }
+      }
+
+      function advanceVoiceThroughWord(wordObj, isLastWord) {
+        if (!currentTargetText || isSpectator) return;
+        trimMistypedSuffixForVoice();
+        const targetCharEnd = isLastWord ? currentTargetText.length : wordObj.advanceEndIdx;
+        while (currentTyped.length < targetCharEnd && currentTyped.length < currentTargetText.length) {
+          processTypedChar(currentTargetText[currentTyped.length]);
+        }
+        // If no more alphanumeric words remain in the passage, finish trailing punctuation
+        const remaining = currentTargetText.slice(currentTyped.length);
+        if (remaining && normalizeWordForVoice(remaining) === "") {
+          while (currentTyped.length < currentTargetText.length) {
+            processTypedChar(currentTargetText[currentTyped.length]);
+          }
+        }
+        updateVoiceProgressUI();
+
+        if (currentTyped === currentTargetText && voiceAutoSubmit) {
+          if (voiceAutoSubmitTimer) clearTimeout(voiceAutoSubmitTimer);
+          voiceAutoSubmitTimer = setTimeout(() => {
+            voiceAutoSubmitTimer = null;
+            if (currentTyped === currentTargetText) {
+              submitTyping();
+            }
+          }, 280);
+        }
+      }
+
+      function skipNextWordInVoiceMode() {
+        if (!currentTargetText || isSpectator) return;
+        trimMistypedSuffixForVoice();
+        const words = parseTargetWords(currentTargetText);
+        const curIdx = getCurrentTargetWordIndex(words);
+        if (curIdx < words.length) {
+          advanceVoiceThroughWord(words[curIdx], curIdx === words.length - 1);
+        }
+      }
+
+      function processSpokenTranscript(transcript, resultIndex = 0, isFinal = false) {
+        if (!transcript || !currentTargetText || isSpectator) return 0;
+        const rawTokens = String(transcript).trim().split(/[\s\-—–]+/);
+        const normTokens = rawTokens.map(normalizeWordForVoice).filter(Boolean);
+        if (normTokens.length === 0) return 0;
+
+        if (voiceTranscriptPreview) {
+          voiceTranscriptPreview.textContent = `"${String(transcript).trim()}"`;
+        }
+
+        // Check voice commands
+        const tailTwo = normTokens.slice(-2).join(" ");
+        const lastOne = normTokens[normTokens.length - 1];
+        if (tailTwo === "restart verse" || tailTwo === "reset verse") {
+          voiceConsumedCounts[resultIndex] = normTokens.length;
+          btnRestartVerse.click();
+          return 0;
+        }
+        if (currentTyped === currentTargetText && (lastOne === "submit" || lastOne === "enter" || lastOne === "next" || lastOne === "amen")) {
+          voiceConsumedCounts[resultIndex] = normTokens.length;
+          submitTyping();
+          return 0;
+        }
+
+        trimMistypedSuffixForVoice();
+        let words = parseTargetWords(currentTargetText);
+        let curWordIdx = getCurrentTargetWordIndex(words);
+        let matchedCount = 0;
+
+        let startTokenIdx = voiceConsumedCounts[resultIndex] || 0;
+        if (startTokenIdx > normTokens.length) {
+          startTokenIdx = 0;
+        }
+
+        let w = startTokenIdx;
+        while (w < normTokens.length && curWordIdx < words.length) {
+          const spoken = normTokens[w];
+          const target = words[curWordIdx];
+
+          if (voiceWordsMatch(spoken, target.norm)) {
+            advanceVoiceThroughWord(target, curWordIdx === words.length - 1);
+            curWordIdx++;
+            matchedCount++;
+            w++;
+            voiceConsumedCounts[resultIndex] = w;
+            continue;
+          }
+
+          // Check if 2 consecutive spoken words combine to match the target compound word (e.g., "first born" -> "firstborn")
+          if (w + 1 < normTokens.length && voiceWordsMatch(spoken + normTokens[w + 1], target.norm)) {
+            advanceVoiceThroughWord(target, curWordIdx === words.length - 1);
+            curWordIdx++;
+            matchedCount++;
+            w += 2;
+            voiceConsumedCounts[resultIndex] = w;
+            continue;
+          }
+
+          // Check if 1 spoken compound word matches the next 2 target words (e.g., "forevermore" -> "for evermore")
+          if (curWordIdx + 1 < words.length && voiceWordsMatch(spoken, target.norm + words[curWordIdx + 1].norm)) {
+            advanceVoiceThroughWord(words[curWordIdx], false);
+            advanceVoiceThroughWord(words[curWordIdx + 1], curWordIdx + 1 === words.length - 1);
+            curWordIdx += 2;
+            matchedCount += 2;
+            w++;
+            voiceConsumedCounts[resultIndex] = w;
+            continue;
+          }
+
+          w++;
+        }
+
+        if (isFinal) {
+          voiceConsumedCounts[resultIndex] = normTokens.length;
+        }
+
+        return matchedCount;
+      }
+
+      function resetVoiceVerseState() {
+        if (voiceAutoSubmitTimer) {
+          clearTimeout(voiceAutoSubmitTimer);
+          voiceAutoSubmitTimer = null;
+        }
+        voiceConsumedCounts = {};
+        if (lastSpeechResultsSnapshot && lastSpeechResultsSnapshot.length > 0) {
+          for (let r = 0; r < lastSpeechResultsSnapshot.length; r++) {
+            const resObj = lastSpeechResultsSnapshot[r];
+            const transcript = resObj && resObj[0] ? resObj[0].transcript : "";
+            const normTokens = String(transcript).trim().split(/[\s\-—–]+/).map(normalizeWordForVoice).filter(Boolean);
+            voiceConsumedCounts[r] = normTokens.length;
+          }
+        }
+        if (voiceTranscriptPreview) {
+          voiceTranscriptPreview.textContent = isVoiceListening
+            ? "🎙️ Listening… Speak the verse aloud!"
+            : "Click 'Start Mic' or press Alt+V to speak the verse aloud…";
+        }
+        updateVoiceProgressUI();
+      }
+
+      function getSpeechRecognitionLang() {
+        return isSpanishTrans(currentTrans) ? "es-ES" : "en-US";
+      }
+
+      function updateVoiceMicUI() {
+        if (btnToggleVoiceMode) {
+          btnToggleVoiceMode.classList.toggle("active", isVoiceMode);
+          btnToggleVoiceMode.textContent = isVoiceMode ? "🎙️ Voice: ON" : "🎙️ Voice";
+        }
+        if (voiceModeBar) {
+          voiceModeBar.classList.toggle("active", isVoiceMode);
+        }
+        if (btnVoiceMic) {
+          btnVoiceMic.classList.toggle("listening", isVoiceListening);
+        }
+        if (voiceMicLabel) {
+          voiceMicLabel.textContent = isVoiceListening ? "🎙️ Listening..." : "🎙️ Start Mic";
+        }
+        updateVoiceProgressUI();
+      }
+
+      function initSpeechRecognition() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) return null;
+        const rec = new SpeechRec();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = getSpeechRecognitionLang();
+
+        rec.onstart = () => {
+          isVoiceListening = true;
+          lastSpeechResultsSnapshot = [];
+          voiceConsumedCounts = {};
+          if (voiceTranscriptPreview) {
+            voiceTranscriptPreview.textContent = "🎙️ Listening… Speak the verse aloud!";
+          }
+          updateVoiceMicUI();
+        };
+
+        rec.onresult = (event) => {
+          lastSpeechResultsSnapshot = event.results;
+          for (let r = event.resultIndex; r < event.results.length; r++) {
+            const res = event.results[r];
+            if (res && res[0]) {
+              processSpokenTranscript(res[0].transcript, r, !!res.isFinal);
+            }
+          }
+        };
+
+        rec.onerror = (event) => {
+          if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+            isVoiceListening = false;
+            updateVoiceMicUI();
+            if (voiceTranscriptPreview) {
+              voiceTranscriptPreview.textContent = "⚠️ Microphone permission denied. Please allow microphone access in your browser.";
+            }
+            showToast("Microphone Blocked", "Allow microphone access in your browser settings to use Voice Mode.", "🎙️");
+          } else if (event.error !== "no-speech" && event.error !== "aborted") {
+            if (voiceTranscriptPreview) {
+              voiceTranscriptPreview.textContent = `⚠️ Mic notice: ${event.error}. Retrying…`;
+            }
+          }
+        };
+
+        rec.onend = () => {
+          lastSpeechResultsSnapshot = [];
+          voiceConsumedCounts = {};
+          if (isVoiceMode && isVoiceListening && !isSpectator) {
+            try {
+              rec.lang = getSpeechRecognitionLang();
+              rec.start();
+              return;
+            } catch (_) {}
+          }
+          isVoiceListening = false;
+          updateVoiceMicUI();
+        };
+
+        return rec;
+      }
+
+      function startVoiceListening() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          if (voiceTranscriptPreview) {
+            voiceTranscriptPreview.textContent = "⚠️ Web Speech API is not supported in this browser (try Chrome, Edge, or Safari), or use '⏭ Word'.";
+          }
+          showToast("Browser Support", "Speech recognition requires Chrome, Edge, or Safari. You can still test with '⏭ Word'!", "🎙️");
+          updateVoiceMicUI();
+          return;
+        }
+        if (!speechRecognition) {
+          speechRecognition = initSpeechRecognition();
+        }
+        if (speechRecognition) {
+          try {
+            speechRecognition.lang = getSpeechRecognitionLang();
+            isVoiceListening = true;
+            speechRecognition.start();
+          } catch (_) {
+            // Already started
+          }
+        }
+        updateVoiceMicUI();
+      }
+
+      function stopVoiceListening() {
+        isVoiceListening = false;
+        if (speechRecognition) {
+          try {
+            speechRecognition.stop();
+          } catch (_) {}
+        }
+        if (voiceTranscriptPreview && isVoiceMode) {
+          voiceTranscriptPreview.textContent = "Mic paused. Click '🎙️ Start Mic' to resume speaking.";
+        }
+        updateVoiceMicUI();
+      }
+
+      function updateVoiceRecognitionLang() {
+        if (speechRecognition) {
+          speechRecognition.lang = getSpeechRecognitionLang();
+          if (isVoiceMode && isVoiceListening) {
+            try {
+              speechRecognition.stop(); // onend will auto-restart with the new lang
+            } catch (_) {}
+          }
+        }
+      }
+
+      function toggleVoiceMode(forceState) {
+        isVoiceMode = typeof forceState === "boolean" ? forceState : !isVoiceMode;
+        localStorage.setItem("voice_mode", String(isVoiceMode));
+        if (isVoiceMode) {
+          if (isSpectator) {
+            btnToggleSpectator.click();
+          }
+          updateVoiceMicUI();
+          startVoiceListening();
+          typingHint.innerHTML = "🎙️ <b>Voice Mode Active:</b> Speak the verse aloud (or type anytime) &middot; <kbd>Alt+V</kbd> toggle";
+        } else {
+          stopVoiceListening();
+          updateVoiceMicUI();
+          typingHint.innerHTML = "Type directly on the verse above. <kbd>Backspace</kbd> to fix mistakes &middot; <kbd>Enter</kbd> to submit.";
+          focusTyping();
+        }
+      }
+
+      if (btnToggleVoiceMode) {
+        btnToggleVoiceMode.onclick = () => toggleVoiceMode();
+      }
+
+      if (btnVoiceMic) {
+        btnVoiceMic.onclick = () => {
+          if (isVoiceListening) {
+            stopVoiceListening();
+          } else {
+            startVoiceListening();
+          }
+        };
+      }
+
+      if (btnVoiceSkipWord) {
+        btnVoiceSkipWord.onclick = () => {
+          skipNextWordInVoiceMode();
+        };
+      }
+
+      if (btnSpeakVerseTTS) {
+        btnSpeakVerseTTS.onclick = () => {
+          if (!currentTargetText || !("speechSynthesis" in window)) {
+            showToast("Text-to-Speech", "Speech synthesis is not available in this browser.", "🔊");
+            return;
+          }
+          if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            btnSpeakVerseTTS.textContent = "🔊 Hear Verse";
+            return;
+          }
+          const utter = new SpeechSynthesisUtterance(currentTargetText);
+          utter.lang = getSpeechRecognitionLang();
+          utter.rate = 0.95;
+          btnSpeakVerseTTS.textContent = "⏹ Stop Audio";
+          utter.onend = () => { btnSpeakVerseTTS.textContent = "🔊 Hear Verse"; };
+          utter.onerror = () => { btnSpeakVerseTTS.textContent = "🔊 Hear Verse"; };
+          window.speechSynthesis.speak(utter);
+        };
+      }
+
+      window.addEventListener("keydown", (e) => {
+        if (e.altKey && (e.key === "v" || e.key === "V")) {
+          e.preventDefault();
+          toggleVoiceMode();
+        }
+      });
+
+      // Initialize Voice Mode UI if previously enabled
+      if (isVoiceMode) {
+        updateVoiceMicUI();
+      }
 
       // ---- Spectator Mode Toggle ----
       btnToggleSpectator.onclick = () => {
@@ -4006,6 +4830,10 @@
             updateReviewLockUI(msg.review_locked);
             if (msg.stats) updateStatsUI(msg.stats, msg.wpm);
             updateNavigationState();
+            clearAllGhostCursors();
+            demonCheckpointIndex = 0;
+            demonPunctuationCount = 0;
+            syncedWordEndIndices.clear();
             renderTypingStage();
             if (msg.wild_demon) {
               setWildDemon(msg.wild_demon, msg.holy_wards);
@@ -4354,12 +5182,28 @@
 
           // Wild Roaming Demons & Resonance Combat Messages
           if (msg.type === "wild_demon_present" && msg.wild_demon) {
+            const wasAlreadyFighting = activeWildDemon && activeWildDemon.id === msg.wild_demon.id;
             setWildDemon(msg.wild_demon, msg.holy_wards);
-            if (msg.is_ambush) {
-              showToast("⚠️ Demonic Ambush!", `${msg.wild_demon.name} (Lv. ${msg.wild_demon.level || 1}) ambushed you! (Encounter chance: ${msg.encounter_chance || 0}% due to progress in ${selectedBook})`, "😈");
-            } else {
-              showToast("Wild Adversary Encounter!", `${msg.wild_demon.name} (Lv. ${msg.wild_demon.level || 1}) lurks on this verse! Match its slow pace to defeat it!`, "😈");
+            if (!wasAlreadyFighting) {
+              if (msg.is_ambush) {
+                showToast("⚠️ Demonic Ambush!", `${msg.wild_demon.name} (Lv. ${msg.wild_demon.level || 1}) ambushed you! (Encounter chance: ${msg.encounter_chance || 0}% due to progress in ${selectedBook})`, "😈");
+              } else {
+                showToast("Wild Adversary Encounter!", `${msg.wild_demon.name} (Lv. ${msg.wild_demon.level || 1}) lurks on this verse! Match its slow pace to defeat it!`, "😈");
+              }
             }
+          }
+
+          if (msg.type === "wild_demon_burst" && msg.wild_demon) {
+            const burstDmg = msg.burst_damage || msg.damage || 30;
+            pursuedDemonId = msg.wild_demon.id;
+            pursuedSyncStacks = currentSyncStacks;
+            if (activeWildDemon && activeWildDemon.id === msg.wild_demon.id) {
+              activeWildDemon.current_hp = msg.wild_demon.current_hp;
+              activeWildDemon.max_hp = msg.wild_demon.max_hp;
+              updateWildDemonHPUI(activeWildDemon);
+            }
+            showToast("💥 Passage Finish Burst!", msg.content || `Struck ${msg.wild_demon.name} for ${burstDmg} Burst Damage! Pursuing to next passage!`, "⚡");
+            appendMessage(`💥 ${msg.content || `Passage Finish Burst dealt ${burstDmg} DMG to ${msg.wild_demon.name}!`}`, "badge-notice");
           }
 
           if (msg.type === "wild_demon_update" && msg.wild_demon) {
@@ -4377,6 +5221,36 @@
 
           if (msg.type === "wild_demon_defeated") {
             onWildDemonDefeated(msg.wild_demon, msg.sanctuary, msg.content);
+          }
+
+          if (msg.type === "balance_config_update" && msg.balance_config) {
+            const b = msg.balance_config;
+            if (b.stacks_per_word !== undefined) DEMON_SYNC_BALANCE.stacksPerWord = b.stacks_per_word;
+            if (b.stacks_per_damage_tier !== undefined) DEMON_SYNC_BALANCE.stacksPerDamageTier = b.stacks_per_damage_tier;
+            if (b.flat_damage_per_tier !== undefined) DEMON_SYNC_BALANCE.flatDamagePerTier = b.flat_damage_per_tier;
+            if (b.damage_mult_per_tier !== undefined) DEMON_SYNC_BALANCE.damageMultPerTier = b.damage_mult_per_tier;
+            if (b.max_stacks !== undefined) DEMON_SYNC_BALANCE.maxStacks = b.max_stacks;
+            if (b.char_sync_tolerance !== undefined) DEMON_SYNC_BALANCE.charSyncTolerance = b.char_sync_tolerance;
+            if (b.punctuation_per_checkpoint !== undefined) DEMON_SYNC_BALANCE.punctuationPerCheckpoint = b.punctuation_per_checkpoint;
+            if (b.stacks_lost_on_backlash !== undefined) DEMON_SYNC_BALANCE.stacksLostOnBacklash = b.stacks_lost_on_backlash;
+            if (b.backlash_heal_pct !== undefined) DEMON_SYNC_BALANCE.backlashHealPct = b.backlash_heal_pct;
+            if (b.pace_adjust_threshold !== undefined) DEMON_SYNC_BALANCE.paceAdjustThreshold = b.pace_adjust_threshold;
+            if (b.pace_step_chars !== undefined) DEMON_SYNC_BALANCE.paceStepChars = b.pace_step_chars;
+            if (b.pace_wpm_per_step !== undefined) DEMON_SYNC_BALANCE.paceWpmPerStep = b.pace_wpm_per_step;
+            if (b.min_demon_wpm !== undefined) DEMON_SYNC_BALANCE.minDemonWpm = b.min_demon_wpm;
+            if (b.max_demon_wpm_bonus !== undefined) DEMON_SYNC_BALANCE.maxDemonWpmBonus = b.max_demon_wpm_bonus;
+            if (b.max_demon_wpm_reduction !== undefined) DEMON_SYNC_BALANCE.maxDemonWpmReduction = b.max_demon_wpm_reduction;
+            if (b.passage_burst_base_damage !== undefined) DEMON_SYNC_BALANCE.passageBurstBaseDamage = b.passage_burst_base_damage;
+            if (b.passage_burst_per_char_ahead !== undefined) DEMON_SYNC_BALANCE.passageBurstPerCharAhead = b.passage_burst_per_char_ahead;
+            if (b.passage_burst_max_char_bonus !== undefined) DEMON_SYNC_BALANCE.passageBurstMaxCharBonus = b.passage_burst_max_char_bonus;
+            if (b.passage_burst_per_sync_stack !== undefined) DEMON_SYNC_BALANCE.passageBurstPerSyncStack = b.passage_burst_per_sync_stack;
+            if (b.passage_burst_multiplier !== undefined) DEMON_SYNC_BALANCE.passageBurstMultiplier = b.passage_burst_multiplier;
+            if (b.min_passage_burst_damage !== undefined) DEMON_SYNC_BALANCE.minPassageBurstDamage = b.min_passage_burst_damage;
+            if (b.max_passage_burst_damage !== undefined) DEMON_SYNC_BALANCE.maxPassageBurstDamage = b.max_passage_burst_damage;
+            updateBurstDamageBadge();
+            updateCheckpointBadge();
+            updateSyncStacksBadge();
+            checkHolyResonance();
           }
 
           if (msg.type === "wild_demons_list") {
@@ -4410,9 +5284,17 @@
           }
 
           if (msg.type === "wild_demon_escaped" && msg.wild_demon) {
-            if (activeWildDemon && activeWildDemon.id === msg.wild_demon.id) {
-              clearWildDemon();
-              showToast("Adversary Prowled Onward!", msg.content || `${msg.wild_demon.name} completed this verse and moved to the next passage!`, "🏃😈");
+            const movedToCurrentVerse = currentMode === "verse" && currentVerseObj && msg.verse &&
+              msg.verse.book_name === currentVerseObj.book_name &&
+              msg.verse.chapter === currentVerseObj.chapter &&
+              msg.verse.verse === currentVerseObj.verse;
+            if (movedToCurrentVerse) {
+              setWildDemon(msg.wild_demon, currentHolyWards);
+              showToast("Adversary Arrived!", `${msg.wild_demon.name} prowled onto this passage (${msg.wild_demon.current_hp}/${msg.wild_demon.max_hp} HP)!`, "😈");
+              appendMessage(`⚠️ ${msg.content}`, "error-notice");
+            } else if (activeWildDemon && activeWildDemon.id === msg.wild_demon.id) {
+              clearWildDemon(true);
+              showToast("Adversary Prowled Onward!", msg.content || `${msg.wild_demon.name} completed this verse and moved to the next passage! Finish this verse to pursue!`, "🏃😈");
               appendMessage(`⚠️ ${msg.content}`, "error-notice");
             }
           }
@@ -4506,6 +5388,8 @@
         currentMode = mode;
         clearDemonEffects();
         if (mode !== "verse") {
+          clearWildDemon();
+          clearAllGhostCursors();
           modeBanner.classList.add("active");
           modeBannerText.textContent = bannerText;
           btnExitMode.style.display = (isIntroMandatory && mode === "intro") ? "none" : "block";
@@ -4863,6 +5747,7 @@
           { id: "review_scholar", icon: "🎓", name: "Epilogue Scholar", desc: "Typed a Book Review" },
           { id: "favorite_typist", icon: "🕊️", name: "Heart Inscription", desc: "Practiced a favorite passage" },
           { id: "daily_racer", icon: "🏆", name: "Daily Champion", desc: "Completed Verse of the Day race" },
+          { id: "voice_herald", icon: "🎙️", name: "Voice of the Herald", desc: "Proclaimed Scripture aloud in Voice Mode" },
           { id: "pentateuch_master", icon: "📜", name: "Pentateuch Pioneer", desc: "Completed Genesis to Deuteronomy" },
           { id: "gospel_bearer", icon: "🕊️", name: "Gospel Bearer", desc: "Completed all 4 Gospels" },
         ];

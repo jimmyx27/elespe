@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elespe · Sanctuary Admin & Telemetry Console</title>
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+  <style>
+    :root {
+      --bg: #090d16;
+      --bg-card: #111827;
+      --bg-soft: #1e293b;
+      --border: rgba(148, 163, 184, 0.18);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #a855f7;
+      --cyan: #38bdf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      background: radial-gradient(circle at top right, #1e1b4b 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Login Gate */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 430px;
+      background: rgba(17, 24, 39, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(12px);
+    }
+    .login-card h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .login-card p {
+      margin: 0 0 1.25rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    input[type="text"], input[type="password"], input[type="number"], select, textarea {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
+      color: var(--text);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #fff;
+      background: var(--accent);
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-sm { padding: 0.32rem 0.65rem; font-size: 0.76rem; border-radius: 6px; }
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .btn-ghost:hover { background: rgba(255, 255, 255, 0.12); }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.5); color: #fca5a5; }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.35); }
+    .btn-success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.5); color: #86efac; }
+    .btn-success:hover { background: rgba(34, 197, 94, 0.35); }
+    .btn-warning { background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.5); color: #fde047; }
+    .btn-warning:hover { background: rgba(245, 158, 11, 0.35); }
+
+    /* Top Header */
+    .admin-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(9, 13, 22, 0.92);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+    }
+
+    /* Tabs Navigation */
+    .admin-nav {
+      display: flex;
+      gap: 0.4rem;
+      padding: 0.75rem 1.5rem 0;
+      border-bottom: 1px solid var(--border);
+      background: rgba(17, 24, 39, 0.6);
+      overflow-x: auto;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      padding: 0.65rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--cyan);
+      border-bottom-color: var(--cyan);
+      background: rgba(56, 189, 248, 0.08);
+      border-radius: 8px 8px 0 0;
+    }
+
+    /* Main Content Container */
+    .admin-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Cards & Grids */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.15rem;
+    }
+    .kpi-card .kpi-label {
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .kpi-card .kpi-val {
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .kpi-card .kpi-sub {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-header h2 {
+      margin: 0;
+      font-size: 1.02rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 1.25rem;
+    }
+    .param-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 0.85rem;
+    }
+    .param-item {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.7rem 0.85rem;
+    }
+    .param-item label {
+      display: block;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin-bottom: 0.25rem;
+    }
+    .param-item .param-hint {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+      line-height: 1.3;
+    }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+    th {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      background: rgba(15, 23, 42, 0.5);
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    /* Toast Notification */
+    #adminToast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 999;
+      background: #1e293b;
+      border: 1px solid var(--cyan);
+      color: #fff;
+      padding: 0.8rem 1.2rem;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: none;
+    }
+    @media (max-width: 640px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Secure Login View -->
+  <div id="loginView" class="login-wrap" style="display: none;">
+    <div class="login-card">
+      <h1>🛡️ Sanctuary Admin Console</h1>
+      <p>Restricted access. Authenticate with your administrator credentials to manage live parameters, analytics, entities, and diagnostics.</p>
+      <div id="loginErrorBox" style="display: none; background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1rem;"></div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="loginUsername">Admin Username</label>
+          <input type="text" id="loginUsername" value="admin" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Admin Password / Token</label>
+          <input type="password" id="loginPassword" placeholder="Enter admin password..." autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn" style="width: 100%; margin-top: 0.4rem;">🔓 Authenticate & Enter Console</button>
+      </form>
+      <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--muted); line-height: 1.45;">
+        💡 <b>Tip:</b> Set <code>ADMIN_USERNAME</code> &amp; <code>ADMIN_PASSWORD</code> environment variables, or check <code>.elespe/admin_password.txt</code> for the auto-generated local password.
+        <div style="margin-top: 0.5rem;"><a href="/">← Return to Elespe Scripture Typing</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Authenticated Admin Console View -->
+  <div id="consoleView" style="display: none;">
+    <header class="admin-header">
+      <div class="brand">
+        <span>🛡️ Elespe Admin Console</span>
+        <span class="status-pill" id="headerStatusPill">● ONLINE</span>
+        <span style="font-size: 0.78rem; color: var(--muted); font-weight: 500;" id="headerSubStats">Uptime: — · 0 Clients · 0 Demons</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;">
+        <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--muted); cursor: pointer;">
+          <input type="checkbox" id="autoRefreshToggle" checked /> Auto-refresh (5s)
+        </label>
+        <button type="button" class="btn btn-sm btn-ghost" id="btnRefreshNow">↻ Refresh</button>
+        <a href="/" class="btn btn-sm btn-ghost">📖 Open App</a>
+        <button type="button" class="btn btn-sm btn-danger" id="btnLogout">Sign Out</button>
+      </div>
+    </header>
+
+    <nav class="admin-nav">
+      <button class="tab-btn active" data-tab="tabOverview">📊 Overview &amp; Analytics</button>
+      <button class="tab-btn" data-tab="tabParams">⚙️ Options &amp; Parameters</button>
+      <button class="tab-btn" data-tab="tabWorld">👹 World &amp; Live Entities</button>
+      <button class="tab-btn" data-tab="tabUsers">👥 Users &amp; Moderation</button>
+      <button class="tab-btn" data-tab="tabDebug">🐛 Debug &amp; Telemetry</button>
+      <button class="tab-btn" data-tab="tabSecurity">🔒 Security &amp; Audit Log</button>
+    </nav>
+
+    <main class="admin-container">
+
+      <!-- TAB 1: OVERVIEW & ANALYTICS -->
+      <div id="tabOverview" class="tab-pane active">
+        <div class="kpi-grid" id="overviewKpiGrid"></div>
+
+        <div class="grid-2">
+          <div class="section-card">
+            <div class="section-header">
+              <h2>📈 14-Day Activity &amp; WPM Trend</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date (UTC)</th>
+                    <th>Sessions</th>
+                    <th>Chars Typed</th>
+                    <th>Avg WPM</th>
+                  </tr>
+                </thead>
+                <tbody id="dailyTrendBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <h2>🌐 Translations &amp; Speed Distribution</h2>
+            </div>
+            <h3 style="font-size: 0.82rem; color: var(--muted); margin: 0 0 0.5rem;">Sessions by Bible Translation</h3>
+            <div id="translationsBreakdownBox" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem;"></div>
+
+            <h3 style="font-size: 0.82rem; color: var(--muted); margin: 0 0 0.5rem;">Typing Speed (WPM) Distribution</h3>
+            <div id="wpmDistributionBox" style="display: flex; flex-direction: column; gap: 0.45rem;"></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="section-card">
+            <div class="section-header">
+              <h2>📚 Top 15 Most-Typed Books</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Book</th>
+                    <th>Sessions</th>
+                    <th>Total Chars</th>
+                    <th>Avg WPM</th>
+                  </tr>
+                </thead>
+                <tbody id="topBooksBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <h2>📜 Top 15 Most-Completed Verses</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Translation : Reference</th>
+                    <th>Global Completions</th>
+                  </tr>
+                </thead>
+                <tbody id="topVersesBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: OPTIONS & PARAMETERS -->
+      <div id="tabParams" class="tab-pane">
+        <div class="section-card">
+          <div class="section-header">
+            <h2>💥 Passage Finish Burst Damage &amp; Demon Sync Balance</h2>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-warning" id="btnResetParams">↺ Reset to Defaults</button>
+              <button type="button" class="btn btn-sm btn-success" id="btnSaveParamsTop">💾 Save &amp; Broadcast Live</button>
+            </div>
+          </div>
+
+          <h3 style="font-size: 0.85rem; color: var(--purple); margin: 0 0 0.65rem;">1. Passage Finish Burst Damage Parameters (Applied when user finishes passage before demon)</h3>
+          <div class="param-grid" style="margin-bottom: 1.25rem;">
+            <div class="param-item">
+              <label>Base Burst Damage</label>
+              <input type="number" id="p_passage_burst_base_damage" min="1" max="1000" />
+              <div class="param-hint">Default base burst damage when finishing before a demon (default: 30)</div>
+            </div>
+            <div class="param-item">
+              <label>Bonus Per Char Ahead</label>
+              <input type="number" id="p_passage_burst_per_char_ahead" min="0" max="50" />
+              <div class="param-hint">Extra burst damage per character lead over the demon (default: 1)</div>
+            </div>
+            <div class="param-item">
+              <label>Max Char Lead Bonus</label>
+              <input type="number" id="p_passage_burst_max_char_bonus" min="0" max="500" />
+              <div class="param-hint">Cap on bonus damage from character lead (default: 30)</div>
+            </div>
+            <div class="param-item">
+              <label>Bonus Per Sync Stack</label>
+              <input type="number" id="p_passage_burst_per_sync_stack" min="0" max="50" />
+              <div class="param-hint">Extra burst damage per active Sync Stack on finish (default: 2)</div>
+            </div>
+            <div class="param-item">
+              <label>Burst Damage Multiplier</label>
+              <input type="number" step="0.05" id="p_passage_burst_multiplier" min="0.1" max="10" />
+              <div class="param-hint">Global multiplier applied to passage finish burst (default: 1.0)</div>
+            </div>
+            <div class="param-item">
+              <label>Min Adjustable Burst Floor</label>
+              <input type="number" id="p_min_passage_burst_damage" min="1" max="500" />
+              <div class="param-hint">Minimum allowed burst damage value (default: 5)</div>
+            </div>
+            <div class="param-item">
+              <label>Max Adjustable Burst Cap</label>
+              <input type="number" id="p_max_passage_burst_damage" min="10" max="5000" />
+              <div class="param-hint">Maximum allowed burst damage cap (default: 300)</div>
+            </div>
+          </div>
+
+          <h3 style="font-size: 0.85rem; color: var(--warning); margin: 0 0 0.65rem;">2. Sync Stacks, Radiance Window &amp; Punctuation Checkpoints</h3>
+          <div class="param-grid" style="margin-bottom: 1.25rem;">
+            <div class="param-item">
+              <label>Radiance Char Tolerance (±)</label>
+              <input type="number" id="p_char_sync_tolerance" min="1" max="50" />
+              <div class="param-hint">Max char distance from demon cursor for Holy Radiance (default: 5)</div>
+            </div>
+            <div class="param-item">
+              <label>Stacks Gained Per Synced Word</label>
+              <input type="number" id="p_stacks_per_word" min="1" max="20" />
+              <div class="param-hint">Sync stacks earned per word completed in radiance (default: 1)</div>
+            </div>
+            <div class="param-item">
+              <label>Stacks Per Damage Tier</label>
+              <input type="number" id="p_stacks_per_damage_tier" min="1" max="50" />
+              <div class="param-hint">Stacks required per damage tier upgrade (default: 5)</div>
+            </div>
+            <div class="param-item">
+              <label>Flat Damage Bonus Per Tier</label>
+              <input type="number" id="p_flat_damage_per_tier" min="0" max="50" />
+              <div class="param-hint">Flat bonus damage per tier (default: 1)</div>
+            </div>
+            <div class="param-item">
+              <label>Damage Multiplier Per Tier</label>
+              <input type="number" step="0.05" id="p_damage_mult_per_tier" min="0" max="5" />
+              <div class="param-hint">Percentage damage boost per tier, e.g. 0.25 = +25% (default: 0.25)</div>
+            </div>
+            <div class="param-item">
+              <label>Max Sync Stacks Cap (0 = ∞)</label>
+              <input type="number" id="p_max_stacks" min="0" max="500" />
+              <div class="param-hint">Maximum sync stacks cap; 0 means uncapped (default: 0)</div>
+            </div>
+            <div class="param-item">
+              <label>Punctuation Per Checkpoint</label>
+              <input type="number" id="p_punctuation_per_checkpoint" min="1" max="20" />
+              <div class="param-hint">Punctuation marks typed to lock in a checkpoint (default: 2)</div>
+            </div>
+            <div class="param-item">
+              <label>Stacks Lost on Backlash</label>
+              <input type="number" id="p_stacks_lost_on_backlash" min="0" max="50" />
+              <div class="param-hint">Sync stacks lost on unwarded mistake backlash (default: 2)</div>
+            </div>
+            <div class="param-item">
+              <label>Demon Heal % on Backlash</label>
+              <input type="number" step="0.01" id="p_backlash_heal_pct" min="0" max="1" />
+              <div class="param-hint">Fraction of MaxHP demon heals on mistake (default: 0.10)</div>
+            </div>
+          </div>
+
+          <h3 style="font-size: 0.85rem; color: var(--cyan); margin: 0 0 0.65rem;">3. Dynamic Demon WPM Pacing</h3>
+          <div class="param-grid" style="margin-bottom: 1.25rem;">
+            <div class="param-item">
+              <label>Pace Adjust Threshold (Chars)</label>
+              <input type="number" id="p_pace_adjust_threshold" min="1" max="50" />
+              <div class="param-hint">Chars ahead/behind where demon speeds up or slows down (default: 5)</div>
+            </div>
+            <div class="param-item">
+              <label>Chars Per Pace Step</label>
+              <input type="number" id="p_pace_step_chars" min="1" max="30" />
+              <div class="param-hint">Additional chars beyond threshold per WPM step (default: 3)</div>
+            </div>
+            <div class="param-item">
+              <label>WPM Delta Per Step</label>
+              <input type="number" id="p_pace_wpm_per_step" min="1" max="20" />
+              <div class="param-hint">WPM added/subtracted per step ahead/behind (default: 2)</div>
+            </div>
+            <div class="param-item">
+              <label>Minimum Demon WPM Floor</label>
+              <input type="number" id="p_min_demon_wpm" min="1" max="100" />
+              <div class="param-hint">Minimum WPM floor when easing pace for slower typists (default: 6)</div>
+            </div>
+            <div class="param-item">
+              <label>Max Demon WPM Surge Bonus</label>
+              <input type="number" id="p_max_demon_wpm_bonus" min="0" max="100" />
+              <div class="param-hint">Maximum bonus WPM above base when user surges ahead (default: 18)</div>
+            </div>
+            <div class="param-item">
+              <label>Max Demon WPM Eased Reduction</label>
+              <input type="number" id="p_max_demon_wpm_reduction" min="0" max="50" />
+              <div class="param-hint">Maximum WPM reduction below base when user falls behind (default: 8)</div>
+            </div>
+          </div>
+
+          <h3 style="font-size: 0.85rem; color: var(--success); margin: 0 0 0.65rem;">4. World Spawning, Encounters &amp; Feature Options</h3>
+          <div class="param-grid">
+            <div class="param-item">
+              <label>Max Wild Demons Cap</label>
+              <input type="number" id="opt_max_wild_demons" min="1" max="2000" />
+              <div class="param-hint">Global cap on roaming wild demons (default: 666)</div>
+            </div>
+            <div class="param-item">
+              <label>Spawn Interval Override (sec)</label>
+              <input type="number" id="opt_spawn_interval_override_sec" min="0" max="3600" />
+              <div class="param-hint">0 = Dynamic Inverse-Pressure (45s–360s); &gt;0 forces fixed seconds</div>
+            </div>
+            <div class="param-item">
+              <label>Demon Evolution Interval (sec)</label>
+              <input type="number" id="opt_evolve_interval_sec" min="10" max="7200" />
+              <div class="param-hint">Seconds before an uncontested demon levels up (default: 600)</div>
+            </div>
+            <div class="param-item">
+              <label>Base Ambush Chance (0–1)</label>
+              <input type="number" step="0.01" id="opt_encounter_base_chance" min="0" max="1" />
+              <div class="param-hint">Starting encounter probability in a book (default: 0.04)</div>
+            </div>
+            <div class="param-item">
+              <label>Max Ambush Chance (0–1)</label>
+              <input type="number" step="0.01" id="opt_encounter_max_chance" min="0" max="1" />
+              <div class="param-hint">Maximum encounter probability cap (default: 0.50)</div>
+            </div>
+            <div class="param-item">
+              <label>Peaceful Opening Verses</label>
+              <input type="number" id="opt_encounter_peaceful_intro_verses" min="0" max="50" />
+              <div class="param-hint">Initial verses in any book with 0% ambush chance (default: 2)</div>
+            </div>
+            <div class="param-item">
+              <label>Global Angel (Big Mike) WPM</label>
+              <input type="number" id="opt_global_angel_wpm" min="10" max="500" />
+              <div class="param-hint">Cruising typing speed of Big Mike across Scripture (default: 160)</div>
+            </div>
+            <div class="param-item">
+              <label>Feature Toggles</label>
+              <div style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.3rem; font-size: 0.78rem;">
+                <label style="display:flex; align-items:center; gap:0.4rem; margin:0;"><input type="checkbox" id="opt_mandatory_book_intro" /> Mandatory Book Intro</label>
+                <label style="display:flex; align-items:center; gap:0.4rem; margin:0;"><input type="checkbox" id="opt_voice_mode_enabled" /> Voice Mode Enabled</label>
+                <label style="display:flex; align-items:center; gap:0.4rem; margin:0;"><input type="checkbox" id="opt_chat_enabled" /> Fellowship Chat Enabled</label>
+                <label style="display:flex; align-items:center; gap:0.4rem; margin:0;"><input type="checkbox" id="opt_comments_enabled" /> Verse Reflections Enabled</label>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 1.25rem; display: flex; justify-content: flex-end; gap: 0.6rem;">
+            <button type="button" class="btn btn-success" id="btnSaveParamsBottom">💾 Save All Options &amp; Broadcast Live</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: WORLD & LIVE ENTITIES -->
+      <div id="tabWorld" class="tab-pane">
+        <div class="grid-2">
+          <div class="section-card">
+            <div class="section-header">
+              <h2>⚡ Live World Controls &amp; Swarms</h2>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.55rem; margin-bottom: 1rem;">
+              <button type="button" class="btn btn-sm btn-warning" onclick="runAdminAction({action:'trigger_mini_swarm'})">🔥 Trigger Mini-Swarm (12-18)</button>
+              <button type="button" class="btn btn-sm btn-danger" onclick="runAdminAction({action:'trigger_major_swarm'})">⚡ Trigger Major Swarm (40-66)</button>
+              <button type="button" class="btn btn-sm btn-ghost" onclick="runAdminAction({action:'evolve_demons'})">⬆️ Force Evolve Living Demons</button>
+              <button type="button" class="btn btn-sm btn-ghost" onclick="runAdminAction({action:'reset_demons'})">🔄 Reset to Default 7 Demons</button>
+              <button type="button" class="btn btn-sm btn-success" onclick="runAdminAction({action:'slay_all_demons'})">✝️ Purge All Wild Demons</button>
+            </div>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 0.9rem; margin-top: 0.5rem;">
+              <label style="font-size: 0.76rem; font-weight: 700; color: var(--muted); display: block; margin-bottom: 0.35rem;">📣 Broadcast System Announcement Banner to All Players</label>
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="text" id="broadcastMsgInput" placeholder="Enter fellowship decree or maintenance message..." />
+                <button type="button" class="btn btn-sm" id="btnSendBroadcast">Broadcast</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <h2>😈 Summon Custom Wild Demon</h2>
+            </div>
+            <div class="param-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem;">
+              <div>
+                <label style="font-size:0.72rem; color:var(--muted);">Book (blank=random)</label>
+                <input type="text" id="spawnBook" placeholder="Genesis" />
+              </div>
+              <div>
+                <label style="font-size:0.72rem; color:var(--muted);">Chapter</label>
+                <input type="number" id="spawnChapter" placeholder="3" min="1" />
+              </div>
+              <div>
+                <label style="font-size:0.72rem; color:var(--muted);">Verse</label>
+                <input type="number" id="spawnVerse" placeholder="1" min="1" />
+              </div>
+              <div>
+                <label style="font-size:0.72rem; color:var(--muted);">Rank</label>
+                <select id="spawnRank">
+                  <option value="imp">Imp</option>
+                  <option value="fiend" selected>Fiend</option>
+                  <option value="tormentor">Tormentor</option>
+                  <option value="apollyon">Apollyon</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:0.72rem; color:var(--muted);">Level (1-5)</label>
+                <input type="number" id="spawnLevel" value="2" min="1" max="5" />
+              </div>
+              <div>
+                <label style="font-size:0.72rem; color:var(--muted);">WPM</label>
+                <input type="number" id="spawnWPM" value="16" min="6" max="120" />
+              </div>
+              <div>
+                <label style="font-size:0.72rem; color:var(--muted);">Max HP</label>
+                <input type="number" id="spawnHP" value="220" min="20" max="5000" />
+              </div>
+              <div>
+                <label style="font-size:0.72rem; color:var(--muted);">Custom Name</label>
+                <input type="text" id="spawnName" placeholder="Optional..." />
+              </div>
+            </div>
+            <div style="margin-top: 0.75rem; display: flex; justify-content: flex-end;">
+              <button type="button" class="btn btn-sm btn-danger" id="btnSpawnCustomDemon">➕ Spawn Wild Demon</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h2>⚔️ Active Boss Raid Configuration</h2>
+            <span id="bossRaidStatusBadge" style="font-size: 0.8rem; color: var(--warning); font-weight: 700;"></span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+            <div style="min-width: 180px;">
+              <label style="font-size:0.72rem; color:var(--muted); display:block; margin-bottom:0.25rem;">Boss Entity</label>
+              <select id="bossTypeSelect">
+                <option value="michael">⚔️ Big Mike (Celestial Trial)</option>
+                <option value="apollyon">👑🔥 Apollyon (Demon Boss)</option>
+              </select>
+            </div>
+            <div style="width: 110px;">
+              <label style="font-size:0.72rem; color:var(--muted); display:block; margin-bottom:0.25rem;">Level (1-4)</label>
+              <input type="number" id="bossLevelInput" value="2" min="1" max="4" />
+            </div>
+            <div style="width: 140px;">
+              <label style="font-size:0.72rem; color:var(--muted); display:block; margin-bottom:0.25rem;">Custom HP (optional)</label>
+              <input type="number" id="bossHPInput" placeholder="Default" min="100" />
+            </div>
+            <div style="width: 140px;">
+              <label style="font-size:0.72rem; color:var(--muted); display:block; margin-bottom:0.25rem;">Custom WPM (optional)</label>
+              <input type="number" id="bossWPMInput" placeholder="Default" min="20" />
+            </div>
+            <button type="button" class="btn btn-sm" id="btnResetBossRaid">🔄 Reset / Launch Boss Raid</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h2>👺 Active Roaming Wild Demons (<span id="wildDemonsCountLabel">0</span>)</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Demon</th>
+                  <th>Rank / Lv</th>
+                  <th>Location</th>
+                  <th>CharIdx</th>
+                  <th>WPM (Base)</th>
+                  <th>HP</th>
+                  <th>Enrage</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="wildDemonsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: USERS & MODERATION -->
+      <div id="tabUsers" class="tab-pane">
+        <div class="section-card">
+          <div class="section-header">
+            <h2>👥 Users &amp; Scribe Accounts (<span id="usersCountLabel">0</span>)</h2>
+            <input type="text" id="userSearchInput" placeholder="Filter by UID, username, display name, or email..." style="max-width: 320px;" />
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>UID</th>
+                  <th>Identity</th>
+                  <th>Streak</th>
+                  <th>Verses / Chars</th>
+                  <th>Top / Avg WPM</th>
+                  <th>Guardian Lv / Power</th>
+                  <th>Demons Slain</th>
+                  <th>Burst DMG</th>
+                  <th>Adjust</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="section-card">
+            <div class="section-header">
+              <h2>💬 Recent &amp; Flagged Verse Reflections</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Verse</th>
+                    <th>Content</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="commentsTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <h2>🕊️ Recent Fellowship Chat Messages</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Channel</th>
+                    <th>User</th>
+                    <th>Message</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="chatTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: DEBUG & TELEMETRY -->
+      <div id="tabDebug" class="tab-pane">
+        <div class="section-card">
+          <div class="section-header">
+            <h2>🖥️ Go Runtime, Memory &amp; Storage Diagnostics</h2>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-ghost" onclick="runAdminAction({action:'force_gc'})">🧹 Force GC &amp; Free Memory</button>
+              <button type="button" class="btn btn-sm" id="btnExportSnapshot">📥 Export Debug JSON</button>
+            </div>
+          </div>
+          <div class="kpi-grid" id="debugMetricsGrid" style="margin-bottom: 0;"></div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h2>🔌 Live Connected WebSocket Clients (<span id="connectedClientsCount">0</span>)</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>UID</th>
+                  <th>Display Name</th>
+                  <th>Trans</th>
+                  <th>Current Passage</th>
+                  <th>Char Index</th>
+                  <th>Live WPM</th>
+                  <th>Mode</th>
+                  <th>Streak</th>
+                </tr>
+              </thead>
+              <tbody id="connectedClientsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h2>📦 Loaded Scripture Datasets</h2>
+          </div>
+          <div id="loadedDatasetsBox" style="display: flex; flex-wrap: wrap; gap: 0.6rem;"></div>
+        </div>
+      </div>
+
+      <!-- TAB 6: SECURITY & AUDIT LOG -->
+      <div id="tabSecurity" class="tab-pane">
+        <div class="grid-2">
+          <div class="section-card">
+            <div class="section-header">
+              <h2>🔑 Update Admin Credentials</h2>
+            </div>
+            <form id="changePasswordForm">
+              <div class="form-group">
+                <label>Current Password</label>
+                <input type="password" id="secCurrentPassword" required />
+              </div>
+              <div class="form-group">
+                <label>New Admin Username</label>
+                <input type="text" id="secNewUsername" value="admin" required />
+              </div>
+              <div class="form-group">
+                <label>New Admin Password (min 8 chars)</label>
+                <input type="password" id="secNewPassword" minlength="8" required />
+              </div>
+              <button type="submit" class="btn btn-sm btn-success">🔒 Update Credentials &amp; Revoke Other Sessions</button>
+            </form>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <h2>🛡️ Active Admin Sessions</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Token</th>
+                    <th>User</th>
+                    <th>IP Address</th>
+                    <th>Expires (UTC)</th>
+                  </tr>
+                </thead>
+                <tbody id="adminSessionsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h2>📋 Security &amp; Admin Audit Log</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Timestamp (UTC)</th>
+                  <th>Actor</th>
+                  <th>IP</th>
+                  <th>Action</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="auditLogBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div id="adminToast"></div>
+
+  <script>
+    let csrfToken = "";
+    let lastDashboardData = null;
+    let refreshTimer = null;
+    let paramsDirty = false;
+
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return "";
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function showAdminToast(msg, isError = false) {
+      const el = document.getElementById("adminToast");
+      el.textContent = msg;
+      el.style.borderColor = isError ? "#ef4444" : "#38bdf8";
+      el.style.display = "block";
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => { el.style.display = "none"; }, 3800);
+    }
+
+    async function apiFetch(url, options = {}) {
+      const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+      const res = await fetch(url, Object.assign({}, options, { headers, credentials: "same-origin" }));
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        showLoginView();
+        throw new Error(data.error || "Session expired. Please sign in again.");
+      }
+      if (!res.ok) {
+        throw new Error(data.error || `Request failed (${res.status})`);
+      }
+      return data;
+    }
+
+    function showLoginView() {
+      document.getElementById("consoleView").style.display = "none";
+      document.getElementById("loginView").style.display = "flex";
+    }
+
+    function showConsoleView() {
+      document.getElementById("loginView").style.display = "none";
+      document.getElementById("consoleView").style.display = "block";
+    }
+
+    // Tab switching
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".tab-pane").forEach((p) => p.classList.remove("active"));
+        btn.classList.add("active");
+        const pane = document.getElementById(btn.getAttribute("data-tab"));
+        if (pane) pane.classList.add("active");
+      });
+    });
+
+    // Track if parameter inputs have unsaved edits so auto-refresh doesn't overwrite typing
+    document.getElementById("tabParams").addEventListener("input", () => {
+      paramsDirty = true;
+    });
+
+    async function loadDashboard(forcePopulateParams = false) {
+      try {
+        const data = await apiFetch("/api/admin/dashboard");
+        lastDashboardData = data;
+        if (data.csrf_token) csrfToken = data.csrf_token;
+        showConsoleView();
+        renderDashboard(data, forcePopulateParams);
+      } catch (err) {
+        console.warn("Dashboard load notice:", err.message);
+      }
+    }
+
+    function renderDashboard(data, forcePopulateParams) {
+      const an = data.analytics || {};
+      const dbg = data.debug || {};
+      const opts = data.options || {};
+
+      // Header bar
+      document.getElementById("headerSubStats").textContent =
+        `Uptime: ${dbg.uptime_human || "—"} · ${an.online_connections || 0} Online · ${(dbg.wild_demons || []).length} Wild Demons · ${dbg.mem_alloc_mb || 0} MB RAM`;
+
+      // 1. Overview KPIs
+      const kpis = [
+        { label: "Active Connections", val: an.online_connections || 0, sub: `${an.active_users_today || 0} active today · ${an.active_users_7d || 0} in 7d` },
+        { label: "Total Users", val: an.total_unique_users || 0, sub: `${an.total_registered_accounts || 0} registered accounts` },
+        { label: "Verses Completed", val: (an.total_verses_completed || 0).toLocaleString(), sub: `${(an.total_chars_typed || 0).toLocaleString()} total chars` },
+        { label: "Typing Sessions", val: (an.total_sessions || 0).toLocaleString(), sub: `${an.sessions_today || 0} today · ${an.sessions_last_hour || 0} last hr` },
+        { label: "Global Speed", val: `${an.global_avg_wpm || 0} WPM`, sub: `Peak: ${an.global_top_wpm || 0} WPM · ${an.total_typing_hours || 0} hrs typed` },
+        { label: "Demons Exorcised", val: (an.total_demons_defeated || 0).toLocaleString(), sub: `${(dbg.wild_demons || []).length} currently roaming` },
+        { label: "Community Reflections", val: an.total_comments || 0, sub: `${an.flagged_comments_count || 0} flagged · ${an.total_chat_messages || 0} chat msgs` },
+        { label: "Favorites & Badges", val: `${an.total_favorites || 0} / ${an.total_badges_awarded || 0}`, sub: `${an.total_daily_races || 0} daily race entries` }
+      ];
+      document.getElementById("overviewKpiGrid").innerHTML = kpis.map((k) => `
+        <div class="kpi-card">
+          <div class="kpi-label">${escapeHtml(k.label)}</div>
+          <div class="kpi-val">${escapeHtml(k.val)}</div>
+          <div class="kpi-sub">${escapeHtml(k.sub)}</div>
+        </div>
+      `).join("");
+
+      // Daily Trend
+      const trendRows = (an.daily_trend || []).slice().reverse();
+      document.getElementById("dailyTrendBody").innerHTML = trendRows.map((r) => `
+        <tr>
+          <td><b>${escapeHtml(r.date)}</b></td>
+          <td>${r.sessions}</td>
+          <td>${(r.chars || 0).toLocaleString()}</td>
+          <td>${r.avg_wpm} WPM</td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" style="color:var(--muted);">No sessions recorded yet</td></tr>`;
+
+      // Translations breakdown
+      const trMap = an.translations_breakdown || {};
+      const trEntries = Object.entries(trMap).sort((a, b) => b[1] - a[1]);
+      document.getElementById("translationsBreakdownBox").innerHTML = trEntries.length
+        ? trEntries.map(([tr, cnt]) => `
+            <span class="badge" style="background:rgba(99,102,241,0.2); border:1px solid rgba(99,102,241,0.45); color:#c7d2fe; padding:0.35rem 0.7rem; font-size:0.78rem;">
+              ${escapeHtml(tr.toUpperCase())}: <b>${cnt}</b>
+            </span>
+          `).join("")
+        : `<span style="color:var(--muted); font-size:0.8rem;">No session translation data yet</span>`;
+
+      // WPM distribution
+      const wpmDist = an.wpm_distribution || {};
+      const maxBucket = Math.max(1, ...Object.values(wpmDist));
+      document.getElementById("wpmDistributionBox").innerHTML = Object.entries(wpmDist).map(([bucket, count]) => {
+        const pct = Math.round((count / maxBucket) * 100);
+        return `
+          <div style="display:flex; align-items:center; gap:0.6rem; font-size:0.78rem;">
+            <span style="width:95px; color:var(--muted); font-weight:600;">${escapeHtml(bucket)}</span>
+            <div style="flex:1; height:8px; background:rgba(255,255,255,0.06); border-radius:999px; overflow:hidden;">
+              <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #6366f1, #38bdf8);"></div>
+            </div>
+            <span style="width:40px; text-align:right; font-weight:700;">${count}</span>
+          </div>
+        `;
+      }).join("");
+
+      // Top Books
+      document.getElementById("topBooksBody").innerHTML = (an.top_books || []).map((b) => `
+        <tr>
+          <td><b>${escapeHtml(b.book_name)}</b></td>
+          <td>${b.sessions}</td>
+          <td>${(b.chars || 0).toLocaleString()}</td>
+          <td>${b.avg_wpm} WPM</td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" style="color:var(--muted);">No book sessions yet</td></tr>`;
+
+      // Top Verses
+      document.getElementById("topVersesBody").innerHTML = (an.top_verses || []).map((v) => `
+        <tr>
+          <td><code>${escapeHtml(v.key)}</code></td>
+          <td><b>${v.completions}×</b></td>
+        </tr>
+      `).join("") || `<tr><td colspan="2" style="color:var(--muted);">No verse completions yet</td></tr>`;
+
+      // 2. Populate Parameters Form (only if not dirty or forced)
+      if (!paramsDirty || forcePopulateParams) {
+        populateParamsForm(opts);
+        paramsDirty = false;
+      }
+
+      // 3. World & Live Entities
+      if (an.active_boss_raid) {
+        const br = an.active_boss_raid;
+        document.getElementById("bossRaidStatusBadge").textContent =
+          `${br.boss_name} (Lv.${br.level || 2}) · ${br.current_hp}/${br.max_hp} HP · ${br.boss_wpm} WPM ${br.conquered ? "[CONQUERED]" : ""}`;
+      }
+
+      const wildDemons = dbg.wild_demons || [];
+      document.getElementById("wildDemonsCountLabel").textContent = wildDemons.length;
+      document.getElementById("wildDemonsTableBody").innerHTML = wildDemons.slice(0, 100).map((d) => `
+        <tr>
+          <td><code>${escapeHtml(d.id)}</code></td>
+          <td><b>${escapeHtml(d.icon || "😈")} ${escapeHtml(d.name)}</b><br/><span style="font-size:0.72rem; color:var(--muted);">${escapeHtml(d.title)}</span></td>
+          <td><span class="badge" style="background:rgba(239,68,68,0.2); color:#fca5a5;">${escapeHtml(d.rank)} Lv.${d.level}</span></td>
+          <td><b>${escapeHtml(d.book_name)} ${d.chapter}:${d.verse}</b></td>
+          <td>${d.char_index}</td>
+          <td>${d.wpm} WPM <span style="color:var(--muted);">(${d.base_wpm || d.wpm})</span></td>
+          <td><b>${d.current_hp}</b> / ${d.max_hp}</td>
+          <td>${d.enrage_count || 0}×</td>
+          <td style="white-space:nowrap;">
+            <button class="btn btn-sm btn-ghost" onclick="runAdminAction({action:'advance_demon', demon_id:'${escapeHtml(d.id)}'})" title="Advance to next verse">⏭ Next</button>
+            <button class="btn btn-sm btn-warning" onclick="runAdminAction({action:'respawn_demon', demon_id:'${escapeHtml(d.id)}'})" title="Respawn & relocate">🔄</button>
+            <button class="btn btn-sm btn-danger" onclick="runAdminAction({action:'slay_demon', demon_id:'${escapeHtml(d.id)}'})" title="Smite demon">⚡ Slay</button>
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="9" style="color:var(--muted);">No active wild demons roaming</td></tr>`;
+
+      // 4. Users & Moderation
+      renderUsersTable(an.users || []);
+
+      document.getElementById("commentsTableBody").innerHTML = (an.recent_comments || []).map((c) => `
+        <tr>
+          <td>#${c.id}</td>
+          <td><b>${escapeHtml(c.display_name)}</b> ${c.flagged ? '<span class="badge" style="background:#ef4444;color:#fff;">FLAGGED</span>' : ''}</td>
+          <td>${escapeHtml(c.book_name)} ${c.chapter}:${c.verse}</td>
+          <td>${escapeHtml(c.content)}</td>
+          <td style="white-space:nowrap;">
+            ${c.flagged ? `<button class="btn btn-sm btn-ghost" onclick="runAdminAction({action:'unflag_comment', comment_id:${c.id}})">✓ Unflag</button>` : ''}
+            <button class="btn btn-sm btn-danger" onclick="runAdminAction({action:'delete_comment', comment_id:${c.id}})">🗑️ Delete</button>
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" style="color:var(--muted);">No comments recorded</td></tr>`;
+
+      document.getElementById("chatTableBody").innerHTML = (an.recent_chat || []).map((c) => `
+        <tr>
+          <td>#${c.id}</td>
+          <td><span class="badge" style="background:rgba(255,255,255,0.08);">${escapeHtml(c.channel)}</span></td>
+          <td><b>${escapeHtml(c.display_name)}</b></td>
+          <td>${escapeHtml(c.content)}</td>
+          <td><button class="btn btn-sm btn-danger" onclick="runAdminAction({action:'delete_chat', chat_id:${c.id}})">🗑️</button></td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" style="color:var(--muted);">No chat messages recorded</td></tr>`;
+
+      // 5. Debug & Telemetry
+      const dbgCards = [
+        { label: "Server Uptime", val: dbg.uptime_human || "—", sub: `Started: ${dbg.server_start_time ? new Date(dbg.server_start_time).toUTCString() : "—"}` },
+        { label: "Go Runtime", val: dbg.go_version || "—", sub: `${dbg.goos}/${dbg.goarch} · ${dbg.num_cpu || 1} CPUs · ${dbg.num_goroutine || 0} Goroutines` },
+        { label: "Heap Memory", val: `${dbg.mem_alloc_mb || 0} MB`, sub: `In-Use: ${dbg.mem_heap_inuse_mb || 0} MB · Sys: ${dbg.mem_sys_mb || 0} MB` },
+        { label: "Heap Objects & Stack", val: (dbg.mem_heap_objects || 0).toLocaleString(), sub: `Stack In-Use: ${dbg.mem_stack_inuse_mb || 0} MB · Total Alloc: ${dbg.mem_total_alloc_mb || 0} MB` },
+        { label: "Garbage Collector", val: `${dbg.num_gc || 0} cycles`, sub: `Pause Total: ${dbg.pause_total_ms || 0} ms · Last: ${dbg.last_gc_time || "Never"}` },
+        { label: "Store Backend", val: (dbg.store_type || "local").toUpperCase(), sub: `${dbg.store_file_path || ""} (${((dbg.store_file_size_bytes || 0) / 1024).toFixed(1)} KB)` },
+        { label: "Big Mike Status", val: dbg.global_angel ? `${dbg.global_angel.book_name} ${dbg.global_angel.chapter}:${dbg.global_angel.verse}` : "Idle", sub: dbg.global_angel ? `Char ${dbg.global_angel.char_index} · ${dbg.global_angel.wpm} WPM` : "" },
+        { label: "24/7 Adversary & Spawn", val: `${dbg.devil_24_7_verses_count || 0} verses`, sub: `At ${dbg.devil_24_7_location || "—"} · Spawn Pulse: ${dbg.dynamic_spawn_sec || 0}s` }
+      ];
+      document.getElementById("debugMetricsGrid").innerHTML = dbgCards.map((c) => `
+        <div class="kpi-card">
+          <div class="kpi-label">${escapeHtml(c.label)}</div>
+          <div class="kpi-val" style="font-size:1.3rem;">${escapeHtml(c.val)}</div>
+          <div class="kpi-sub">${escapeHtml(c.sub)}</div>
+        </div>
+      `).join("");
+
+      const clients = dbg.connected_clients || [];
+      document.getElementById("connectedClientsCount").textContent = clients.length;
+      document.getElementById("connectedClientsBody").innerHTML = clients.map((c) => `
+        <tr>
+          <td><code>${escapeHtml(c.uid)}</code></td>
+          <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${escapeHtml(c.avatar_color || '#6366f1')};margin-right:6px;"></span><b>${escapeHtml(c.display_name || "Guest")}</b></td>
+          <td>${escapeHtml((c.translation || "kjv").toUpperCase())}</td>
+          <td><b>${escapeHtml(c.book || "—")} ${c.chapter || ""}:${c.verse || ""}</b></td>
+          <td>${c.char_index || 0}</td>
+          <td><b>${c.wpm || 0} WPM</b></td>
+          <td>${c.is_spectator ? '<span class="badge" style="background:rgba(56,189,248,0.2);color:#7dd3fc;">Spectator</span>' : '<span class="badge" style="background:rgba(34,197,94,0.2);color:#86efac;">Typing</span>'}</td>
+          <td>🔥 ${c.streak_days || 0}d</td>
+        </tr>
+      `).join("") || `<tr><td colspan="8" style="color:var(--muted);">No active WebSocket clients connected</td></tr>`;
+
+      const ds = dbg.loaded_translations || {};
+      document.getElementById("loadedDatasetsBox").innerHTML = Object.entries(ds).map(([id, cnt]) => `
+        <div style="background:rgba(15,23,42,0.7); border:1px solid var(--border); padding:0.55rem 0.9rem; border-radius:8px; font-size:0.82rem;">
+          <b>${escapeHtml(id.toUpperCase())}</b>: ${(cnt || 0).toLocaleString()} verses
+        </div>
+      `).join("") + `
+        <div style="background:rgba(15,23,42,0.7); border:1px solid var(--border); padding:0.55rem 0.9rem; border-radius:8px; font-size:0.82rem;">
+          <b>Book Guides (EN / ES)</b>: ${dbg.book_guides_en_count || 0} / ${dbg.book_guides_es_count || 0}
+        </div>
+      `;
+
+      // 6. Security & Audit Log
+      document.getElementById("adminSessionsBody").innerHTML = (dbg.active_admin_sessions || []).map((s) => `
+        <tr>
+          <td><code>${escapeHtml(s.token)}</code></td>
+          <td><b>${escapeHtml(s.username)}</b></td>
+          <td>${escapeHtml(s.ip)}</td>
+          <td>${s.expires_at ? new Date(s.expires_at).toISOString().replace("T", " ").slice(0, 19) : "—"}</td>
+        </tr>
+      `).join("");
+
+      document.getElementById("auditLogBody").innerHTML = (dbg.audit_log || []).map((a) => `
+        <tr>
+          <td>#${a.id}</td>
+          <td style="white-space:nowrap;">${a.timestamp ? new Date(a.timestamp).toISOString().replace("T", " ").slice(0, 19) : "—"}</td>
+          <td><b>${escapeHtml(a.actor)}</b></td>
+          <td><code>${escapeHtml(a.ip)}</code></td>
+          <td><span class="badge" style="background:rgba(99,102,241,0.2);color:#c7d2fe;">${escapeHtml(a.action)}</span></td>
+          <td>${escapeHtml(a.details)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderUsersTable(users) {
+      const q = (document.getElementById("userSearchInput").value || "").toLowerCase().trim();
+      const filtered = users.filter((u) => {
+        if (!q) return true;
+        return (u.uid || "").toLowerCase().includes(q) ||
+               (u.username || "").toLowerCase().includes(q) ||
+               (u.display_name || "").toLowerCase().includes(q) ||
+               (u.email || "").toLowerCase().includes(q);
+      });
+      document.getElementById("usersCountLabel").textContent = filtered.length;
+      document.getElementById("usersTableBody").innerHTML = filtered.map((u) => `
+        <tr>
+          <td>${u.is_online ? '<span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;">● Online</span>' : `<span style="color:var(--muted);font-size:0.74rem;">${escapeHtml(u.last_active || "Offline")}</span>`}</td>
+          <td><code>${escapeHtml(u.uid)}</code></td>
+          <td>
+            <b>${escapeHtml(u.display_name)}</b>
+            ${u.username ? `<br/><span style="font-size:0.72rem;color:var(--cyan);">@${escapeHtml(u.username)}</span>` : ''}
+          </td>
+          <td>🔥 ${u.current_streak}d <span style="color:var(--muted);">(best ${u.longest_streak}d)</span></td>
+          <td><b>${u.total_verses_typed}</b> v · ${(u.total_chars_typed || 0).toLocaleString()} c</td>
+          <td><b>${u.top_wpm}</b> / ${u.avg_wpm} WPM</td>
+          <td>Lv. <b>${u.guardian_level}</b> (${u.guardian_power} Pwr · ${u.guardian_wards} 🛡️)</td>
+          <td><b>${u.demons_defeated}</b> ${u.tracker_unlocked ? '🧭' : ''}</td>
+          <td>💥 <b>${u.passage_burst_damage}</b></td>
+          <td>
+            <button class="btn btn-sm btn-ghost" onclick="promptEditUser('${escapeHtml(u.uid)}', ${u.guardian_level}, ${u.demons_defeated}, ${u.passage_burst_damage})">✏️ Edit</button>
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="10" style="color:var(--muted);">No matching users found</td></tr>`;
+    }
+
+    document.getElementById("userSearchInput").addEventListener("input", () => {
+      if (lastDashboardData && lastDashboardData.analytics) {
+        renderUsersTable(lastDashboardData.analytics.users || []);
+      }
+    });
+
+    function promptEditUser(uid, curLv, curDemons, curBurst) {
+      const lv = prompt(`Set Guardian Angel Level for ${uid}:`, curLv);
+      if (lv === null) return;
+      const demons = prompt(`Set Total Wild Demons Defeated for ${uid} (>=6 unlocks Demon Tracker):`, curDemons);
+      if (demons === null) return;
+      const burst = prompt(`Set Passage Finish Base Burst Damage for ${uid} (5-300):`, curBurst);
+      if (burst === null) return;
+      runAdminAction({
+        action: "update_user",
+        uid: uid,
+        guardian_level: parseInt(lv, 10) || 1,
+        demons_defeated: parseInt(demons, 10) || 0,
+        passage_burst_damage: parseInt(burst, 10) || 30
+      });
+    }
+
+    function populateParamsForm(opts) {
+      const b = opts.demon_balance || {};
+      const setVal = (id, v) => {
+        const el = document.getElementById(id);
+        if (el && v !== undefined && v !== null) el.value = v;
+      };
+      setVal("p_passage_burst_base_damage", b.passage_burst_base_damage);
+      setVal("p_passage_burst_per_char_ahead", b.passage_burst_per_char_ahead);
+      setVal("p_passage_burst_max_char_bonus", b.passage_burst_max_char_bonus);
+      setVal("p_passage_burst_per_sync_stack", b.passage_burst_per_sync_stack);
+      setVal("p_passage_burst_multiplier", b.passage_burst_multiplier);
+      setVal("p_min_passage_burst_damage", b.min_passage_burst_damage);
+      setVal("p_max_passage_burst_damage", b.max_passage_burst_damage);
+
+      setVal("p_char_sync_tolerance", b.char_sync_tolerance);
+      setVal("p_stacks_per_word", b.stacks_per_word);
+      setVal("p_stacks_per_damage_tier", b.stacks_per_damage_tier);
+      setVal("p_flat_damage_per_tier", b.flat_damage_per_tier);
+      setVal("p_damage_mult_per_tier", b.damage_mult_per_tier);
+      setVal("p_max_stacks", b.max_stacks);
+      setVal("p_punctuation_per_checkpoint", b.punctuation_per_checkpoint);
+      setVal("p_stacks_lost_on_backlash", b.stacks_lost_on_backlash);
+      setVal("p_backlash_heal_pct", b.backlash_heal_pct);
+
+      setVal("p_pace_adjust_threshold", b.pace_adjust_threshold);
+      setVal("p_pace_step_chars", b.pace_step_chars);
+      setVal("p_pace_wpm_per_step", b.pace_wpm_per_step);
+      setVal("p_min_demon_wpm", b.min_demon_wpm);
+      setVal("p_max_demon_wpm_bonus", b.max_demon_wpm_bonus);
+      setVal("p_max_demon_wpm_reduction", b.max_demon_wpm_reduction);
+
+      setVal("opt_max_wild_demons", opts.max_wild_demons);
+      setVal("opt_spawn_interval_override_sec", opts.spawn_interval_override_sec);
+      setVal("opt_evolve_interval_sec", opts.evolve_interval_sec);
+      setVal("opt_encounter_base_chance", opts.encounter_base_chance);
+      setVal("opt_encounter_max_chance", opts.encounter_max_chance);
+      setVal("opt_encounter_peaceful_intro_verses", opts.encounter_peaceful_intro_verses);
+      setVal("opt_global_angel_wpm", opts.global_angel_wpm);
+
+      document.getElementById("opt_mandatory_book_intro").checked = !!opts.mandatory_book_intro;
+      document.getElementById("opt_voice_mode_enabled").checked = !!opts.voice_mode_enabled;
+      document.getElementById("opt_chat_enabled").checked = !!opts.chat_enabled;
+      document.getElementById("opt_comments_enabled").checked = !!opts.comments_enabled;
+    }
+
+    function readParamsForm() {
+      const intVal = (id, def) => {
+        const v = parseInt(document.getElementById(id).value, 10);
+        return isNaN(v) ? def : v;
+      };
+      const floatVal = (id, def) => {
+        const v = parseFloat(document.getElementById(id).value);
+        return isNaN(v) ? def : v;
+      };
+      return {
+        demon_balance: {
+          passage_burst_base_damage: intVal("p_passage_burst_base_damage", 30),
+          passage_burst_per_char_ahead: intVal("p_passage_burst_per_char_ahead", 1),
+          passage_burst_max_char_bonus: intVal("p_passage_burst_max_char_bonus", 30),
+          passage_burst_per_sync_stack: intVal("p_passage_burst_per_sync_stack", 2),
+          passage_burst_multiplier: floatVal("p_passage_burst_multiplier", 1.0),
+          min_passage_burst_damage: intVal("p_min_passage_burst_damage", 5),
+          max_passage_burst_damage: intVal("p_max_passage_burst_damage", 300),
+          char_sync_tolerance: intVal("p_char_sync_tolerance", 5),
+          stacks_per_word: intVal("p_stacks_per_word", 1),
+          stacks_per_damage_tier: intVal("p_stacks_per_damage_tier", 5),
+          flat_damage_per_tier: intVal("p_flat_damage_per_tier", 1),
+          damage_mult_per_tier: floatVal("p_damage_mult_per_tier", 0.25),
+          max_stacks: intVal("p_max_stacks", 0),
+          punctuation_per_checkpoint: intVal("p_punctuation_per_checkpoint", 2),
+          stacks_lost_on_backlash: intVal("p_stacks_lost_on_backlash", 2),
+          backlash_heal_pct: floatVal("p_backlash_heal_pct", 0.10),
+          pace_adjust_threshold: intVal("p_pace_adjust_threshold", 5),
+          pace_step_chars: intVal("p_pace_step_chars", 3),
+          pace_wpm_per_step: intVal("p_pace_wpm_per_step", 2),
+          min_demon_wpm: intVal("p_min_demon_wpm", 6),
+          max_demon_wpm_bonus: intVal("p_max_demon_wpm_bonus", 18),
+          max_demon_wpm_reduction: intVal("p_max_demon_wpm_reduction", 8)
+        },
+        max_wild_demons: intVal("opt_max_wild_demons", 666),
+        spawn_interval_override_sec: intVal("opt_spawn_interval_override_sec", 0),
+        evolve_interval_sec: intVal("opt_evolve_interval_sec", 600),
+        encounter_base_chance: floatVal("opt_encounter_base_chance", 0.04),
+        encounter_max_chance: floatVal("opt_encounter_max_chance", 0.50),
+        encounter_peaceful_intro_verses: intVal("opt_encounter_peaceful_intro_verses", 2),
+        global_angel_rank: "michael",
+        global_angel_wpm: intVal("opt_global_angel_wpm", 160),
+        devil_24_7_rank: "imp",
+        devil_24_7_level: 1,
+        mandatory_book_intro: document.getElementById("opt_mandatory_book_intro").checked,
+        voice_mode_enabled: document.getElementById("opt_voice_mode_enabled").checked,
+        chat_enabled: document.getElementById("opt_chat_enabled").checked,
+        comments_enabled: document.getElementById("opt_comments_enabled").checked
+      };
+    }
+
+    async function saveParams() {
+      try {
+        const payload = readParamsForm();
+        const res = await apiFetch("/api/admin/config", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        paramsDirty = false;
+        showAdminToast(res.message || "Parameters saved and broadcast live!");
+        await loadDashboard(true);
+      } catch (err) {
+        showAdminToast(err.message, true);
+      }
+    }
+
+    document.getElementById("btnSaveParamsTop").onclick = saveParams;
+    document.getElementById("btnSaveParamsBottom").onclick = saveParams;
+
+    document.getElementById("btnResetParams").onclick = async () => {
+      if (!confirm("Reset all balance & runtime parameters to factory defaults?")) return;
+      try {
+        const res = await apiFetch("/api/admin/config/reset", { method: "POST", body: "{}" });
+        paramsDirty = false;
+        showAdminToast(res.message || "Parameters reset to defaults.");
+        await loadDashboard(true);
+      } catch (err) {
+        showAdminToast(err.message, true);
+      }
+    };
+
+    async function runAdminAction(payload) {
+      try {
+        const res = await apiFetch("/api/admin/action", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        showAdminToast(res.message || "Action executed.");
+        await loadDashboard(false);
+      } catch (err) {
+        showAdminToast(err.message, true);
+      }
+    }
+
+    document.getElementById("btnSendBroadcast").onclick = () => {
+      const msg = document.getElementById("broadcastMsgInput").value.trim();
+      if (!msg) return;
+      runAdminAction({ action: "broadcast_announcement", message: msg });
+      document.getElementById("broadcastMsgInput").value = "";
+    };
+
+    document.getElementById("btnSpawnCustomDemon").onclick = () => {
+      runAdminAction({
+        action: "spawn_demon",
+        book_name: document.getElementById("spawnBook").value.trim(),
+        chapter: parseInt(document.getElementById("spawnChapter").value, 10) || 0,
+        verse: parseInt(document.getElementById("spawnVerse").value, 10) || 0,
+        rank: document.getElementById("spawnRank").value,
+        level: parseInt(document.getElementById("spawnLevel").value, 10) || 2,
+        wpm: parseInt(document.getElementById("spawnWPM").value, 10) || 16,
+        hp: parseInt(document.getElementById("spawnHP").value, 10) || 220,
+        name: document.getElementById("spawnName").value.trim()
+      });
+    };
+
+    document.getElementById("btnResetBossRaid").onclick = () => {
+      runAdminAction({
+        action: "reset_boss_raid",
+        is_demon_boss: document.getElementById("bossTypeSelect").value === "apollyon",
+        level: parseInt(document.getElementById("bossLevelInput").value, 10) || 2,
+        hp: parseInt(document.getElementById("bossHPInput").value, 10) || 0,
+        wpm: parseInt(document.getElementById("bossWPMInput").value, 10) || 0
+      });
+    };
+
+    document.getElementById("btnExportSnapshot").onclick = () => {
+      if (!lastDashboardData) return;
+      const blob = new Blob([JSON.stringify(lastDashboardData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `elespe-admin-snapshot-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    // Login Form
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("loginErrorBox");
+      errBox.style.display = "none";
+      try {
+        const res = await fetch("/api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            username: document.getElementById("loginUsername").value.trim(),
+            password: document.getElementById("loginPassword").value
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          errBox.textContent = data.error || "Authentication failed";
+          errBox.style.display = "block";
+          return;
+        }
+        csrfToken = data.csrf_token || "";
+        document.getElementById("loginPassword").value = "";
+        showConsoleView();
+        await loadDashboard(true);
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = "block";
+      }
+    });
+
+    // Logout
+    document.getElementById("btnLogout").onclick = async () => {
+      await fetch("/api/admin/logout", { method: "POST", credentials: "same-origin" });
+      csrfToken = "";
+      showLoginView();
+    };
+
+    // Change Password
+    document.getElementById("changePasswordForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        const res = await apiFetch("/api/admin/security/password", {
+          method: "POST",
+          body: JSON.stringify({
+            current_password: document.getElementById("secCurrentPassword").value,
+            new_username: document.getElementById("secNewUsername").value.trim(),
+            new_password: document.getElementById("secNewPassword").value
+          })
+        });
+        document.getElementById("secCurrentPassword").value = "";
+        document.getElementById("secNewPassword").value = "";
+        showAdminToast(res.message || "Credentials updated!");
+        await loadDashboard(false);
+      } catch (err) {
+        showAdminToast(err.message, true);
+      }
+    });
+
+    document.getElementById("btnRefreshNow").onclick = () => loadDashboard(false);
+
+    // Initialize session check & auto-refresh loop
+    (async function init() {
+      try {
+        const s = await fetch("/api/admin/session", { credentials: "same-origin" }).then((r) => r.json());
+        if (s && s.authenticated) {
+          csrfToken = s.csrf_token || "";
+          showConsoleView();
+          await loadDashboard(true);
+        } else {
+          showLoginView();
+        }
+      } catch (_) {
+        showLoginView();
+      }
+      refreshTimer = setInterval(() => {
+        const auto = document.getElementById("autoRefreshToggle");
+        if (auto && auto.checked && document.getElementById("consoleView").style.display !== "none") {
+          loadDashboard(false);
+        }
+      }, 5000);
+    })();
+  </script>
+</body>
+</html>

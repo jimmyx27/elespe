@@ -268,9 +268,10 @@ type SanctuarySettings struct {
 	GuardianXP           int            `json:"guardian_xp,omitempty"`
 	DemonsDefeated       int            `json:"demons_defeated,omitempty"`   // Total wild demons defeated (tracker unlocks at 6)
 	GuardianWards        int            `json:"guardian_wards,omitempty"`    // Mistake absorption shields before reset
-	GuardianPower        int            `json:"guardian_power,omitempty"`    // Holy resonance strike bonus damage
-	GuardianRadiance     int            `json:"guardian_radiance,omitempty"` // Shroud dissipation rate %
-	TrackerUnlocked      bool           `json:"tracker_unlocked,omitempty"`  // Unlocked after defeating 6 demons in the wild
+	GuardianPower        int            `json:"guardian_power,omitempty"`        // Holy resonance strike bonus damage
+	GuardianRadiance     int            `json:"guardian_radiance,omitempty"`     // Shroud dissipation rate %
+	PassageBurstDamage   int            `json:"passage_burst_damage,omitempty"`  // Adjustable base burst damage when finishing a passage before a demon
+	TrackerUnlocked      bool           `json:"tracker_unlocked,omitempty"`      // Unlocked after defeating 6 demons in the wild
 	PreferredAngelLevels map[string]int `json:"preferred_angel_levels,omitempty"`
 	PreferredDemonLevels map[string]int `json:"preferred_demon_levels,omitempty"`
 }
@@ -348,6 +349,7 @@ type WildDemon struct {
 	Verse       int       `json:"verse"`
 	Text        string    `json:"text"`
 	WPM         int       `json:"wpm"` // slow methodical pace: 10 - 24 WPM
+	BaseWPM     int       `json:"base_wpm,omitempty"`
 	MaxHP       int       `json:"max_hp"`
 	CurrentHP   int       `json:"current_hp"`
 	EnrageCount int       `json:"enrage_count"`
@@ -355,6 +357,11 @@ type WildDemon struct {
 	SpawnedAt   time.Time `json:"spawned_at,omitempty"`
 	LastEvolve  time.Time `json:"last_evolve,omitempty"`
 	AgeMinutes  int       `json:"age_minutes,omitempty"`
+	verseEpoch  int
+	prevBook    string
+	prevChapter int
+	prevVerse   int
+	escapedAt   time.Time
 }
 
 // ---- Global Celestial & Demonic Boss Raid Models ----
@@ -514,6 +521,7 @@ type Message struct {
 	HolyWards       int          `json:"holy_wards,omitempty"`
 	DemonID         string       `json:"demon_id,omitempty"`
 	Damage          int          `json:"damage,omitempty"`
+	BurstDamage     int          `json:"burst_damage,omitempty"`
 	SyncStacks      int          `json:"sync_stacks,omitempty"`
 	EncounterChance int          `json:"encounter_chance,omitempty"`
 	IsAmbush        bool         `json:"is_ambush,omitempty"`
@@ -521,6 +529,12 @@ type Message struct {
 	MaxDemons       int          `json:"max_demons,omitempty"`
 	Sanctification  int          `json:"sanctification,omitempty"`
 	SwarmEvent      string       `json:"swarm_event,omitempty"`
+
+	// Voice Mode (Speak the Verse)
+	VoiceMode bool `json:"voice_mode,omitempty"`
+
+	// Live Admin Balance Config Sync
+	BalanceConfig *DemonSyncBalanceConfig `json:"balance_config,omitempty"`
 }
 
 type SyncVerseItem struct {
@@ -531,6 +545,7 @@ type SyncVerseItem struct {
 	WPM         int     `json:"wpm"`
 	Duration    float64 `json:"duration"`
 	Timestamp   int64   `json:"timestamp"`
+	VoiceMode   bool    `json:"voice_mode,omitempty"`
 }
 
 // ---- Store Interface ----

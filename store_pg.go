@@ -200,6 +200,7 @@ func (s *postgresStore) initDB(ctx context.Context) error {
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS preferred_angel_levels JSONB DEFAULT '{}';
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS preferred_demon_levels JSONB DEFAULT '{}';
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS demons_defeated INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS passage_burst_damage INT DEFAULT 30;
 
 	CREATE TABLE IF NOT EXISTS boss_raids (
 		id TEXT PRIMARY KEY,
@@ -1104,25 +1105,26 @@ func (s *postgresStore) RecordVerseCompletion(ctx context.Context, uid, translat
 func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*SanctuarySettings, error) {
 	var set SanctuarySettings
 	err := s.pool.QueryRow(ctx, `
-		SELECT text_color, font_family, caret_aura, audio_profile, celebrate_fx, guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated
+		SELECT text_color, font_family, caret_aura, audio_profile, celebrate_fx, guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated, COALESCE(passage_burst_damage, 30)
 		FROM sanctuary_settings WHERE uid = $1
-	`, uid).Scan(&set.TextColor, &set.FontFamily, &set.CaretAura, &set.AudioProfile, &set.CelebrateFx, &set.GuardianName, &set.GuardianPace, &set.GuardianLevel, &set.GuardianXP, &set.DemonsDefeated)
+	`, uid).Scan(&set.TextColor, &set.FontFamily, &set.CaretAura, &set.AudioProfile, &set.CelebrateFx, &set.GuardianName, &set.GuardianPace, &set.GuardianLevel, &set.GuardianXP, &set.DemonsDefeated, &set.PassageBurstDamage)
 	if err != nil {
 		return &SanctuarySettings{
-			TextColor:        "emerald",
-			FontFamily:       "sans",
-			CaretAura:        "default",
-			AudioProfile:     "classic",
-			CelebrateFx:      "confetti",
-			GuardianName:     "Guardian Angel",
-			GuardianPace:     5,
-			GuardianLevel:    1,
-			GuardianXP:       0,
-			DemonsDefeated:   0,
-			GuardianWards:    0,
-			GuardianPower:    10,
-			GuardianRadiance: 100,
-			TrackerUnlocked:  false,
+			TextColor:          "emerald",
+			FontFamily:         "sans",
+			CaretAura:          "default",
+			AudioProfile:       "classic",
+			CelebrateFx:        "confetti",
+			GuardianName:       "Guardian Angel",
+			GuardianPace:       5,
+			GuardianLevel:      1,
+			GuardianXP:         0,
+			DemonsDefeated:     0,
+			GuardianWards:      0,
+			GuardianPower:      10,
+			GuardianRadiance:   100,
+			PassageBurstDamage: DefaultDemonSyncBalance.PassageBurstBaseDamage,
+			TrackerUnlocked:    false,
 		}, nil
 	}
 	if set.GuardianPace == 0 {
@@ -1130,6 +1132,9 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 	}
 	if set.GuardianLevel < 1 {
 		set.GuardianLevel = 1
+	}
+	if set.PassageBurstDamage <= 0 {
+		set.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
 	}
 	set.GuardianWards = (set.GuardianLevel - 1) / 3
 	set.GuardianPower = 10 + (set.GuardianLevel-1)*2
@@ -1145,9 +1150,12 @@ func (s *postgresStore) SaveCustomizations(ctx context.Context, uid string, sett
 	if settings.GuardianLevel < 1 {
 		settings.GuardianLevel = 1
 	}
+	if settings.PassageBurstDamage <= 0 {
+		settings.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
+	}
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO sanctuary_settings (uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx, guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
+		INSERT INTO sanctuary_settings (uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx, guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated, passage_burst_damage, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
 		ON CONFLICT (uid) DO UPDATE SET
 			text_color = EXCLUDED.text_color,
 			font_family = EXCLUDED.font_family,
@@ -1159,8 +1167,9 @@ func (s *postgresStore) SaveCustomizations(ctx context.Context, uid string, sett
 			guardian_level = EXCLUDED.guardian_level,
 			guardian_xp = EXCLUDED.guardian_xp,
 			demons_defeated = EXCLUDED.demons_defeated,
+			passage_burst_damage = EXCLUDED.passage_burst_damage,
 			updated_at = CURRENT_TIMESTAMP
-	`, uid, settings.TextColor, settings.FontFamily, settings.CaretAura, settings.AudioProfile, settings.CelebrateFx, settings.GuardianName, settings.GuardianPace, settings.GuardianLevel, settings.GuardianXP, settings.DemonsDefeated)
+	`, uid, settings.TextColor, settings.FontFamily, settings.CaretAura, settings.AudioProfile, settings.CelebrateFx, settings.GuardianName, settings.GuardianPace, settings.GuardianLevel, settings.GuardianXP, settings.DemonsDefeated, settings.PassageBurstDamage)
 	return err
 }
 

@@ -1196,22 +1196,26 @@ func (s *localStore) GetCustomizations(ctx context.Context, uid string) (*Sanctu
 		if cCopy.GuardianRadiance == 0 {
 			cCopy.GuardianRadiance = 100 + (cCopy.GuardianLevel-1)*5
 		}
+		if cCopy.PassageBurstDamage <= 0 {
+			cCopy.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
+		}
 		cCopy.TrackerUnlocked = cCopy.DemonsDefeated >= 6
 		return &cCopy, nil
 	}
 	return &SanctuarySettings{
-		TextColor:        "emerald",
-		FontFamily:       "sans",
-		CaretAura:        "default",
-		AudioProfile:     "classic",
-		CelebrateFx:      "confetti",
-		GuardianLevel:    1,
-		GuardianXP:       0,
-		DemonsDefeated:   0,
-		GuardianWards:    0,
-		GuardianPower:    10,
-		GuardianRadiance: 100,
-		TrackerUnlocked:  false,
+		TextColor:          "emerald",
+		FontFamily:         "sans",
+		CaretAura:          "default",
+		AudioProfile:       "classic",
+		CelebrateFx:        "confetti",
+		GuardianLevel:      1,
+		GuardianXP:         0,
+		DemonsDefeated:     0,
+		GuardianWards:      0,
+		GuardianPower:      10,
+		GuardianRadiance:   100,
+		PassageBurstDamage: DefaultDemonSyncBalance.PassageBurstBaseDamage,
+		TrackerUnlocked:    false,
 	}, nil
 }
 
@@ -1231,6 +1235,9 @@ func (s *localStore) SaveCustomizations(ctx context.Context, uid string, setting
 	}
 	if settings.GuardianRadiance == 0 {
 		settings.GuardianRadiance = 100 + (settings.GuardianLevel-1)*5
+	}
+	if settings.PassageBurstDamage <= 0 {
+		settings.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
 	}
 	settings.TrackerUnlocked = settings.DemonsDefeated >= 6
 	s.data.SanctuarySettings[uid] = settings
@@ -1286,6 +1293,9 @@ func (s *localStore) RecordWildDemonDefeat(ctx context.Context, uid string, demo
 	cfg.GuardianWards = (cfg.GuardianLevel - 1) / 3
 	cfg.GuardianPower = 10 + (cfg.GuardianLevel-1)*2
 	cfg.GuardianRadiance = 100 + (cfg.GuardianLevel-1)*5
+	if cfg.PassageBurstDamage <= 0 {
+		cfg.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
+	}
 	cfg.TrackerUnlocked = cfg.DemonsDefeated >= 6
 
 	s.data.SanctuarySettings[uid] = cfg

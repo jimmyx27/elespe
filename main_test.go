@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -2179,6 +2180,585 @@ func TestBigMikeRenameAndDemonSyncStacks(t *testing.T) {
 		t.Errorf("Expected 4 punctuation marks and advanced checkpoint > %d, got punct=%d, cp=%d", cp2, pCount4, cp4)
 	}
 }
+
+func TestVoiceModeSpokenMatchingAndWebSocketSubmission(t *testing.T) {
+	if err := loadTranslationsAndGuides(); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Unit test normalizeSpokenForMatch and matchesSpokenPassage
+	target1 := "In the beginning God created the heaven and the earth."
+	spoken1 := "in the beginning god created the heaven and the earth"
+	if !matchesSpokenPassage(spoken1, target1) {
+		t.Errorf("Expected spoken passage %q to match target %q", spoken1, target1)
+	}
+
+	target2 := "\"Come,\" he said, 'follow me!' - and they went."
+	spoken2 := "come he said follow me and they went"
+	if !matchesSpokenPassage(spoken2, target2) {
+		t.Errorf("Expected spoken passage %q to match punctuated target %q", spoken2, target2)
+	}
+
+	targetES := "En el principio creó Dios los cielos y la tierra."
+	spokenES := "en el principio creo dios los cielos y la tierra"
+	if !matchesSpokenPassage(spokenES, targetES) {
+		t.Errorf("Expected Spanish spoken passage %q to match target %q", spokenES, targetES)
+	}
+
+	if matchesSpokenPassage("in the beginning god created", target1) {
+		t.Errorf("Expected incomplete spoken passage not to match full target")
+	}
+
+	// 2. Verify frontend Voice Mode elements and engine in embedded index.html
+	htmlBytes, err := appFS.ReadFile("index.html")
+	if err != nil {
+		t.Fatalf("Failed to read index.html: %v", err)
+	}
+	htmlStr := string(htmlBytes)
+	requiredSnippets := []string{
+		`id="voiceModeBar"`,
+		`id="btnToggleVoiceMode"`,
+		`id="btnVoiceMic"`,
+		`id="voiceNextWordPill"`,
+		`id="voiceTranscriptPreview"`,
+		`id="btnSpeakVerseTTS"`,
+		`id="btnVoiceSkipWord"`,
+		`id="voiceAutoSubmitCheck"`,
+		`function processSpokenTranscript(`,
+		`function voiceWordsMatch(`,
+		`voice_herald`,
+	}
+	for _, snip := range requiredSnippets {
+		if !strings.Contains(htmlStr, snip) {
+			t.Errorf("Expected index.html to contain Voice Mode snippet %q", snip)
+		}
+	}
+
+	// 3. WebSocket flow test with VoiceMode: true
+	tmpDir, err := os.MkdirTemp("", "elespe_voice_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ls, err := newLocalStore(filepath.Join(tmpDir, "data.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = ls
+
+	server := httptest.NewServer(http.HandlerFunc(handleWebSocket))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "?uid=test_voice_user&trans=kjv"
+	wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial failed: %v", err)
+	}
+	defer wsConn.Close()
+
+	readUntilType := func(targetType string) (Message, error) {
+		for {
+			var m Message
+			if err := wsConn.ReadJSON(&m); err != nil {
+				return m, err
+			}
+			if m.Type == targetType {
+				return m, nil
+			}
+		}
+	}
+
+	if _, err := readUntilType("books"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := wsConn.WriteJSON(Message{Type: "select_book", Content: "Genesis"}); err != nil {
+		t.Fatal(err)
+	}
+
+	introMsg, err := readUntilType("intro")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Complete intro using VoiceMode
+	if err := wsConn.WriteJSON(Message{
+		Type:      "content",
+		Content:   introMsg.Content,
+		WPM:       60,
+		Duration:  4.0,
+		VoiceMode: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	verseMsg, err := readUntilType("verse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verseMsg.Number != 1 {
+		t.Fatalf("Expected verse 1, got %d", verseMsg.Number)
+	}
+
+	// Submit verse 1 using unpunctuated, lowercase spoken text with VoiceMode: true
+	if err := wsConn.WriteJSON(Message{
+		Type:      "content",
+		Content:   "in the beginning god created the heaven and the earth",
+		WPM:       75,
+		Duration:  3.5,
+		VoiceMode: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	correctMsg, err := readUntilType("correct")
+	if err != nil {
+		t.Fatalf("Expected correct message for spoken verse submission, got err: %v", err)
+	}
+	if correctMsg.Content != "correct" {
+		t.Errorf("Expected correct content, got %q", correctMsg.Content)
+	}
+
+	verse2Msg, err := readUntilType("verse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verse2Msg.Number != 2 {
+		t.Errorf("Expected progression to verse 2 after Voice Mode submission, got %d", verse2Msg.Number)
+	}
+
+	// Verify voice_herald badge was awarded in store
+	badges, err := ls.GetBadges(context.Background(), "test_voice_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundVoiceBadge := false
+	for _, b := range badges {
+		if b.ID == "voice_herald" {
+			foundVoiceBadge = true
+			break
+		}
+	}
+	if !foundVoiceBadge {
+		t.Errorf("Expected voice_herald badge to be awarded after Voice Mode completion, got badges: %+v", badges)
+	}
+}
+
+func TestPassageFinishBurstDamageAndDemonTransition(t *testing.T) {
+	if len(translations) == 0 {
+		if err := loadTranslationsAndGuides(); err != nil {
+			t.Fatalf("Failed to load translations: %v", err)
+		}
+	}
+
+	// 1. Unit test CalculatePassageFinishBurstDamage (default & adjustable)
+	// Default baseBurst = 30, baseStrike = 1, syncStacks = 0, charsAhead = 0 => 30
+	dmgDefault := CalculatePassageFinishBurstDamage(1, 0, 0, 0)
+	if dmgDefault != 30 {
+		t.Errorf("Expected default passage burst damage 30, got %d", dmgDefault)
+	}
+
+	// Custom adjustable baseBurst = 50, baseStrike = 1, syncStacks = 5 (tier 1: +25%), charsAhead = 10 => (50 + 10 + 5*2) * 1.25 = 70 * 1.25 = 88
+	dmgAdjusted := CalculatePassageFinishBurstDamage(1, 5, 10, 50)
+	if dmgAdjusted != 88 {
+		t.Errorf("Expected adjusted passage burst damage 88, got %d", dmgAdjusted)
+	}
+
+	// Clamping to MaxPassageBurstDamage (300)
+	dmgMax := CalculatePassageFinishBurstDamage(50, 50, 100, 300)
+	if dmgMax != DefaultDemonSyncBalance.MaxPassageBurstDamage {
+		t.Errorf("Expected max clamped burst damage %d, got %d", DefaultDemonSyncBalance.MaxPassageBurstDamage, dmgMax)
+	}
+
+	// 2. Test AdvanceWildDemonToNextVerse resets CharIndex to 0 and restores BaseWPM (+ EnrageCount*2)
+	hub := newHub()
+	go hub.run()
+	dm := newDemonManager(nil, hub)
+	defer dm.Stop()
+
+	// Find wild-imp-1 on Genesis 3:1
+	impBefore := dm.GetWildDemon("wild-imp-1")
+	if impBefore == nil {
+		t.Fatalf("Expected wild-imp-1 to exist")
+	}
+	baseWPM := impBefore.WPM
+
+	// Simulate dynamic WPM surge during combat on Genesis 3:1
+	dm.AdjustWildDemonPaceForPlayer("kjv", "Genesis", 3, 1, 45, 70)
+	impSurged := dm.GetWildDemon("wild-imp-1")
+	if impSurged.WPM <= baseWPM {
+		t.Errorf("Expected demon WPM to surge above base %d when player is ahead, got %d", baseWPM, impSurged.WPM)
+	}
+
+	// Advance demon to next passage (Genesis 3:2)
+	advDemon, nextV, ok := dm.AdvanceWildDemonToNextVerse("wild-imp-1")
+	if !ok || advDemon == nil {
+		t.Fatalf("Expected AdvanceWildDemonToNextVerse to succeed")
+	}
+	if nextV.BookName != "Genesis" || nextV.Chapter != 3 || nextV.Verse != 2 {
+		t.Errorf("Expected demon to advance to Genesis 3:2, got %s %d:%d", nextV.BookName, nextV.Chapter, nextV.Verse)
+	}
+	if advDemon.CharIndex != 0 {
+		t.Errorf("Expected advanced demon CharIndex to reset to 0, got %d", advDemon.CharIndex)
+	}
+	if advDemon.WPM != baseWPM {
+		t.Errorf("Expected advanced demon WPM to reset to baseWPM %d, got %d", baseWPM, advDemon.WPM)
+	}
+	if advDemon.BaseWPM != baseWPM {
+		t.Errorf("Expected advanced demon BaseWPM to be %d, got %d", baseWPM, advDemon.BaseWPM)
+	}
+
+	// 3. WebSocket integration test: User finishes passage before demon -> burst damage applied & demon driven to next verse!
+	tmpDir, err := os.MkdirTemp("", "elespe_burst_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ls, err := newLocalStore(filepath.Join(tmpDir, "data.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = ls
+	globalHub = hub
+	globalDemonManager = dm
+
+	// Place wild-imp-1 on Genesis 1:1 with 120 HP so we can fight it immediately after intro
+	gen1v1Text := translations["kjv"].VersesByBook["Genesis"][0].Text
+	dm.mu.Lock()
+	for _, d := range dm.wildDemons {
+		if d.ID == "wild-imp-1" {
+			d.BookName = "Genesis"
+			d.Chapter = 1
+			d.Verse = 1
+			d.Text = cleanVerseText(gen1v1Text)
+			d.CurrentHP = 120
+			d.MaxHP = 120
+			d.CharIndex = 10
+			d.verseEpoch++
+			break
+		}
+	}
+	dm.mu.Unlock()
+
+	server := httptest.NewServer(http.HandlerFunc(handleWebSocket))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "?uid=test_burst_user&trans=kjv"
+	wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial failed: %v", err)
+	}
+	defer wsConn.Close()
+
+	readUntilType := func(targetType string) (Message, error) {
+		_ = wsConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		for {
+			var m Message
+			if err := wsConn.ReadJSON(&m); err != nil {
+				return m, err
+			}
+			if m.Type == targetType {
+				return m, nil
+			}
+		}
+	}
+
+	if _, err := readUntilType("books"); err != nil {
+		t.Fatal(err)
+	}
+	if err := wsConn.WriteJSON(Message{Type: "select_book", Content: "Genesis"}); err != nil {
+		t.Fatal(err)
+	}
+	introMsg, err := readUntilType("intro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wsConn.WriteJSON(Message{
+		Type:     "content",
+		Content:  introMsg.Content,
+		WPM:      60,
+		Duration: 3.0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	verse1Msg, err := readUntilType("verse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verse1Msg.WildDemon == nil || verse1Msg.WildDemon.ID != "wild-imp-1" {
+		t.Fatalf("Expected wild-imp-1 on Genesis 1:1, got %+v", verse1Msg.WildDemon)
+	}
+
+	// Finish Genesis 1:1 before the demon with adjusted BurstDamage: 45 and SyncStacks: 3
+	if err := wsConn.WriteJSON(Message{
+		Type:        "content",
+		Content:     verse1Msg.Content,
+		WPM:         70,
+		Duration:    4.0,
+		SyncStacks:  3,
+		DemonID:     "wild-imp-1",
+		BurstDamage: 45,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	burstMsg, err := readUntilType("wild_demon_burst")
+	if err != nil {
+		t.Fatalf("Expected wild_demon_burst message when finishing passage before demon, got err: %v", err)
+	}
+	if burstMsg.BurstDamage <= 45 {
+		t.Errorf("Expected total burst damage > 45 (base 45 + strike + sync stacks + char lead), got %d", burstMsg.BurstDamage)
+	}
+	if burstMsg.WildDemon == nil || burstMsg.WildDemon.CurrentHP >= 120 {
+		t.Errorf("Expected demon HP to be reduced from 120 by burst damage, got %+v", burstMsg.WildDemon)
+	}
+
+	// Verify next verse (Genesis 1:2) has the same wild demon waiting at CharIndex 0 with reduced HP!
+	verse2Msg, err := readUntilType("verse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verse2Msg.Number != 2 {
+		t.Errorf("Expected verse 2, got %d", verse2Msg.Number)
+	}
+	if verse2Msg.WildDemon == nil || verse2Msg.WildDemon.ID != "wild-imp-1" {
+		t.Fatalf("Expected wild-imp-1 to have moved onto verse 2 (Genesis 1:2) with the player, got %+v", verse2Msg.WildDemon)
+	}
+	if verse2Msg.WildDemon.CharIndex != 0 {
+		t.Errorf("Expected demon on verse 2 to start at CharIndex 0, got %d", verse2Msg.WildDemon.CharIndex)
+	}
+	if verse2Msg.WildDemon.CurrentHP != 120-burstMsg.BurstDamage {
+		t.Errorf("Expected demon HP on verse 2 to be %d, got %d", 120-burstMsg.BurstDamage, verse2Msg.WildDemon.CurrentHP)
+	}
+
+	// Verify custom PassageBurstDamage (45) was persisted in user customizations
+	savedCustoms, err := ls.GetCustomizations(context.Background(), "test_burst_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if savedCustoms.PassageBurstDamage != 45 {
+		t.Errorf("Expected saved PassageBurstDamage to be 45, got %d", savedCustoms.PassageBurstDamage)
+	}
+}
+
+func TestAdminConsoleSecurityAndLiveOperations(t *testing.T) {
+	if len(translations) == 0 {
+		if err := loadTranslationsAndGuides(); err != nil {
+			t.Fatalf("Failed to load translations: %v", err)
+		}
+	}
+
+	tmpDir, err := os.MkdirTemp("", "elespe_admin_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ls, err := newLocalStore(filepath.Join(tmpDir, "data.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = ls
+	globalHub = newHub()
+	go globalHub.run()
+	globalDemonManager = newDemonManager(store, globalHub)
+	defer globalDemonManager.Stop()
+
+	t.Setenv("ADMIN_USERNAME", "sanctuary_admin")
+	t.Setenv("ADMIN_PASSWORD", "super-secret-pass-123")
+	initAdminSystem(tmpDir)
+
+	mux := http.NewServeMux()
+	registerAdminRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// 1. Verify /admin serves HTML with strict security headers
+	respPage, err := http.Get(server.URL + "/admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respPage.Body.Close()
+	if respPage.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200 OK for /admin, got %d", respPage.StatusCode)
+	}
+	if respPage.Header.Get("X-Frame-Options") != "DENY" {
+		t.Errorf("Expected X-Frame-Options: DENY, got %q", respPage.Header.Get("X-Frame-Options"))
+	}
+
+	// 2. Verify unauthenticated API requests are rejected with 401
+	respUnauth, err := http.Get(server.URL + "/api/admin/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respUnauth.Body.Close()
+	if respUnauth.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("Expected 401 Unauthorized for unauthenticated dashboard request, got %d", respUnauth.StatusCode)
+	}
+
+	// 3. Verify wrong password fails and brute-force rate limit locks out after 5 attempts
+	for i := 1; i <= 5; i++ {
+		badReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/login", strings.NewReader(`{"username":"sanctuary_admin","password":"wrong-password"}`))
+		badReq.Header.Set("Content-Type", "application/json")
+		badReq.Header.Set("X-Forwarded-For", "198.51.100.77")
+		badResp, err := http.DefaultClient.Do(badReq)
+		if err != nil {
+			t.Fatal(err)
+		}
+		badResp.Body.Close()
+		if i < 5 && badResp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Attempt %d: expected 401, got %d", i, badResp.StatusCode)
+		}
+		if i == 5 && badResp.StatusCode != http.StatusTooManyRequests {
+			t.Errorf("Attempt 5: expected 429 lockout, got %d", badResp.StatusCode)
+		}
+	}
+
+	// 4. Authenticate with valid credentials from another IP
+	loginReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/login", strings.NewReader(`{"username":"sanctuary_admin","password":"super-secret-pass-123"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginReq.Header.Set("X-Forwarded-For", "192.0.2.10")
+	loginResp, err := http.DefaultClient.Do(loginReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loginResp.Body.Close()
+	if loginResp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200 OK on valid admin login, got %d", loginResp.StatusCode)
+	}
+
+	var loginData struct {
+		Authenticated bool   `json:"authenticated"`
+		Token         string `json:"token"`
+		CSRFToken     string `json:"csrf_token"`
+	}
+	if err := json.NewDecoder(loginResp.Body).Decode(&loginData); err != nil {
+		t.Fatal(err)
+	}
+	if !loginData.Authenticated || loginData.Token == "" || loginData.CSRFToken == "" {
+		t.Fatalf("Expected authenticated token and csrf_token, got %+v", loginData)
+	}
+
+	var sessionCookie *http.Cookie
+	for _, c := range loginResp.Cookies() {
+		if c.Name == adminCookieName {
+			sessionCookie = c
+			break
+		}
+	}
+	if sessionCookie == nil || !sessionCookie.HttpOnly {
+		t.Fatalf("Expected HttpOnly %s cookie to be set", adminCookieName)
+	}
+
+	// 5. Verify CSRF protection when using cookie auth on state-mutating POST
+	noCsrfReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/config/reset", strings.NewReader(`{}`))
+	noCsrfReq.AddCookie(sessionCookie)
+	noCsrfResp, err := http.DefaultClient.Do(noCsrfReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noCsrfResp.Body.Close()
+	if noCsrfResp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Expected 401 when X-CSRF-Token is missing on cookie-authenticated POST, got %d", noCsrfResp.StatusCode)
+	}
+
+	// 6. Update runtime config & burst damage parameters via /api/admin/config
+	opts := globalAdmin.GetOptions()
+	opts.DemonBalance.PassageBurstBaseDamage = 55
+	opts.DemonBalance.CharSyncTolerance = 7
+	opts.MaxWildDemons = 500
+	optsBytes, _ := json.Marshal(opts)
+
+	cfgReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/config", strings.NewReader(string(optsBytes)))
+	cfgReq.Header.Set("Content-Type", "application/json")
+	cfgReq.AddCookie(sessionCookie)
+	cfgReq.Header.Set("X-CSRF-Token", loginData.CSRFToken)
+	cfgResp, err := http.DefaultClient.Do(cfgReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgResp.Body.Close()
+	if cfgResp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200 OK updating config, got %d", cfgResp.StatusCode)
+	}
+	if DefaultDemonSyncBalance.PassageBurstBaseDamage != 55 || DefaultDemonSyncBalance.CharSyncTolerance != 7 {
+		t.Errorf("Expected live DefaultDemonSyncBalance to update (55, 7), got (%d, %d)", DefaultDemonSyncBalance.PassageBurstBaseDamage, DefaultDemonSyncBalance.CharSyncTolerance)
+	}
+
+	// Reset back to factory defaults
+	rstReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/config/reset", strings.NewReader(`{}`))
+	rstReq.AddCookie(sessionCookie)
+	rstReq.Header.Set("X-CSRF-Token", loginData.CSRFToken)
+	rstResp, err := http.DefaultClient.Do(rstReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rstResp.Body.Close()
+	if DefaultDemonSyncBalance.PassageBurstBaseDamage != 30 || DefaultDemonSyncBalance.CharSyncTolerance != 5 {
+		t.Errorf("Expected reset DefaultDemonSyncBalance to restore (30, 5), got (%d, %d)", DefaultDemonSyncBalance.PassageBurstBaseDamage, DefaultDemonSyncBalance.CharSyncTolerance)
+	}
+
+	// 7. Verify /api/admin/dashboard returns analytics and debug info
+	dashReq, _ := http.NewRequest(http.MethodGet, server.URL+"/api/admin/dashboard", nil)
+	dashReq.Header.Set("Authorization", "Bearer "+loginData.Token)
+	dashResp, err := http.DefaultClient.Do(dashReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dashResp.Body.Close()
+	if dashResp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200 OK from /api/admin/dashboard, got %d", dashResp.StatusCode)
+	}
+	var dashPayload struct {
+		Analytics AdminAnalyticsSnapshot `json:"analytics"`
+		Debug     AdminDebugSnapshot     `json:"debug"`
+	}
+	if err := json.NewDecoder(dashResp.Body).Decode(&dashPayload); err != nil {
+		t.Fatal(err)
+	}
+	if dashPayload.Debug.NumGoroutine <= 0 || dashPayload.Debug.GoVersion == "" {
+		t.Errorf("Expected populated runtime debug metrics, got %+v", dashPayload.Debug)
+	}
+	if len(dashPayload.Debug.AuditLog) == 0 {
+		t.Errorf("Expected non-empty security audit log")
+	}
+
+	// 8. Verify live admin action (spawn_demon & slay_demon)
+	actReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/action", strings.NewReader(`{"action":"spawn_demon","book_name":"Genesis","chapter":1,"verse":3,"rank":"tormentor","level":3,"wpm":18,"hp":250,"name":"Admin Test Demon"}`))
+	actReq.Header.Set("Content-Type", "application/json")
+	actReq.Header.Set("Authorization", "Bearer "+loginData.Token)
+	actResp, err := http.DefaultClient.Do(actReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actData struct {
+		OK        bool       `json:"ok"`
+		WildDemon *WildDemon `json:"wild_demon"`
+	}
+	_ = json.NewDecoder(actResp.Body).Decode(&actData)
+	actResp.Body.Close()
+	if !actData.OK || actData.WildDemon == nil || actData.WildDemon.Name != "Admin Test Demon" {
+		t.Fatalf("Expected spawn_demon action to succeed, got %+v", actData)
+	}
+
+	slayReq2, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/action", strings.NewReader(fmt.Sprintf(`{"action":"slay_demon","demon_id":%q}`, actData.WildDemon.ID)))
+	slayReq2.Header.Set("Content-Type", "application/json")
+	slayReq2.Header.Set("Authorization", "Bearer "+loginData.Token)
+	slayResp, err := http.DefaultClient.Do(slayReq2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slayResp.Body.Close()
+	if slayResp.StatusCode != http.StatusOK {
+		t.Errorf("Expected 200 OK slaying admin-spawned demon, got %d", slayResp.StatusCode)
+	}
+}
+
+
+
 
 
 

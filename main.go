@@ -22,7 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-//go:embed index.html logo.svg manifest.json sw.js kjv.json asv.json bbe.json esv.json niv.json nlt.json hcsb.json rvr1909.json book_guides.json book_guides_es.json
+//go:embed index.html admin.html logo.svg manifest.json sw.js kjv.json asv.json bbe.json esv.json niv.json nlt.json hcsb.json rvr1909.json book_guides.json book_guides_es.json
 var appFS embed.FS
 
 const (
@@ -198,6 +198,32 @@ func matchesPassageText(userInput, targetText string) bool {
 		return true
 	}
 	return normalizeSpanishForMatch(userInput) == normalizeSpanishForMatch(targetText)
+}
+
+// normalizeSpokenForMatch folds Spanish diacritics, lowercases all characters,
+// converts hyphens/dashes into spaces, strips punctuation, and normalizes whitespace
+// for Voice Mode spoken passage verification.
+func normalizeSpokenForMatch(s string) string {
+	folded := normalizeSpanishForMatch(s)
+	var sb strings.Builder
+	sb.Grow(len(folded))
+	for _, r := range folded {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			sb.WriteRune(unicode.ToLower(r))
+		} else if unicode.IsSpace(r) || r == '-' || r == '—' || r == '–' {
+			sb.WriteRune(' ')
+		}
+	}
+	return strings.Join(strings.Fields(sb.String()), " ")
+}
+
+func matchesSpokenPassage(userInput, targetText string) bool {
+	if matchesPassageText(userInput, targetText) {
+		return true
+	}
+	uNorm := normalizeSpokenForMatch(userInput)
+	tNorm := normalizeSpokenForMatch(targetText)
+	return uNorm != "" && uNorm == tNorm
 }
 
 func runeLen(s string) int {
@@ -472,6 +498,16 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 			EarnedAt:    now,
 		})
 	}
+	if mode == "voice" {
+		tryAward(Badge{
+			ID:          "voice_herald",
+			Type:        "special",
+			Name:        "Voice of the Herald",
+			Description: "Proclaimed a passage of Scripture aloud in Voice Mode!",
+			Icon:        "🎙️",
+			EarnedAt:    now,
+		})
+	}
 
 	if bp != nil && bp.TotalVerses > 0 && bp.CurrentVerse >= bp.TotalVerses && bp.ReviewCompleted {
 		tryAward(Badge{
@@ -739,6 +775,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Send active balance config
+	balCopy := DefaultDemonSyncBalance
+	_ = conn.WriteJSON(Message{
+		Type:          "balance_config_update",
+		BalanceConfig: &balCopy,
+	})
+
 	// Session State
 	var selectedBook string
 	var bookProgress *BookProgress
@@ -766,7 +809,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			RuntimeStats: runtimeStats,
 		}
 
-		if !bookProgress.IntroCompleted {
+		if !bookProgress.IntroCompleted && (globalAdmin == nil || globalAdmin.GetOptions().MandatoryBookIntro) {
 			currentMode = "intro"
 			runtimeStats.VerseStartTime = time.Now()
 			client.VerseStartTime = runtimeStats.VerseStartTime
@@ -815,6 +858,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			var wildD *WildDemon
 			var encounterChance float64
 			var isAmbush bool
+			var wards int
 			if globalDemonManager != nil {
 				wildD, encounterChance, isAmbush = globalDemonManager.CheckOrSpawnWildDemonForUser(
 					currentTransID,
@@ -822,6 +866,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					activeVerseIdx,
 					len(bookVerses),
 				)
+			}
+			if wildD != nil {
+				if sanctuary, _ := store.GetCustomizations(ctx, uid); sanctuary != nil {
+					wards = sanctuary.GuardianWards
+				}
 			}
 			_ = conn.WriteJSON(Message{
 				Type:              "verse",
@@ -839,15 +888,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				UserCompletions:   uComps,
 				GlobalCompletions: gComps,
 				WildDemon:         wildD,
+				HolyWards:         wards,
 				EncounterChance:   int(encounterChance * 100),
 				IsAmbush:          isAmbush,
 			})
 			if wildD != nil {
-				sanctuary, _ := store.GetCustomizations(ctx, uid)
-				wards := 0
-				if sanctuary != nil {
-					wards = sanctuary.GuardianWards
-				}
 				_ = conn.WriteJSON(Message{
 					Type:            "wild_demon_present",
 					WildDemon:       wildD,
@@ -1835,7 +1880,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			verifiedDuration, instantWPM, _ := verifySubmissionTiming(startTime, msg.Duration, targetText, msg.WPM)
 
-			if matchesPassageText(userInput, targetText) {
+			if matchesPassageText(userInput, targetText) || (msg.VoiceMode && matchesSpokenPassage(userInput, targetText)) {
 				inputLen := runeLen(targetText)
 				runtimeStats.CorrectChars += inputLen
 				runtimeStats.CharsTyped += inputLen
@@ -1871,6 +1916,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						Accuracy:    100,
 					})
 					rewards = checkAndAwardBadges(ctx, store, uid, currentTransID, activeChallenge.BookName, bookProgress, streak, instantWPM, true, "challenge")
+					if msg.VoiceMode {
+						rewards = append(rewards, checkAndAwardBadges(ctx, store, uid, currentTransID, activeChallenge.BookName, bookProgress, streak, instantWPM, true, "voice")...)
+					}
 
 					todayStr := activeChallenge.Date
 					raceResults, _ := store.GetDailyRaceResults(ctx, todayStr)
@@ -2004,6 +2052,31 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
+				// Check if user finished a passage before a wild demon on this verse
+				var completedTrans, completedBook string
+				var completedChapter, completedVerse int
+				if currentMode == "verse" && activeVerseIdx < len(bookVerses) {
+					vCompleted := bookVerses[activeVerseIdx]
+					completedTrans = currentTransID
+					completedBook = vCompleted.BookName
+					completedChapter = vCompleted.Chapter
+					completedVerse = vCompleted.Verse
+				} else if currentMode == "favorite" && activeFavorite != nil {
+					completedTrans = activeFavorite.Translation
+					completedBook = activeFavorite.BookName
+					completedChapter = activeFavorite.Chapter
+					completedVerse = activeFavorite.Verse
+				}
+				var activeWildDemonBeforeAdvance *WildDemon
+				if globalDemonManager != nil && completedBook != "" {
+					activeWildDemonBeforeAdvance = globalDemonManager.GetWildDemonAt(completedTrans, completedBook, completedChapter, completedVerse)
+					if activeWildDemonBeforeAdvance == nil && msg.DemonID != "" {
+						if d := globalDemonManager.GetWildDemon(msg.DemonID); d != nil && d.CurrentHP > 0 && d.BookName == completedBook && d.Chapter == completedChapter && d.Verse == completedVerse {
+							activeWildDemonBeforeAdvance = d
+						}
+					}
+				}
+
 				if currentMode == "intro" {
 					bookProgress.IntroCompleted = true
 					_ = store.UpdateBookProgress(ctx, uid, currentTransID, selectedBook, bookProgress)
@@ -2039,6 +2112,84 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					}
 
 					rewards = checkAndAwardBadges(ctx, store, uid, currentTransID, selectedBook, bookProgress, streak, instantWPM, true, "verse")
+				}
+				if msg.VoiceMode {
+					rewards = append(rewards, checkAndAwardBadges(ctx, store, uid, currentTransID, selectedBook, bookProgress, streak, instantWPM, true, "voice")...)
+				}
+
+				// Apply Passage Finish Burst Damage if the user finished the passage before the wild demon!
+				if activeWildDemonBeforeAdvance != nil && activeWildDemonBeforeAdvance.CurrentHP > 0 && globalDemonManager != nil {
+					customs, _ := store.GetCustomizations(ctx, uid)
+					gPower := 10
+					customBaseBurst := DefaultDemonSyncBalance.PassageBurstBaseDamage
+					if customs != nil {
+						if customs.GuardianPower > 0 {
+							gPower = customs.GuardianPower
+						}
+						if customs.PassageBurstDamage > 0 {
+							customBaseBurst = customs.PassageBurstDamage
+						}
+					}
+					if msg.BurstDamage > 0 {
+						customBaseBurst = msg.BurstDamage
+						if customs != nil && customs.PassageBurstDamage != msg.BurstDamage {
+							customs.PassageBurstDamage = msg.BurstDamage
+							_ = store.SaveCustomizations(ctx, uid, *customs)
+						}
+					}
+					baseStrikeDamage := (gPower + 5) / 10
+					if baseStrikeDamage < 1 {
+						baseStrikeDamage = 1
+					}
+					charsAhead := inputLen - activeWildDemonBeforeAdvance.CharIndex
+					if charsAhead < 0 {
+						charsAhead = 0
+					}
+					burstDamage := CalculatePassageFinishBurstDamage(baseStrikeDamage, msg.SyncStacks, charsAhead, customBaseBurst)
+					updatedDemon, defeated := globalDemonManager.ApplyWildDemonDamage(activeWildDemonBeforeAdvance.ID, burstDamage)
+					if updatedDemon != nil {
+						if defeated {
+							newSettings, leveledUp, _ := store.RecordWildDemonDefeat(ctx, uid, updatedDemon.Rank, updatedDemon.Level)
+							if globalHub != nil {
+								globalHub.BroadcastWildDemonsList(globalDemonManager.GetWildDemons())
+							}
+							content := fmt.Sprintf("⚡ PASSAGE FINISH BURST (-%d HP)! Exorcised %s (Lv. %d)! Total Defeated: %d", burstDamage, updatedDemon.Name, updatedDemon.Level, newSettings.DemonsDefeated)
+							if leveledUp {
+								content = fmt.Sprintf("⚡ PASSAGE FINISH BURST (-%d HP)! Exorcised %s! Your Guardian Angel reached Level %d!", burstDamage, updatedDemon.Name, newSettings.GuardianLevel)
+							}
+							_ = conn.WriteJSON(Message{
+								Type:            "wild_demon_defeated",
+								WildDemon:       updatedDemon,
+								Sanctuary:       newSettings,
+								TrackerUnlocked: newSettings.TrackerUnlocked,
+								DemonsDefeated:  newSettings.DemonsDefeated,
+								DemonDefeated:   true,
+								Damage:          burstDamage,
+								BurstDamage:     burstDamage,
+								SyncStacks:      msg.SyncStacks,
+								Content:         content,
+							})
+						} else {
+							var nextUserVerse *Verse
+							if currentMode == "verse" && activeVerseIdx < len(bookVerses) {
+								vNext := bookVerses[activeVerseIdx]
+								nextUserVerse = &vNext
+							}
+							advDemon, destV, _ := globalDemonManager.DriveWildDemonToNextVerse(activeWildDemonBeforeAdvance.ID, nextUserVerse)
+							if advDemon == nil {
+								advDemon = updatedDemon
+							}
+							_ = conn.WriteJSON(Message{
+								Type:        "wild_demon_burst",
+								WildDemon:   advDemon,
+								Damage:      burstDamage,
+								BurstDamage: burstDamage,
+								SyncStacks:  msg.SyncStacks,
+								Verse:       &destV,
+								Content:     fmt.Sprintf("⚡ PASSAGE BURST! Dealt %d Holy Burst Damage to %s (%d/%d HP)! Pursuing to %s %d:%d!", burstDamage, advDemon.Name, advDemon.CurrentHP, advDemon.MaxHP, destV.BookName, destV.Chapter, destV.Verse),
+							})
+						}
+					}
 				}
 
 				stats := &Stats{
@@ -2212,6 +2363,9 @@ func main() {
 
 	globalDemonManager = newDemonManager(store, globalHub)
 	globalDemonManager.StartDevil24_7("imp", 1)
+
+	initAdminSystem(".elespe")
+	registerAdminRoutes(http.DefaultServeMux)
 
 	http.Handle("/", http.FileServer(http.FS(publicFS{appFS})))
 	http.HandleFunc("/ws", handleWebSocket)
