@@ -32,12 +32,26 @@ const (
 
 var (
 	serverStartTime = time.Now().UTC()
+	globalAdminMu   sync.RWMutex
 	globalAdmin     *AdminManager
 )
+
+func getGlobalAdmin() *AdminManager {
+	globalAdminMu.RLock()
+	defer globalAdminMu.RUnlock()
+	return globalAdmin
+}
+
+func setGlobalAdmin(mgr *AdminManager) {
+	globalAdminMu.Lock()
+	globalAdmin = mgr
+	globalAdminMu.Unlock()
+}
 
 // AdminRuntimeOptions holds live-configurable server options, game parameters, and feature flags.
 type AdminRuntimeOptions struct {
 	DemonBalance                 DemonSyncBalanceConfig `json:"demon_balance"`
+	DemonTypes                   []DemonInfo            `json:"demon_types,omitempty"`
 	MaxWildDemons                int                    `json:"max_wild_demons"`
 	SpawnIntervalOverrideSec     int                    `json:"spawn_interval_override_sec"`
 	EvolveIntervalSec            int                    `json:"evolve_interval_sec"`
@@ -119,9 +133,10 @@ func generateSecureToken(numBytes int) string {
 func defaultAdminRuntimeOptions(baseBalance DemonSyncBalanceConfig) AdminRuntimeOptions {
 	return AdminRuntimeOptions{
 		DemonBalance:                 baseBalance,
+		DemonTypes:                   GetDemonTypes(),
 		MaxWildDemons:                666,
 		SpawnIntervalOverrideSec:     0,
-		EvolveIntervalSec:            600,
+		EvolveIntervalSec:            900,
 		EncounterBaseChance:          0.04,
 		EncounterMaxChance:           0.50,
 		EncounterPeacefulIntroVerses: 2,
@@ -144,7 +159,7 @@ func initAdminSystem(configDir string) *AdminManager {
 	_ = os.MkdirAll(configDir, 0755)
 	cfgPath := filepath.Join(configDir, "admin_config.json")
 
-	baseBalance := DefaultDemonSyncBalance
+	baseBalance := GetDemonSyncBalance()
 	mgr := &AdminManager{
 		configPath:     cfgPath,
 		username:       "admin",
@@ -192,7 +207,7 @@ func initAdminSystem(configDir string) *AdminManager {
 
 	mgr.applyOptionsToSubsystemsLocked()
 	mgr.recordAuditLocked("system", "127.0.0.1", "startup", "Admin console and security subsystem initialized")
-	globalAdmin = mgr
+	setGlobalAdmin(mgr)
 	return mgr
 }
 
@@ -237,28 +252,44 @@ func (m *AdminManager) GetOptions() AdminRuntimeOptions {
 }
 
 func (m *AdminManager) applyOptionsToSubsystemsLocked() {
-	DefaultDemonSyncBalance = m.options.DemonBalance
-	if globalDemonManager != nil {
+	SetDemonSyncBalance(m.options.DemonBalance)
+	if len(m.options.DemonTypes) > 0 {
+		SetDemonTypes(m.options.DemonTypes)
+	}
+	m.options.DemonTypes = GetDemonTypes()
+	if dm := getGlobalDemonManager(); dm != nil {
 		if m.options.MaxWildDemons > 0 {
-			globalDemonManager.SetMaxWildDemons(m.options.MaxWildDemons)
+			dm.SetMaxWildDemons(m.options.MaxWildDemons)
 		}
 		if m.options.SpawnIntervalOverrideSec > 0 {
-			globalDemonManager.SetSpawnInterval(time.Duration(m.options.SpawnIntervalOverrideSec) * time.Second)
+			dm.SetSpawnInterval(time.Duration(m.options.SpawnIntervalOverrideSec) * time.Second)
 		} else {
-			globalDemonManager.SetSpawnInterval(0)
+			dm.SetSpawnInterval(0)
 		}
 		if m.options.EvolveIntervalSec > 0 {
-			globalDemonManager.SetEvolveInterval(time.Duration(m.options.EvolveIntervalSec) * time.Second)
+			dm.SetEvolveInterval(time.Duration(m.options.EvolveIntervalSec) * time.Second)
+		}
+		if m.options.Devil24_7Rank != "" {
+			lvl := m.options.Devil24_7Level
+			if lvl < 1 {
+				lvl = 1
+			}
+			dm.SetDevil24_7Config(m.options.Devil24_7Rank, lvl)
 		}
 	}
-	if globalAngelManager != nil && m.options.GlobalAngelWPM > 0 {
-		globalAngelManager.mu.RLock()
-		ga := globalAngelManager.globalAngel
-		globalAngelManager.mu.RUnlock()
-		if ga != nil {
-			ga.mu.Lock()
-			ga.Info.WPM = m.options.GlobalAngelWPM
-			ga.mu.Unlock()
+	if globalAngelManager != nil {
+		if m.options.GlobalAngelRank != "" {
+			globalAngelManager.SetGlobalAngelRank(m.options.GlobalAngelRank)
+		}
+		if m.options.GlobalAngelWPM > 0 {
+			globalAngelManager.mu.RLock()
+			ga := globalAngelManager.globalAngel
+			globalAngelManager.mu.RUnlock()
+			if ga != nil {
+				ga.mu.Lock()
+				ga.Info.WPM = m.options.GlobalAngelWPM
+				ga.mu.Unlock()
+			}
 		}
 	}
 }
@@ -619,6 +650,9 @@ func (m *AdminManager) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m.mu.Lock()
+	if len(incoming.DemonTypes) == 0 {
+		incoming.DemonTypes = m.options.DemonTypes
+	}
 	m.options = incoming
 	m.applyOptionsToSubsystemsLocked()
 	_ = m.saveStateLocked()
@@ -649,15 +683,17 @@ func (m *AdminManager) handleResetConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	m.mu.Lock()
+	ResetDefaultDemonTypes()
 	m.options = defaultAdminRuntimeOptions(m.defaultBalance)
 	m.applyOptionsToSubsystemsLocked()
 	_ = m.saveStateLocked()
-	m.recordAuditLocked(sess.Username, getClientIP(r), "reset_config", "Reset all runtime options and demon balance parameters to factory defaults")
+	m.recordAuditLocked(sess.Username, getClientIP(r), "reset_config", "Reset all runtime options, demon types, and demon balance parameters to factory defaults")
 	optsCopy := m.options
 	m.mu.Unlock()
 
 	if globalHub != nil {
 		globalHub.BroadcastAdminConfigUpdate(optsCopy)
+		globalHub.BroadcastDemonTypesUpdate(optsCopy.DemonTypes)
 	}
 
 	writeAdminJSON(w, http.StatusOK, map[string]any{
@@ -995,6 +1031,7 @@ func collectAdminAnalytics(ctx context.Context) AdminAnalyticsSnapshot {
 
 		snap.TotalUniqueUsers = len(uniqueUIDs)
 
+		baseBurst := GetDemonSyncBalance().PassageBurstBaseDamage
 		for uid := range uniqueUIDs {
 			if strings.HasPrefix(uid, "angel-") || strings.HasPrefix(uid, "demon-") {
 				continue
@@ -1004,7 +1041,7 @@ func collectAdminAnalytics(ctx context.Context) AdminAnalyticsSnapshot {
 				DisplayName:        "Guest (" + uid[:min(8, len(uid))] + ")",
 				GuardianLevel:      1,
 				GuardianPower:      10,
-				PassageBurstDamage: DefaultDemonSyncBalance.PassageBurstBaseDamage,
+				PassageBurstDamage: baseBurst,
 				IsOnline:           onlineUIDs[uid],
 			}
 			if acc, ok := ls.data.Accounts[uid]; ok && acc != nil {
@@ -1065,7 +1102,7 @@ func collectAdminAnalytics(ctx context.Context) AdminAnalyticsSnapshot {
 
 	// PostgreSQL store fallback
 	if ps, ok := store.(*postgresStore); ok && ps != nil {
-		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM accounts`).Scan(&snap.TotalRegisteredAccounts)
+		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM user_accounts`).Scan(&snap.TotalRegisteredAccounts)
 		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&snap.TotalUniqueUsers)
 		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM user_streaks WHERE last_active_date = $1`, todayStr).Scan(&snap.ActiveUsersToday)
 		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM user_streaks WHERE last_active_date >= $1`, sevenDaysAgo).Scan(&snap.ActiveUsers7d)
@@ -1079,10 +1116,55 @@ func collectAdminAnalytics(ctx context.Context) AdminAnalyticsSnapshot {
 		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM user_badges`).Scan(&snap.TotalBadgesAwarded)
 		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*), COUNT(*) FILTER (WHERE flagged = TRUE) FROM verse_comments`).Scan(&snap.TotalComments, &snap.FlaggedCommentsCount)
 		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM chat_messages`).Scan(&snap.TotalChatMessages)
-		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM daily_races`).Scan(&snap.TotalDailyRaces)
+		_ = ps.pool.QueryRow(ctx, `SELECT COUNT(*) FROM daily_race_results`).Scan(&snap.TotalDailyRaces)
 		_ = ps.pool.QueryRow(ctx, `SELECT COALESCE(SUM(demons_defeated),0) FROM sanctuary_settings`).Scan(&snap.TotalDemonsDefeated)
 		if br, err := ps.GetBossRaid(ctx); err == nil {
 			snap.ActiveBossRaid = br
+		}
+
+		// Translations breakdown
+		if rows, err := ps.pool.Query(ctx, `SELECT COALESCE(NULLIF(translation, ''), 'kjv'), COUNT(*) FROM typing_sessions GROUP BY 1`); err == nil {
+			for rows.Next() {
+				var tr string
+				var cnt int
+				if rows.Scan(&tr, &cnt) == nil {
+					snap.TranslationsBreakdown[tr] = cnt
+				}
+			}
+			rows.Close()
+		}
+
+		// Top Books
+		if rows, err := ps.pool.Query(ctx, `SELECT book_name, COUNT(*), COALESCE(SUM(chars_typed),0), COALESCE(AVG(wpm),0)::int FROM typing_sessions WHERE book_name <> '' GROUP BY book_name ORDER BY 2 DESC LIMIT 15`); err == nil {
+			for rows.Next() {
+				var b AdminBookUsage
+				if rows.Scan(&b.BookName, &b.Sessions, &b.Chars, &b.AvgWPM) == nil {
+					snap.TopBooks = append(snap.TopBooks, b)
+				}
+			}
+			rows.Close()
+		}
+
+		// Recent Comments
+		if rows, err := ps.pool.Query(ctx, `SELECT id, uid, display_name, avatar_color, streak_days, translation, book_name, chapter, verse, prompt_type, content, is_private, parent_id, flagged, created_at FROM verse_comments ORDER BY id DESC LIMIT 30`); err == nil {
+			for rows.Next() {
+				var c VerseComment
+				if rows.Scan(&c.ID, &c.UID, &c.DisplayName, &c.AvatarColor, &c.StreakDays, &c.Translation, &c.BookName, &c.Chapter, &c.Verse, &c.PromptType, &c.Content, &c.IsPrivate, &c.ParentID, &c.Flagged, &c.CreatedAt) == nil {
+					snap.RecentComments = append(snap.RecentComments, c)
+				}
+			}
+			rows.Close()
+		}
+
+		// Recent Chat
+		if rows, err := ps.pool.Query(ctx, `SELECT id, channel, uid, display_name, avatar_color, content, created_at FROM chat_messages ORDER BY id DESC LIMIT 30`); err == nil {
+			for rows.Next() {
+				var cm ChatMessage
+				if rows.Scan(&cm.ID, &cm.Channel, &cm.UID, &cm.DisplayName, &cm.AvatarColor, &cm.Content, &cm.CreatedAt) == nil {
+					snap.RecentChat = append(snap.RecentChat, cm)
+				}
+			}
+			rows.Close()
 		}
 	}
 
@@ -1196,13 +1278,13 @@ func (m *AdminManager) collectAdminDebugInfo() AdminDebugSnapshot {
 	dynSpawnSec := 0
 	devil24Count := 0
 	devil24Loc := ""
-	if globalDemonManager != nil {
-		wildDemons = globalDemonManager.GetWildDemons()
-		dynSpawnSec = int(globalDemonManager.GetDynamicSpawnInterval().Seconds())
-		devil24Count, devil24Loc, _ = globalDemonManager.GetDevil24_7Status()
-		globalDemonManager.mu.RLock()
-		slainCount = len(globalDemonManager.slainDemons)
-		globalDemonManager.mu.RUnlock()
+	if dm := getGlobalDemonManager(); dm != nil {
+		wildDemons = dm.GetWildDemons()
+		dynSpawnSec = int(dm.GetDynamicSpawnInterval().Seconds())
+		devil24Count, devil24Loc, _ = dm.GetDevil24_7Status()
+		dm.mu.RLock()
+		slainCount = len(dm.slainDemons)
+		dm.mu.RUnlock()
 	}
 
 	var globalAngel *AngelInfo
@@ -1279,6 +1361,7 @@ func (m *AdminManager) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"username":        sess.Username,
 		"csrf_token":      sess.CSRFToken,
 		"options":         opts,
+		"demon_types":     GetDemonTypes(),
 		"default_balance": defBal,
 		"analytics":       analytics,
 		"debug":           debugInfo,
@@ -1299,26 +1382,28 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Action             string `json:"action"`
-		DemonID            string `json:"demon_id"`
-		Rank               string `json:"rank"`
-		Level              int    `json:"level"`
-		WPM                int    `json:"wpm"`
-		HP                 int    `json:"hp"`
-		Name               string `json:"name"`
-		BookName           string `json:"book_name"`
-		Chapter            int    `json:"chapter"`
-		Verse              int    `json:"verse"`
-		Theme              string `json:"theme"`
-		Message            string `json:"message"`
-		IsDemonBoss        bool   `json:"is_demon_boss"`
-		UID                string `json:"uid"`
-		GuardianLevel      int    `json:"guardian_level"`
-		GuardianPower      int    `json:"guardian_power"`
-		DemonsDefeated     int    `json:"demons_defeated"`
-		PassageBurstDamage int    `json:"passage_burst_damage"`
-		CommentID          int    `json:"comment_id"`
-		ChatID             int    `json:"chat_id"`
+		Action             string    `json:"action"`
+		DemonID            string    `json:"demon_id"`
+		Rank               string    `json:"rank"`
+		Level              int       `json:"level"`
+		WPM                int       `json:"wpm"`
+		HP                 int       `json:"hp"`
+		Name               string    `json:"name"`
+		BookName           string    `json:"book_name"`
+		Chapter            int       `json:"chapter"`
+		Verse              int       `json:"verse"`
+		Theme              string    `json:"theme"`
+		Message            string    `json:"message"`
+		IsDemonBoss        bool      `json:"is_demon_boss"`
+		UID                string    `json:"uid"`
+		GuardianLevel      int       `json:"guardian_level"`
+		GuardianPower      int       `json:"guardian_power"`
+		DemonsDefeated     int       `json:"demons_defeated"`
+		PassageBurstDamage int       `json:"passage_burst_damage"`
+		CommentID          int       `json:"comment_id"`
+		ChatID             int       `json:"chat_id"`
+		DemonType          DemonInfo `json:"demon_type"`
+		ApplyToActiveWild  bool      `json:"apply_to_active_wild"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAdminJSON(w, http.StatusBadRequest, map[string]any{"error": "Invalid JSON body"})
@@ -1327,14 +1412,15 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 
 	ip := getClientIP(r)
 	ctx := r.Context()
+	dm := getGlobalDemonManager()
 
 	switch req.Action {
 	case "trigger_mini_swarm":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
-		spawned := globalDemonManager.TriggerMiniSwarm(req.Theme)
+		spawned := dm.TriggerMiniSwarm(req.Theme)
 		m.mu.Lock()
 		m.recordAuditLocked(sess.Username, ip, "trigger_mini_swarm", fmt.Sprintf("Spawned %d demons in mini-swarm (theme=%q)", spawned, req.Theme))
 		m.mu.Unlock()
@@ -1344,11 +1430,11 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "trigger_major_swarm":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
-		spawned := globalDemonManager.TriggerMajorSwarm()
+		spawned := dm.TriggerMajorSwarm()
 		m.mu.Lock()
 		m.recordAuditLocked(sess.Username, ip, "trigger_major_swarm", fmt.Sprintf("Spawned %d demons in Sunday Major Swarm", spawned))
 		m.mu.Unlock()
@@ -1358,11 +1444,11 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "evolve_demons":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
-		evolved := globalDemonManager.ForceEvolveAllDemons()
+		evolved := dm.ForceEvolveAllDemons()
 		m.mu.Lock()
 		m.recordAuditLocked(sess.Username, ip, "evolve_demons", fmt.Sprintf("Force-evolved %d living wild demons", len(evolved)))
 		m.mu.Unlock()
@@ -1372,22 +1458,22 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "spawn_demon":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
 		var spawned *WildDemon
 		if req.BookName != "" && req.Chapter > 0 && req.Verse > 0 {
-			spawned = globalDemonManager.SpawnAdminCustomWildDemon(req.BookName, req.Chapter, req.Verse, req.Rank, req.Level, req.WPM, req.HP, req.Name)
+			spawned = dm.SpawnAdminCustomWildDemon(req.BookName, req.Chapter, req.Verse, req.Rank, req.Level, req.WPM, req.HP, req.Name)
 		} else {
-			spawned = globalDemonManager.SpawnPeriodicWildDemon()
+			spawned = dm.SpawnPeriodicWildDemon()
 		}
 		if spawned == nil {
 			writeAdminJSON(w, http.StatusBadRequest, map[string]any{"error": "Could not spawn demon (pool full or invalid scripture reference)"})
 			return
 		}
 		if globalHub != nil {
-			globalHub.BroadcastWildDemonsList(globalDemonManager.GetWildDemons())
+			globalHub.BroadcastWildDemonsList(dm.GetWildDemons())
 		}
 		m.mu.Lock()
 		m.recordAuditLocked(sess.Username, ip, "spawn_demon", fmt.Sprintf("Spawned %s (%s Lv.%d) at %s %d:%d", spawned.Name, spawned.Rank, spawned.Level, spawned.BookName, spawned.Chapter, spawned.Verse))
@@ -1399,11 +1485,11 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "slay_demon":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
-		slain := globalDemonManager.AdminSlayWildDemonByID(req.DemonID)
+		slain := dm.AdminSlayWildDemonByID(req.DemonID)
 		if slain == nil {
 			writeAdminJSON(w, http.StatusNotFound, map[string]any{"error": "Demon not found"})
 			return
@@ -1417,11 +1503,11 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "advance_demon":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
-		adv, nextV, ok := globalDemonManager.AdvanceWildDemonToNextVerse(req.DemonID)
+		adv, nextV, ok := dm.AdvanceWildDemonToNextVerse(req.DemonID)
 		if !ok || adv == nil {
 			writeAdminJSON(w, http.StatusNotFound, map[string]any{"error": "Could not advance demon"})
 			return
@@ -1435,17 +1521,17 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "respawn_demon":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
-		resp := globalDemonManager.RespawnWildDemon(req.DemonID)
+		resp := dm.RespawnWildDemon(req.DemonID)
 		if resp == nil {
 			writeAdminJSON(w, http.StatusNotFound, map[string]any{"error": "Demon not found"})
 			return
 		}
 		if globalHub != nil {
-			globalHub.BroadcastWildDemonsList(globalDemonManager.GetWildDemons())
+			globalHub.BroadcastWildDemonsList(dm.GetWildDemons())
 		}
 		m.mu.Lock()
 		m.recordAuditLocked(sess.Username, ip, "respawn_demon", fmt.Sprintf("Respawned %s at %s %d:%d", resp.Name, resp.BookName, resp.Chapter, resp.Verse))
@@ -1456,11 +1542,11 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "slay_all_demons":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
-		count := globalDemonManager.AdminSlayAllWildDemons()
+		count := dm.AdminSlayAllWildDemons()
 		m.mu.Lock()
 		m.recordAuditLocked(sess.Username, ip, "slay_all_demons", fmt.Sprintf("Purged all %d active wild demons", count))
 		m.mu.Unlock()
@@ -1470,11 +1556,11 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "reset_demons":
-		if globalDemonManager == nil {
+		if dm == nil {
 			writeAdminJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "DemonManager not initialized"})
 			return
 		}
-		count := globalDemonManager.AdminResetDefaultWildDemons()
+		count := dm.AdminResetDefaultWildDemons()
 		m.mu.Lock()
 		m.recordAuditLocked(sess.Username, ip, "reset_demons", fmt.Sprintf("Reset wild demon pool to %d default adversaries", count))
 		m.mu.Unlock()
@@ -1517,11 +1603,13 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if globalHub != nil {
 			activeCount := 0
-			if globalDemonManager != nil {
-				activeCount = len(globalDemonManager.GetWildDemons())
+			maxDemons := 666
+			if dm != nil {
+				activeCount = len(dm.GetWildDemons())
+				maxDemons = dm.GetMaxWildDemons()
 			}
-			sanct := max(0, int((1.0-float64(activeCount)/666.0)*100))
-			globalHub.BroadcastSwarmEvent("📣 ADMIN DECREE: "+msgText, activeCount, 666, sanct)
+			sanct := max(0, int((1.0-float64(activeCount)/float64(max(1, maxDemons)))*100))
+			globalHub.BroadcastSwarmEvent("📣 ADMIN DECREE: "+msgText, activeCount, maxDemons, sanct)
 		}
 		m.mu.Lock()
 		m.recordAuditLocked(sess.Username, ip, "broadcast_announcement", msgText)
@@ -1556,7 +1644,7 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		_ = store.SaveCustomizations(ctx, req.UID, *customs)
 		if globalHub != nil {
 			globalHub.SendToUID(req.UID, Message{
-				Type:            "sanctuary_data",
+				Type:            "sanctuary_state",
 				Sanctuary:       customs,
 				TrackerUnlocked: customs.TrackerUnlocked,
 				DemonsDefeated:  customs.DemonsDefeated,
@@ -1635,6 +1723,73 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		m.mu.Unlock()
 		writeAdminJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Garbage collection completed."})
 
+	case "upsert_demon_type":
+		updated := UpsertDemonType(req.DemonType)
+		updatedWild := 0
+		if req.ApplyToActiveWild && dm != nil {
+			updatedWild = dm.ApplyDemonTypeToActiveWildDemons(updated)
+		}
+		allTypes := GetDemonTypes()
+		m.mu.Lock()
+		m.options.DemonTypes = allTypes
+		_ = m.saveStateLocked()
+		m.recordAuditLocked(sess.Username, ip, "upsert_demon_type", fmt.Sprintf("Saved demon type %q (%s, BaseWPM=%d, WildWPM=%d-%d, WildBaseHP=%d, UpdatedWild=%d)", updated.Rank, updated.Name, updated.BaseLevelWPM, updated.WildMinWPM, updated.WildMaxWPM, updated.WildBaseHP, updatedWild))
+		m.mu.Unlock()
+		if globalHub != nil {
+			globalHub.BroadcastDemonTypesUpdate(allTypes)
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]any{
+			"ok":           true,
+			"demon_type":   updated,
+			"demon_types":  allTypes,
+			"updated_wild": updatedWild,
+			"message":      fmt.Sprintf("Saved demon type %s %s (%s)!", updated.Icon, updated.Name, updated.Rank),
+		})
+
+	case "delete_demon_type":
+		rankToDelete := req.Rank
+		if rankToDelete == "" {
+			rankToDelete = req.DemonType.Rank
+		}
+		if !DeleteDemonType(rankToDelete) {
+			writeAdminJSON(w, http.StatusNotFound, map[string]any{"error": "Demon type not found"})
+			return
+		}
+		allTypes := GetDemonTypes()
+		m.mu.Lock()
+		m.options.DemonTypes = allTypes
+		_ = m.saveStateLocked()
+		actionDesc := fmt.Sprintf("Removed custom demon type %q", rankToDelete)
+		if isBuiltInDemonRank(rankToDelete) {
+			actionDesc = fmt.Sprintf("Reset built-in demon type %q to defaults", rankToDelete)
+		}
+		m.recordAuditLocked(sess.Username, ip, "delete_demon_type", actionDesc)
+		m.mu.Unlock()
+		if globalHub != nil {
+			globalHub.BroadcastDemonTypesUpdate(allTypes)
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]any{
+			"ok":          true,
+			"demon_types": allTypes,
+			"message":     actionDesc + ".",
+		})
+
+	case "reset_demon_types":
+		allTypes := ResetDefaultDemonTypes()
+		m.mu.Lock()
+		m.options.DemonTypes = allTypes
+		_ = m.saveStateLocked()
+		m.recordAuditLocked(sess.Username, ip, "reset_demon_types", "Reset all demon types and removed custom demon types")
+		m.mu.Unlock()
+		if globalHub != nil {
+			globalHub.BroadcastDemonTypesUpdate(allTypes)
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]any{
+			"ok":          true,
+			"demon_types": allTypes,
+			"message":     "Reset all demon types to factory defaults.",
+		})
+
 	default:
 		writeAdminJSON(w, http.StatusBadRequest, map[string]any{"error": "Unknown admin action: " + req.Action})
 	}
@@ -1643,21 +1798,69 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 // ---- Helper Methods on Hub & DemonManager for Admin Operations ----
 
 func (h *Hub) BroadcastAdminConfigUpdate(opts AdminRuntimeOptions) {
-	h.mu.RLock()
-	conns := make([]*safeConn, 0, len(h.clients))
-	for c := range h.clients {
-		conns = append(conns, c.conn)
-	}
-	h.mu.RUnlock()
-
 	bal := opts.DemonBalance
-	out := Message{
+	h.broadcastAll(Message{
 		Type:          "balance_config_update",
 		BalanceConfig: &bal,
+		RuntimeConfig: &opts,
+	})
+}
+
+func (h *Hub) BroadcastDemonTypesUpdate(types []DemonInfo) {
+	h.broadcastAll(Message{
+		Type:   "demons_types_update",
+		Demons: types,
+	})
+}
+
+func (m *DemonManager) ApplyDemonTypeToActiveWildDemons(dt DemonInfo) int {
+	m.mu.Lock()
+	updatedCount := 0
+	for _, d := range m.wildDemons {
+		if d.CurrentHP <= 0 || d.Rank != dt.Rank {
+			continue
+		}
+		if dt.Icon != "" {
+			d.Icon = dt.Icon
+		}
+		if dt.Color != "" {
+			d.Color = dt.Color
+		}
+		if dt.Title != "" {
+			d.Title = dt.Title
+		}
+		if dt.MaxLevel > 0 {
+			d.MaxLevel = dt.MaxLevel
+			if d.Level > d.MaxLevel {
+				d.Level = d.MaxLevel
+			}
+		}
+		if dt.WildBaseHP > 0 {
+			hpRatio := float64(d.CurrentHP) / float64(max(1, d.MaxHP))
+			newMaxHP := dt.WildBaseHP + d.Level*max(0, dt.WildHPPerLevel)
+			d.MaxHP = newMaxHP
+			d.CurrentHP = max(1, int(math.Round(float64(newMaxHP)*hpRatio)))
+		}
+		if dt.WildMinWPM > 0 && dt.WildMaxWPM >= dt.WildMinWPM {
+			if d.BaseWPM < dt.WildMinWPM {
+				d.BaseWPM = dt.WildMinWPM
+				d.WPM = dt.WildMinWPM
+				m.wildDemonBases[d.ID] = dt.WildMinWPM
+			} else if d.BaseWPM > dt.WildMaxWPM {
+				d.BaseWPM = dt.WildMaxWPM
+				d.WPM = dt.WildMaxWPM
+				m.wildDemonBases[d.ID] = dt.WildMaxWPM
+			}
+		}
+		updatedCount++
 	}
-	for _, conn := range conns {
-		_ = conn.WriteJSON(out)
+	allDemons := m.getWildDemonsLocked()
+	m.mu.Unlock()
+
+	if updatedCount > 0 && m.hub != nil {
+		m.hub.BroadcastWildDemonsList(allDemons)
 	}
+	return updatedCount
 }
 
 func (m *DemonManager) ForceEvolveAllDemons() []WildDemon {
@@ -1674,8 +1877,12 @@ func (m *DemonManager) ForceEvolveAllDemons() []WildDemon {
 		if d.Level < d.MaxLevel {
 			d.Level++
 			d.LastEvolve = now
-			d.MaxHP += 50
-			d.CurrentHP += 50
+			hpStep := 50
+			if dt, ok := GetDemonType(d.Rank); ok && dt.WildHPPerLevel > 0 {
+				hpStep = dt.WildHPPerLevel
+			}
+			d.MaxHP += hpStep
+			d.CurrentHP += hpStep
 			if d.WPM < 24 {
 				d.WPM++
 			}
@@ -1723,38 +1930,56 @@ func (m *DemonManager) SpawnAdminCustomWildDemon(book string, ch, v int, rank st
 	if rank == "" {
 		rank = "fiend"
 	}
+	dt, hasType := GetDemonType(rank)
+	maxLvl := 5
+	if hasType && dt.MaxLevel > 0 {
+		maxLvl = dt.MaxLevel
+	}
 	if level < 1 {
-		level = 1
+		if hasType && dt.Level > 0 {
+			level = dt.Level
+		} else {
+			level = 1
+		}
 	}
-	if level > 5 {
-		level = 5
+	if level > maxLvl {
+		level = maxLvl
 	}
-	if wpm < 6 {
-		wpm = 14
+	if wpm < 4 {
+		if hasType && dt.WildMinWPM > 0 {
+			wpm = dt.WildMinWPM + (dt.WildMaxWPM-dt.WildMinWPM)/2
+		} else {
+			wpm = 14
+		}
 	}
-	if hp < 20 {
-		hp = 120 + level*60
+	if hp < 10 {
+		if hasType && dt.WildBaseHP > 0 {
+			hp = dt.WildBaseHP + level*max(0, dt.WildHPPerLevel)
+		} else {
+			hp = 120 + level*60
+		}
 	}
 
 	icon := "👹"
 	color := "#dc2626"
 	title := "Admin Summoned Adversary"
-	switch rank {
-	case "imp":
-		icon = "😈"
-		color = "#ef4444"
-		title = "Tempter of the Void"
-	case "tormentor":
-		icon = "👺"
-		color = "#b91c1c"
-		title = "Accuser of the Brethren"
-	case "apollyon":
-		icon = "👑🔥"
-		color = "#991b1b"
-		title = "Harbinger of Abaddon"
+	if hasType {
+		if dt.Icon != "" {
+			icon = dt.Icon
+		}
+		if dt.Color != "" {
+			color = dt.Color
+		}
+		if dt.Title != "" {
+			title = dt.Title
+		}
 	}
 	if customName == "" {
-		customName = fmt.Sprintf("Summoned %s of %s", strings.Title(rank), book)
+		if hasType && dt.Name != "" {
+			customName = fmt.Sprintf("%s of %s", dt.Name, book)
+		} else {
+			customName = fmt.Sprintf("Summoned %s of %s", titleCaseASCII(rank), book)
+		}
 	}
 
 	now := time.Now().UTC()
@@ -1762,7 +1987,7 @@ func (m *DemonManager) SpawnAdminCustomWildDemon(book string, ch, v int, rank st
 		ID:          fmt.Sprintf("wild-admin-%d", now.UnixNano()%1000000),
 		Rank:        rank,
 		Level:       level,
-		MaxLevel:    5,
+		MaxLevel:    maxLvl,
 		Name:        customName,
 		Title:       title,
 		Icon:        icon,
@@ -1851,18 +2076,19 @@ func (m *DemonManager) AdminResetDefaultWildDemons() int {
 }
 
 func registerAdminRoutes(mux *http.ServeMux) {
-	if globalAdmin == nil {
-		initAdminSystem(".elespe")
+	adm := getGlobalAdmin()
+	if adm == nil {
+		adm = initAdminSystem(".elespe")
 	}
-	mux.HandleFunc("/admin", globalAdmin.handleAdminPage)
-	mux.HandleFunc("/admin/", globalAdmin.handleAdminPage)
-	mux.HandleFunc("/admin.html", globalAdmin.handleAdminPage)
-	mux.HandleFunc("/api/admin/session", globalAdmin.handleSessionStatus)
-	mux.HandleFunc("/api/admin/login", globalAdmin.handleLogin)
-	mux.HandleFunc("/api/admin/logout", globalAdmin.handleLogout)
-	mux.HandleFunc("/api/admin/security/password", globalAdmin.handleChangePassword)
-	mux.HandleFunc("/api/admin/dashboard", globalAdmin.handleDashboard)
-	mux.HandleFunc("/api/admin/config", globalAdmin.handleConfig)
-	mux.HandleFunc("/api/admin/config/reset", globalAdmin.handleResetConfig)
-	mux.HandleFunc("/api/admin/action", globalAdmin.handleAction)
+	mux.HandleFunc("/admin", adm.handleAdminPage)
+	mux.HandleFunc("/admin/", adm.handleAdminPage)
+	mux.HandleFunc("/admin.html", adm.handleAdminPage)
+	mux.HandleFunc("/api/admin/session", adm.handleSessionStatus)
+	mux.HandleFunc("/api/admin/login", adm.handleLogin)
+	mux.HandleFunc("/api/admin/logout", adm.handleLogout)
+	mux.HandleFunc("/api/admin/security/password", adm.handleChangePassword)
+	mux.HandleFunc("/api/admin/dashboard", adm.handleDashboard)
+	mux.HandleFunc("/api/admin/config", adm.handleConfig)
+	mux.HandleFunc("/api/admin/config/reset", adm.handleResetConfig)
+	mux.HandleFunc("/api/admin/action", adm.handleAction)
 }

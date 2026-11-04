@@ -37,6 +37,8 @@ type DemonSyncBalanceConfig struct {
 	MaxPassageBurstDamage    int     `json:"max_passage_burst_damage"`     // Maximum burst damage cap (default: 300)
 }
 
+var demonBalanceMu sync.RWMutex
+
 // DefaultDemonSyncBalance defines the active balance values for demon sync stacks, checkpoints, dynamic pacing, and burst damage.
 var DefaultDemonSyncBalance = DemonSyncBalanceConfig{
 	StacksPerWord:            1,
@@ -63,6 +65,28 @@ var DefaultDemonSyncBalance = DemonSyncBalanceConfig{
 	MaxPassageBurstDamage:    300,
 }
 
+func GetDemonSyncBalance() DemonSyncBalanceConfig {
+	demonBalanceMu.RLock()
+	defer demonBalanceMu.RUnlock()
+	return DefaultDemonSyncBalance
+}
+
+func SetDemonSyncBalance(cfg DemonSyncBalanceConfig) {
+	demonBalanceMu.Lock()
+	DefaultDemonSyncBalance = cfg
+	demonBalanceMu.Unlock()
+}
+
+func titleCaseASCII(s string) string {
+	words := strings.Fields(strings.ReplaceAll(s, "_", " "))
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+		}
+	}
+	return strings.Join(words, " ")
+}
+
 // IsCheckpointPunctuation returns true if the character is a scripture punctuation mark that counts toward a checkpoint.
 func IsCheckpointPunctuation(r rune) bool {
 	switch r {
@@ -76,7 +100,7 @@ func IsCheckpointPunctuation(r rune) bool {
 // CalculatePunctuationCheckpoint returns the checkpoint character index and total punctuation marks crossed
 // for a given passage text and number of characters typed.
 func CalculatePunctuationCheckpoint(text string, typedLen int) (checkpointIdx int, punctCount int) {
-	return CalculatePunctuationCheckpointWithConfig(text, typedLen, DefaultDemonSyncBalance)
+	return CalculatePunctuationCheckpointWithConfig(text, typedLen, GetDemonSyncBalance())
 }
 
 // CalculatePunctuationCheckpointWithConfig calculates the checkpoint index using a custom balance config.
@@ -110,7 +134,7 @@ func CalculatePunctuationCheckpointWithConfig(text string, typedLen int, cfg Dem
 // CalculateDynamicDemonWPM adjusts the demon's WPM dynamically based on whether the player is typing
 // 5+ chars ahead (increases demon WPM) or typing slower / falling behind (decreases demon WPM).
 func CalculateDynamicDemonWPM(baseWPM, userCharIdx, demonCharIdx, userWPM int) int {
-	return CalculateDynamicDemonWPMWithConfig(baseWPM, userCharIdx, demonCharIdx, userWPM, DefaultDemonSyncBalance)
+	return CalculateDynamicDemonWPMWithConfig(baseWPM, userCharIdx, demonCharIdx, userWPM, GetDemonSyncBalance())
 }
 
 // CalculateDynamicDemonWPMWithConfig computes dynamic demon WPM using a custom balance config.
@@ -198,7 +222,7 @@ func CalculateDynamicDemonWPMWithConfig(baseWPM, userCharIdx, demonCharIdx, user
 
 // GetSyncDamageTier returns the number of 5-stack damage tiers achieved for a given stack count.
 func GetSyncDamageTier(syncStacks int) int {
-	return GetSyncDamageTierWithConfig(syncStacks, DefaultDemonSyncBalance)
+	return GetSyncDamageTierWithConfig(syncStacks, GetDemonSyncBalance())
 }
 
 // GetSyncDamageTierWithConfig returns the damage tier count using a custom balance config.
@@ -219,7 +243,7 @@ func GetSyncDamageTierWithConfig(syncStacks int, cfg DemonSyncBalanceConfig) int
 // CalculateSyncStackDamage computes the total strike damage given a base damage and current sync stacks.
 // Every 5 stacks (StacksPerDamageTier) increases the damage done to the demon.
 func CalculateSyncStackDamage(baseDamage, syncStacks int) int {
-	return CalculateSyncStackDamageWithConfig(baseDamage, syncStacks, DefaultDemonSyncBalance)
+	return CalculateSyncStackDamageWithConfig(baseDamage, syncStacks, GetDemonSyncBalance())
 }
 
 // CalculateSyncStackDamageWithConfig computes sync-scaled damage with a custom balance configuration.
@@ -242,7 +266,7 @@ func CalculateSyncStackDamageWithConfig(baseDamage, syncStacks int, cfg DemonSyn
 // CalculatePassageFinishBurstDamage computes the burst damage applied when a user finishes
 // typing a passage before a wild demon. customBaseBurst overrides the default base burst if > 0.
 func CalculatePassageFinishBurstDamage(baseStrikeDamage, syncStacks, charsAhead, customBaseBurst int) int {
-	return CalculatePassageFinishBurstDamageWithConfig(baseStrikeDamage, syncStacks, charsAhead, customBaseBurst, DefaultDemonSyncBalance)
+	return CalculatePassageFinishBurstDamageWithConfig(baseStrikeDamage, syncStacks, charsAhead, customBaseBurst, GetDemonSyncBalance())
 }
 
 // CalculatePassageFinishBurstDamageWithConfig computes passage finish burst damage using a custom balance config.
@@ -310,97 +334,336 @@ func CalculatePassageFinishBurstDamageWithConfig(baseStrikeDamage, syncStacks, c
 	return burst
 }
 
-// Predefined Demon Adversary Profiles with Levels
-var demonTemplates = map[string]DemonInfo{
-	"imp": {
-		ID:            "demon-imp",
-		Rank:          "imp",
-		Name:          "Mischievous Imp",
-		Title:         "Shadow Whisperer",
-		Description:   "A sly imp that casts billowing smoke clouds over holy words for 2.5 seconds to distract your focus.",
-		Level:         1,
-		MaxLevel:      5,
-		WPM:           15,
-		Color:         "#ef4444",
-		Icon:          "😈",
-		BlockDuration: 2.5,
-	},
-	"fiend": {
-		ID:            "demon-fiend",
-		Rank:          "fiend",
-		Name:          "Shadow Fiend",
-		Title:         "Stumbling Stone",
-		Description:   "A looming shadow demon that shrouds scripture in dark fog and casts demonic typo curses to test your spiritual resilience.",
-		Level:         1,
-		MaxLevel:      4,
-		WPM:           35,
-		Color:         "#dc2626",
-		Icon:          "👹",
-		BlockDuration: 3.0,
-	},
-	"tormentor": {
-		ID:            "demon-tormentor",
-		Rank:          "tormentor",
-		Name:          "Brimstone Tormentor",
-		Title:         "Accuser of the Brethren",
-		Description:   "Fierce fallen herald armed with brimstone smog. Obscures entire phrases and attempts to swap letters into demonic typos.",
-		Level:         1,
-		MaxLevel:      4,
-		WPM:           70,
-		Color:         "#b91c1c",
-		Icon:          "👺",
-		BlockDuration: 3.5,
-	},
-	"apollyon": {
-		ID:            "demon-apollyon",
-		Rank:          "apollyon",
-		Name:          "Apollyon the Destroyer",
-		Title:         "Angel of the Bottomless Pit",
-		Description:   "The infernal sovereign of Abaddon (Rev 9:11). Casts abyssal darkness across verses, operating 24/7 without rest.",
-		Level:         2,
-		MaxLevel:      4,
-		WPM:           160,
-		Color:         "#991b1b",
-		Icon:          "👑🔥",
-		BlockDuration: 4.0,
-		IsBoss:        true,
-		TotalHP:       6000,
-		CurrentHP:     6000,
-	},
+var demonTypesMu sync.RWMutex
+
+func defaultDemonTypeMap() (map[string]DemonInfo, []string) {
+	m := map[string]DemonInfo{
+		"imp": {
+			ID:                   "demon-imp",
+			Rank:                 "imp",
+			Name:                 "Mischievous Imp",
+			Title:                "Shadow Whisperer",
+			Description:          "A sly imp that casts billowing smoke clouds over holy words for 2.5 seconds to distract your focus.",
+			Level:                1,
+			MaxLevel:             5,
+			WPM:                  15,
+			BaseLevelWPM:         15,
+			WPMPerLevel:          5,
+			WildMinWPM:           10,
+			WildMaxWPM:           22,
+			WildBaseHP:           100,
+			WildHPPerLevel:       60,
+			SpawnWeight:          2,
+			MinProgressRatio:     0.0,
+			MaxProgressRatio:     0.25,
+			AbilityIntervalChars: 10,
+			ShroudChance:         0.60,
+			BaseShroudRange:      2,
+			Color:                "#ef4444",
+			Icon:                 "😈",
+			BlockDuration:        2.5,
+		},
+		"fiend": {
+			ID:                   "demon-fiend",
+			Rank:                 "fiend",
+			Name:                 "Shadow Fiend",
+			Title:                "Stumbling Stone",
+			Description:          "A looming shadow demon that shrouds scripture in dark fog and casts demonic typo curses to test your spiritual resilience.",
+			Level:                1,
+			MaxLevel:             4,
+			WPM:                  35,
+			BaseLevelWPM:         35,
+			WPMPerLevel:          10,
+			WildMinWPM:           10,
+			WildMaxWPM:           22,
+			WildBaseHP:           100,
+			WildHPPerLevel:       60,
+			SpawnWeight:          2,
+			MinProgressRatio:     0.25,
+			MaxProgressRatio:     0.60,
+			AbilityIntervalChars: 10,
+			ShroudChance:         0.60,
+			BaseShroudRange:      2,
+			Color:                "#dc2626",
+			Icon:                 "👹",
+			BlockDuration:        3.0,
+		},
+		"tormentor": {
+			ID:                   "demon-tormentor",
+			Rank:                 "tormentor",
+			Name:                 "Brimstone Tormentor",
+			Title:                "Accuser of the Brethren",
+			Description:          "Fierce fallen herald armed with brimstone smog. Obscures entire phrases and attempts to swap letters into demonic typos.",
+			Level:                1,
+			MaxLevel:             4,
+			WPM:                  70,
+			BaseLevelWPM:         70,
+			WPMPerLevel:          15,
+			WildMinWPM:           10,
+			WildMaxWPM:           22,
+			WildBaseHP:           100,
+			WildHPPerLevel:       60,
+			SpawnWeight:          1,
+			MinProgressRatio:     0.60,
+			MaxProgressRatio:     0.85,
+			AbilityIntervalChars: 10,
+			ShroudChance:         0.60,
+			BaseShroudRange:      2,
+			Color:                "#b91c1c",
+			Icon:                 "👺",
+			BlockDuration:        3.5,
+		},
+		"apollyon": {
+			ID:                   "demon-apollyon",
+			Rank:                 "apollyon",
+			Name:                 "Apollyon the Destroyer",
+			Title:                "Angel of the Bottomless Pit",
+			Description:          "The infernal sovereign of Abaddon (Rev 9:11). Casts abyssal darkness across verses, operating 24/7 without rest.",
+			Level:                2,
+			MaxLevel:             4,
+			WPM:                  160,
+			BaseLevelWPM:         130,
+			WPMPerLevel:          30,
+			WildMinWPM:           10,
+			WildMaxWPM:           22,
+			WildBaseHP:           100,
+			WildHPPerLevel:       60,
+			SpawnWeight:          1,
+			MinProgressRatio:     0.85,
+			MaxProgressRatio:     1.0,
+			AbilityIntervalChars: 10,
+			ShroudChance:         0.60,
+			BaseShroudRange:      2,
+			Color:                "#991b1b",
+			Icon:                 "👑🔥",
+			BlockDuration:        4.0,
+			IsBoss:               true,
+			TotalHP:              6000,
+			CurrentHP:            6000,
+		},
+	}
+	order := []string{"imp", "fiend", "tormentor", "apollyon"}
+	return m, order
 }
 
-// Ordered list of demon ranks for UI display
-var canonicalDemons = []string{"imp", "fiend", "tormentor", "apollyon"}
+// Predefined Demon Adversary Profiles with Levels
+var demonTemplates, canonicalDemons = defaultDemonTypeMap()
 
-// GetDemonWPM calculates the exact speed for a demon rank and level
-func GetDemonWPM(rank string, level int) int {
+func isBuiltInDemonRank(rank string) bool {
+	return rank == "imp" || rank == "fiend" || rank == "tormentor" || rank == "apollyon"
+}
+
+func sanitizeDemonType(d DemonInfo) DemonInfo {
+	d.Rank = strings.ToLower(strings.TrimSpace(d.Rank))
+	d.Rank = strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			return r
+		}
+		return '_'
+	}, d.Rank)
+	if d.Rank == "" {
+		d.Rank = fmt.Sprintf("custom_%d", time.Now().Unix()%10000)
+	}
+	if d.ID == "" {
+		d.ID = "demon-" + d.Rank
+	}
+	if strings.TrimSpace(d.Name) == "" {
+		d.Name = titleCaseASCII(d.Rank) + " Adversary"
+	}
+	if strings.TrimSpace(d.Title) == "" {
+		d.Title = "Demonic Adversary"
+	}
+	if strings.TrimSpace(d.Description) == "" {
+		d.Description = "A shadowy adversary that obscures scripture and tests your focus."
+	}
+	if strings.TrimSpace(d.Icon) == "" {
+		d.Icon = "😈"
+	}
+	if strings.TrimSpace(d.Color) == "" {
+		d.Color = "#ef4444"
+	}
+	if d.Level < 1 {
+		d.Level = 1
+	}
+	if d.MaxLevel < 1 {
+		d.MaxLevel = 5
+	}
+	if d.Level > d.MaxLevel {
+		d.Level = d.MaxLevel
+	}
+	if d.BaseLevelWPM <= 0 {
+		if d.WPM > 0 {
+			d.BaseLevelWPM = d.WPM
+		} else {
+			d.BaseLevelWPM = 20
+		}
+	}
+	if d.WPMPerLevel < 0 {
+		d.WPMPerLevel = 0
+	}
+	if d.WPM <= 0 {
+		d.WPM = d.BaseLevelWPM + (d.Level-1)*d.WPMPerLevel
+	}
+	if d.WildMinWPM < 4 {
+		d.WildMinWPM = 10
+	}
+	if d.WildMaxWPM < d.WildMinWPM {
+		d.WildMaxWPM = d.WildMinWPM + 12
+	}
+	if d.WildBaseHP < 10 {
+		d.WildBaseHP = 100
+	}
+	if d.WildHPPerLevel < 0 {
+		d.WildHPPerLevel = 60
+	}
+	if d.SpawnWeight < 0 {
+		d.SpawnWeight = 0
+	}
+	if d.BlockDuration <= 0 {
+		d.BlockDuration = 2.8
+	}
+	if d.AbilityIntervalChars < 2 {
+		d.AbilityIntervalChars = 10
+	}
+	if d.ShroudChance < 0 || d.ShroudChance > 1 {
+		d.ShroudChance = 0.60
+	}
+	if d.BaseShroudRange < 1 {
+		d.BaseShroudRange = 2
+	}
+	if d.MaxProgressRatio <= 0 && d.MinProgressRatio <= 0 {
+		d.MaxProgressRatio = 1.0
+	}
+	d.IsCustom = !isBuiltInDemonRank(d.Rank)
+	return d
+}
+
+func GetDemonType(rank string) (DemonInfo, bool) {
+	demonTypesMu.RLock()
+	defer demonTypesMu.RUnlock()
+	t, ok := demonTemplates[rank]
+	return t, ok
+}
+
+func GetDemonTypes() []DemonInfo {
+	demonTypesMu.RLock()
+	defer demonTypesMu.RUnlock()
+	list := make([]DemonInfo, 0, len(canonicalDemons))
+	for _, r := range canonicalDemons {
+		if t, ok := demonTemplates[r]; ok {
+			t.WPM = getDemonWPMLocked(t, t.Level)
+			list = append(list, t)
+		}
+	}
+	return list
+}
+
+func SetDemonTypes(types []DemonInfo) {
+	if len(types) == 0 {
+		return
+	}
+	demonTypesMu.Lock()
+	newMap := make(map[string]DemonInfo, len(types))
+	newOrder := make([]string, 0, len(types))
+	for _, raw := range types {
+		clean := sanitizeDemonType(raw)
+		if _, exists := newMap[clean.Rank]; !exists {
+			newOrder = append(newOrder, clean.Rank)
+		}
+		newMap[clean.Rank] = clean
+	}
+	// Ensure the 4 canonical ranks always exist unless explicitly overridden
+	defMap, defOrder := defaultDemonTypeMap()
+	for _, r := range defOrder {
+		if _, ok := newMap[r]; !ok {
+			newMap[r] = defMap[r]
+			newOrder = append(newOrder, r)
+		}
+	}
+	demonTemplates = newMap
+	canonicalDemons = newOrder
+	demonTypesMu.Unlock()
+}
+
+func UpsertDemonType(info DemonInfo) DemonInfo {
+	clean := sanitizeDemonType(info)
+	demonTypesMu.Lock()
+	_, exists := demonTemplates[clean.Rank]
+	demonTemplates[clean.Rank] = clean
+	if !exists {
+		canonicalDemons = append(canonicalDemons, clean.Rank)
+	}
+	demonTypesMu.Unlock()
+	clean.WPM = GetDemonWPM(clean.Rank, clean.Level)
+	return clean
+}
+
+func DeleteDemonType(rank string) bool {
+	rank = strings.ToLower(strings.TrimSpace(rank))
+	demonTypesMu.Lock()
+	defer demonTypesMu.Unlock()
+	if isBuiltInDemonRank(rank) {
+		// Reset built-in rank back to default instead of removing canonical rank
+		defMap, _ := defaultDemonTypeMap()
+		if def, ok := defMap[rank]; ok {
+			demonTemplates[rank] = def
+			return true
+		}
+		return false
+	}
+	if _, ok := demonTemplates[rank]; !ok {
+		return false
+	}
+	delete(demonTemplates, rank)
+	for i, r := range canonicalDemons {
+		if r == rank {
+			canonicalDemons = append(canonicalDemons[:i], canonicalDemons[i+1:]...)
+			break
+		}
+	}
+	return true
+}
+
+func ResetDefaultDemonTypes() []DemonInfo {
+	demonTypesMu.Lock()
+	demonTemplates, canonicalDemons = defaultDemonTypeMap()
+	demonTypesMu.Unlock()
+	return GetDemonTypes()
+}
+
+func getDemonWPMLocked(t DemonInfo, level int) int {
 	if level < 1 {
 		level = 1
 	}
-	switch rank {
-	case "imp":
-		if level > 5 {
-			level = 5
-		}
-		return 15 + (level-1)*5 // Lv.1: 15, Lv.2: 20, Lv.3: 25, Lv.4: 30, Lv.5: 35
-	case "fiend":
-		if level > 4 {
-			level = 4
-		}
-		return 35 + (level-1)*10 // Lv.1: 35, Lv.2: 45, Lv.3: 55, Lv.4: 65
-	case "tormentor":
-		if level > 4 {
-			level = 4
-		}
-		return 70 + (level-1)*15 // Lv.1: 70, Lv.2: 85, Lv.3: 100, Lv.4: 115
-	case "apollyon":
-		if level > 4 {
-			level = 4
-		}
-		return 130 + (level-1)*30 // Lv.1: 130, Lv.2: 160, Lv.3: 190, Lv.4: 220
-	default:
-		return 20
+	maxLvl := t.MaxLevel
+	if maxLvl < 1 {
+		maxLvl = 5
 	}
+	if level > maxLvl {
+		level = maxLvl
+	}
+	base := t.BaseLevelWPM
+	if base <= 0 {
+		base = t.WPM
+	}
+	if base <= 0 {
+		base = 20
+	}
+	return base + (level-1)*t.WPMPerLevel
+}
+
+// GetDemonWPM calculates the exact speed for a demon rank and level
+func GetDemonWPM(rank string, level int) int {
+	demonTypesMu.RLock()
+	t, ok := demonTemplates[rank]
+	demonTypesMu.RUnlock()
+	if ok {
+		return getDemonWPMLocked(t, level)
+	}
+	if level < 1 {
+		level = 1
+	}
+	return 20 + (level-1)*5
 }
 
 // DemonBot represents an active typing instance of a demon adversary
@@ -437,7 +700,26 @@ type DemonManager struct {
 	stopSpawnChan        chan struct{}
 }
 
-var globalDemonManager *DemonManager
+var (
+	globalDemonMu      sync.RWMutex
+	globalDemonManager *DemonManager
+)
+
+func getGlobalDemonManager() *DemonManager {
+	globalDemonMu.RLock()
+	defer globalDemonMu.RUnlock()
+	return globalDemonManager
+}
+
+func setGlobalDemonManager(dm *DemonManager) {
+	globalDemonMu.Lock()
+	prev := globalDemonManager
+	globalDemonManager = dm
+	globalDemonMu.Unlock()
+	if prev != nil && prev != dm {
+		prev.Stop()
+	}
+}
 
 func newDemonManager(s Store, h *Hub) *DemonManager {
 	dm := &DemonManager{
@@ -466,15 +748,7 @@ func newDemonManager(s Store, h *Hub) *DemonManager {
 
 // GetDemonTemplates returns the list of all available demons with level options
 func (m *DemonManager) GetDemonTemplates() []DemonInfo {
-	list := make([]DemonInfo, 0, len(canonicalDemons))
-	for _, rank := range canonicalDemons {
-		if t, ok := demonTemplates[rank]; ok {
-			inf := t
-			inf.WPM = GetDemonWPM(rank, inf.Level)
-			list = append(list, inf)
-		}
-	}
-	return list
+	return GetDemonTypes()
 }
 
 // GetDevil24_7Status returns the current live statistics of the 24/7 devil
@@ -499,9 +773,11 @@ func (m *DemonManager) GetDevil24_7Status() (versesCount int, loc string, wpm in
 
 // StartDevil24_7 runs the autonomous 24/7 devil loop that NEVER sleeps
 func (m *DemonManager) StartDevil24_7(defaultRank string, level int) {
-	template, ok := demonTemplates[defaultRank]
+	m.StopDevil24_7()
+
+	template, ok := GetDemonType(defaultRank)
 	if !ok {
-		template = demonTemplates["imp"]
+		template, _ = GetDemonType("imp")
 	}
 	template.Level = level
 	template.WPM = GetDemonWPM(template.Rank, level)
@@ -521,6 +797,42 @@ func (m *DemonManager) StartDevil24_7(defaultRank string, level int) {
 	m.mu.Unlock()
 
 	go m.runDevil24_7Loop(bot)
+}
+
+// StopDevil24_7 stops the autonomous 24/7 devil loop if running.
+func (m *DemonManager) StopDevil24_7() {
+	m.mu.Lock()
+	bot := m.devil24_7
+	m.devil24_7 = nil
+	m.mu.Unlock()
+
+	if bot != nil {
+		bot.mu.Lock()
+		if bot.IsRunning {
+			bot.IsRunning = false
+			close(bot.StopChan)
+		}
+		bot.mu.Unlock()
+	}
+}
+
+// SetDevil24_7Config updates the rank and level of the 24/7 devil bot if running.
+func (m *DemonManager) SetDevil24_7Config(rank string, level int) {
+	m.mu.RLock()
+	running := m.devil24_7 != nil
+	curRank := ""
+	curLevel := 0
+	if m.devil24_7 != nil {
+		m.devil24_7.mu.RLock()
+		curRank = m.devil24_7.Info.Rank
+		curLevel = m.devil24_7.Info.Level
+		m.devil24_7.mu.RUnlock()
+	}
+	m.mu.RUnlock()
+
+	if running && (curRank != rank || curLevel != level) {
+		m.StartDevil24_7(rank, level)
+	}
 }
 
 func (m *DemonManager) runDevil24_7Loop(bot *DemonBot) {
@@ -547,6 +859,14 @@ func (m *DemonManager) runDevil24_7Loop(bot *DemonBot) {
 	playIdx := 0
 
 	for {
+		select {
+		case <-bot.StopChan:
+			return
+		case <-m.stopSpawnChan:
+			return
+		default:
+		}
+
 		item := playlist[playIdx%len(playlist)]
 		playIdx++
 
@@ -587,6 +907,8 @@ func (m *DemonManager) runDevil24_7Loop(bot *DemonBot) {
 			select {
 			case <-bot.StopChan:
 				return
+			case <-m.stopSpawnChan:
+				return
 			default:
 			}
 
@@ -624,7 +946,13 @@ func (m *DemonManager) runDevil24_7Loop(bot *DemonBot) {
 			if sleepDur < 10*time.Millisecond {
 				sleepDur = 10 * time.Millisecond
 			}
-			time.Sleep(sleepDur)
+			select {
+			case <-bot.StopChan:
+				return
+			case <-m.stopSpawnChan:
+				return
+			case <-time.After(sleepDur):
+			}
 		}
 
 		// Verse completed by 24/7 devil!
@@ -633,7 +961,13 @@ func (m *DemonManager) runDevil24_7Loop(bot *DemonBot) {
 		m.mu.Unlock()
 
 		// Brief pause between verses
-		time.Sleep(2 * time.Second)
+		select {
+		case <-bot.StopChan:
+			return
+		case <-m.stopSpawnChan:
+			return
+		case <-time.After(2 * time.Second):
+		}
 	}
 }
 
@@ -641,9 +975,9 @@ func (m *DemonManager) runDevil24_7Loop(bot *DemonBot) {
 func (m *DemonManager) SummonDemon(uid, rank string, level int, trans, book string, chapter, verse int, text string) *DemonInfo {
 	m.DismissDemon(uid)
 
-	template, ok := demonTemplates[rank]
+	template, ok := GetDemonType(rank)
 	if !ok {
-		template = demonTemplates["imp"]
+		template, _ = GetDemonType("imp")
 	}
 
 	if level < 1 {
@@ -693,7 +1027,20 @@ func (m *DemonManager) runDemonCompanionLoop(uid string, bot *DemonBot) {
 		v := bot.Verse
 		rank := bot.Info.Rank
 		lvl := bot.Info.Level
+		intervalChars := bot.Info.AbilityIntervalChars
+		shroudChance := bot.Info.ShroudChance
+		baseShroudRange := bot.Info.BaseShroudRange
 		bot.mu.RUnlock()
+
+		if intervalChars < 2 {
+			intervalChars = 10
+		}
+		if shroudChance <= 0 {
+			shroudChance = 0.60
+		}
+		if baseShroudRange < 1 {
+			baseShroudRange = 2
+		}
 
 		if !running || text == "" {
 			select {
@@ -734,14 +1081,13 @@ func (m *DemonManager) runDemonCompanionLoop(uid string, bot *DemonBot) {
 			bot.CharIndex = i
 			bot.mu.Unlock()
 
-			// Demons cast abilities as they type:
-			// Every 8-10 chars: Shroud (blocks upcoming text for 2.5-3.5s) or Typo Glitch
+			// Demons cast abilities as they type according to their configured DemonInfo parameters
 			var ability string
 			shroudRange := 0
-			if i > 0 && i%10 == 0 {
-				if rand.Float64() < 0.6 {
+			if i > 0 && i%intervalChars == 0 {
+				if rand.Float64() < shroudChance {
 					ability = "shroud"
-					shroudRange = 2 + (lvl / 2) // Higher level demons shroud more chars
+					shroudRange = baseShroudRange + (lvl / 2)
 				} else {
 					ability = "typo"
 					shroudRange = 1
@@ -763,7 +1109,13 @@ func (m *DemonManager) runDemonCompanionLoop(uid string, bot *DemonBot) {
 				})
 			}
 
-			time.Sleep(charDelay)
+			select {
+			case <-bot.StopChan:
+				return
+			case <-m.stopSpawnChan:
+				return
+			case <-time.After(charDelay):
+			}
 		}
 
 		if !completed {
@@ -779,7 +1131,13 @@ func (m *DemonManager) runDemonCompanionLoop(uid string, bot *DemonBot) {
 			})
 		}
 
-		time.Sleep(3 * time.Second)
+		select {
+		case <-bot.StopChan:
+			return
+		case <-m.stopSpawnChan:
+			return
+		case <-time.After(3 * time.Second):
+		}
 	}
 }
 
@@ -987,6 +1345,12 @@ func initWildDemons() []*WildDemon {
 
 func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 	for {
+		select {
+		case <-m.stopSpawnChan:
+			return
+		default:
+		}
+
 		m.mu.RLock()
 		wpm := d.WPM
 		if wpm < 10 {
@@ -1009,8 +1373,12 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 			return
 		}
 		if text == "" {
-			time.Sleep(1 * time.Second)
-			continue
+			select {
+			case <-m.stopSpawnChan:
+				return
+			case <-time.After(1 * time.Second):
+				continue
+			}
 		}
 
 		textRunes := []rune(text)
@@ -1021,15 +1389,23 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 			// If this demon just escaped from the previous verse and a player is still finishing that previous verse,
 			// hold at the start of the new verse briefly so the player can pursue it onto the next passage!
 			if !escapedAt.IsZero() && time.Since(escapedAt) < 30*time.Second && prevBook != "" && m.hub.HasClientsOnVerse(trans, prevBook, prevCh, prevV) {
-				time.Sleep(500 * time.Millisecond)
-				continue
+				select {
+				case <-m.stopSpawnChan:
+					return
+				case <-time.After(500 * time.Millisecond):
+					continue
+				}
 			}
 
 			charsPerTick := int(float64(wpm*5) * (2.0 / 60.0))
 			if charsPerTick < 2 {
 				charsPerTick = 2
 			}
-			time.Sleep(2 * time.Second)
+			select {
+			case <-m.stopSpawnChan:
+				return
+			case <-time.After(2 * time.Second):
+			}
 
 			m.mu.Lock()
 			if d.CurrentHP <= 0 {
@@ -1043,17 +1419,29 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 			}
 			d.CharIndex += charsPerTick
 			reachedEnd := d.CharIndex >= totalChars
+			demonID := d.ID
 			m.mu.Unlock()
 
 			if reachedEnd {
-				m.AdvanceWildDemonToNextVerse(d.ID)
-				time.Sleep(1 * time.Second)
+				m.AdvanceWildDemonToNextVerse(demonID)
+				select {
+				case <-m.stopSpawnChan:
+					return
+				case <-time.After(1 * time.Second):
+				}
 			}
 			continue
 		}
 
 		completed := true
+		var demonID string
 		for i := 0; i <= totalChars; i++ {
+			select {
+			case <-m.stopSpawnChan:
+				return
+			default:
+			}
+
 			var playerCharIdx, playerWPM int
 			var hasActivePlayer bool
 			if m.hub != nil {
@@ -1092,23 +1480,30 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				d.WPM = CalculateDynamicDemonWPM(baseWPM, playerCharIdx, i, playerWPM)
 			}
 			curWpm := d.WPM
-			if curWpm < DefaultDemonSyncBalance.MinDemonWPM {
-				curWpm = DefaultDemonSyncBalance.MinDemonWPM
+			minWpm := GetDemonSyncBalance().MinDemonWPM
+			if curWpm < minWpm {
+				curWpm = minWpm
 			}
 			curHP := d.CurrentHP
 			maxHP := d.MaxHP
+			demonID = d.ID
+			dIcon := d.Icon
+			dName := d.Name
+			dColor := d.Color
+			dRank := d.Rank
+			dLevel := d.Level
 			m.mu.Unlock()
 
 			if m.hub != nil {
 				m.hub.BroadcastDemonCursor(trans, book, ch, v, GhostCursor{
-					UID:         d.ID,
-					DisplayName: d.Icon + " " + d.Name,
-					AvatarColor: d.Color,
+					UID:         demonID,
+					DisplayName: dIcon + " " + dName,
+					AvatarColor: dColor,
 					CharIndex:   i,
 					WPM:         curWpm,
 					IsDemon:     true,
-					DemonRank:   d.Rank,
-					DemonLevel:  d.Level,
+					DemonRank:   dRank,
+					DemonLevel:  dLevel,
 					CurrentHP:   curHP,
 					MaxHP:       maxHP,
 				})
@@ -1118,14 +1513,22 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 			if stepDelay < 50*time.Millisecond {
 				stepDelay = 50 * time.Millisecond
 			}
-			time.Sleep(stepDelay)
+			select {
+			case <-m.stopSpawnChan:
+				return
+			case <-time.After(stepDelay):
+			}
 		}
 
-		if completed {
-			m.AdvanceWildDemonToNextVerse(d.ID)
+		if completed && demonID != "" {
+			m.AdvanceWildDemonToNextVerse(demonID)
 		}
 
-		time.Sleep(3 * time.Second)
+		select {
+		case <-m.stopSpawnChan:
+			return
+		case <-time.After(3 * time.Second):
+		}
 	}
 }
 
@@ -1395,7 +1798,7 @@ func (m *DemonManager) EnrageWildDemonOnMistake(demonID string) *WildDemon {
 
 	for _, d := range m.wildDemons {
 		if d.ID == demonID {
-			healPct := DefaultDemonSyncBalance.BacklashHealPct
+			healPct := GetDemonSyncBalance().BacklashHealPct
 			if healPct <= 0 {
 				healPct = 0.10
 			}
@@ -1564,7 +1967,19 @@ func (m *DemonManager) SetSpawnInterval(d time.Duration) {
 func (m *DemonManager) SetMaxWildDemons(n int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if n < 1 {
+		n = 666
+	}
 	m.maxWildDemons = n
+}
+
+func (m *DemonManager) GetMaxWildDemons() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.maxWildDemons <= 0 {
+		return 666
+	}
+	return m.maxWildDemons
 }
 
 func (m *DemonManager) SetEvolveInterval(d time.Duration) {
@@ -1574,12 +1989,23 @@ func (m *DemonManager) SetEvolveInterval(d time.Duration) {
 }
 
 func (m *DemonManager) Stop() {
+	m.StopDevil24_7()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	select {
 	case <-m.stopSpawnChan:
 	default:
 		close(m.stopSpawnChan)
+	}
+	for uid, bot := range m.activeDemons {
+		bot.mu.Lock()
+		if bot.IsRunning {
+			bot.IsRunning = false
+			close(bot.StopChan)
+		}
+		bot.mu.Unlock()
+		delete(m.activeDemons, uid)
 	}
 }
 
@@ -1595,11 +2021,11 @@ func (m *DemonManager) GetDynamicSpawnInterval() time.Duration {
 	count := len(m.wildDemons)
 	m.mu.RUnlock()
 
-	if override > 0 && override != 45*time.Second {
+	if override > 0 && override != 150*time.Second {
 		return override
 	}
-	if globalAdmin != nil {
-		opts := globalAdmin.GetOptions()
+	if adm := getGlobalAdmin(); adm != nil {
+		opts := adm.GetOptions()
 		if opts.SpawnIntervalOverrideSec > 0 {
 			return time.Duration(opts.SpawnIntervalOverrideSec) * time.Second
 		}
@@ -1666,9 +2092,10 @@ func (m *DemonManager) runPeriodicSpawnLoop() {
 				lastSpawn = utcNow
 				m.mu.Lock()
 				count := len(m.wildDemons)
+				maxCap := m.maxWildDemons
 				m.mu.Unlock()
 
-				if count < m.maxWildDemons {
+				if count < maxCap {
 					newDemon := m.SpawnPeriodicWildDemon()
 					if newDemon != nil && m.hub != nil {
 						m.hub.BroadcastWildDemonsList(m.GetWildDemons())
@@ -1757,7 +2184,8 @@ func (m *DemonManager) TriggerMiniSwarm(targetTheme string) int {
 
 	if spawned > 0 && m.hub != nil {
 		activeCount := len(m.GetWildDemons())
-		sanct := int((1.0 - float64(activeCount)/666.0) * 100)
+		maxDemons := m.GetMaxWildDemons()
+		sanct := int((1.0 - float64(activeCount)/float64(maxDemons)) * 100)
 		if sanct < 0 {
 			sanct = 0
 		}
@@ -1766,7 +2194,7 @@ func (m *DemonManager) TriggerMiniSwarm(targetTheme string) int {
 			themeLabel = "the Holy Scriptures"
 		}
 		msg := fmt.Sprintf("🔥 DAILY MINI-SWARM! A surge of %d adversaries has breached %s! Rally the fellowship!", spawned, themeLabel)
-		m.hub.BroadcastSwarmEvent(msg, activeCount, 666, sanct)
+		m.hub.BroadcastSwarmEvent(msg, activeCount, maxDemons, sanct)
 		m.hub.BroadcastWildDemonsList(m.GetWildDemons())
 	}
 
@@ -1796,12 +2224,13 @@ func (m *DemonManager) TriggerMajorSwarm() int {
 
 	if spawned > 0 && m.hub != nil {
 		activeCount := len(m.GetWildDemons())
-		sanct := int((1.0 - float64(activeCount)/666.0) * 100)
+		maxDemons := m.GetMaxWildDemons()
+		sanct := int((1.0 - float64(activeCount)/float64(maxDemons)) * 100)
 		if sanct < 0 {
 			sanct = 0
 		}
 		msg := fmt.Sprintf("⚡ SUNDAY MAJOR SWARM! The Sabbath Incursion has begun! %d ancient adversaries have breached sacred scripture! Unite to defend the Word!", spawned)
-		m.hub.BroadcastSwarmEvent(msg, activeCount, 666, sanct)
+		m.hub.BroadcastSwarmEvent(msg, activeCount, maxDemons, sanct)
 		m.hub.BroadcastWildDemonsList(m.GetWildDemons())
 	}
 
@@ -1874,45 +2303,100 @@ func (m *DemonManager) SpawnPeriodicWildDemon() *WildDemon {
 	}
 
 	now := time.Now().UTC()
-	rankWeights := []string{"imp", "imp", "fiend", "fiend", "tormentor", "apollyon"}
-	chosenRank := rankWeights[rand.Intn(len(rankWeights))]
-
-	level := 1
-	var icon, color, title, name string
-	switch chosenRank {
-	case "imp":
-		icon = "😈"
-		color = "#ef4444"
-		title = "Tempter of the Void"
-		name = fmt.Sprintf("Whispering Imp of %s", book)
-	case "fiend":
-		icon = "👹"
-		color = "#dc2626"
-		title = "Stumbling Stone"
-		name = fmt.Sprintf("Brimstone Fiend of %s", book)
-	case "tormentor":
-		level = 2
-		icon = "👺"
-		color = "#b91c1c"
-		title = "Accuser of the Brethren"
-		name = fmt.Sprintf("Tormentor of %s", book)
-	case "apollyon":
-		level = 3
-		icon = "👑🔥"
-		color = "#991b1b"
-		title = "Harbinger of Abaddon"
-		name = fmt.Sprintf("Apollyon Harbinger of %s", book)
+	allTypes := GetDemonTypes()
+	var weightedPool []DemonInfo
+	for _, dt := range allTypes {
+		w := dt.SpawnWeight
+		if w <= 0 && isBuiltInDemonRank(dt.Rank) {
+			w = 1
+		}
+		for i := 0; i < w; i++ {
+			weightedPool = append(weightedPool, dt)
+		}
+	}
+	var chosen DemonInfo
+	if len(weightedPool) > 0 {
+		chosen = weightedPool[rand.Intn(len(weightedPool))]
+	} else if len(allTypes) > 0 {
+		chosen = allTypes[rand.Intn(len(allTypes))]
+	} else {
+		chosen = DemonInfo{Rank: "imp", Name: "Whispering Imp", Title: "Tempter of the Void", Icon: "😈", Color: "#ef4444", Level: 1, MaxLevel: 5, WildMinWPM: 10, WildMaxWPM: 22, WildBaseHP: 100, WildHPPerLevel: 60}
 	}
 
+	level := chosen.Level
+	if level < 1 {
+		level = 1
+	}
+	switch chosen.Rank {
+	case "tormentor":
+		if level < 2 {
+			level = 2
+		}
+	case "apollyon":
+		if level < 3 {
+			level = 3
+		}
+	}
+	maxLvl := chosen.MaxLevel
+	if maxLvl < 1 {
+		maxLvl = 5
+	}
+
+	icon := chosen.Icon
+	color := chosen.Color
+	title := chosen.Title
+	name := fmt.Sprintf("%s of %s", chosen.Name, book)
+	switch chosen.Rank {
+	case "imp":
+		if chosen.Name == "Mischievous Imp" {
+			name = fmt.Sprintf("Whispering Imp of %s", book)
+			title = "Tempter of the Void"
+		}
+	case "fiend":
+		if chosen.Name == "Shadow Fiend" {
+			name = fmt.Sprintf("Brimstone Fiend of %s", book)
+		}
+	case "tormentor":
+		if chosen.Name == "Brimstone Tormentor" {
+			name = fmt.Sprintf("Tormentor of %s", book)
+		}
+	case "apollyon":
+		if chosen.Name == "Apollyon the Destroyer" {
+			name = fmt.Sprintf("Apollyon Harbinger of %s", book)
+			title = "Harbinger of Abaddon"
+		}
+	}
+
+	minW := chosen.WildMinWPM
+	if minW < 4 {
+		minW = 10
+	}
+	maxW := chosen.WildMaxWPM
+	if maxW < minW {
+		maxW = minW
+	}
+	wpm := minW
+	if maxW > minW {
+		wpm = minW + rand.Intn(maxW-minW+1)
+	}
+
+	baseHP := chosen.WildBaseHP
+	if baseHP < 10 {
+		baseHP = 100
+	}
+	hpPerLvl := chosen.WildHPPerLevel
+	if hpPerLvl <= 0 {
+		hpPerLvl = 60
+	}
+	hp := baseHP + level*hpPerLvl
+
 	id := fmt.Sprintf("wild-interval-%d", time.Now().UnixNano()%1000000)
-	wpm := 10 + rand.Intn(13) // 10 - 22 slow WPM
-	hp := 100 + level*60
 
 	demon := &WildDemon{
 		ID:          id,
-		Rank:        chosenRank,
+		Rank:        chosen.Rank,
 		Level:       level,
-		MaxLevel:    5,
+		MaxLevel:    maxLvl,
 		Name:        name,
 		Title:       title,
 		Icon:        icon,
@@ -1945,8 +2429,8 @@ func CalculateEncounterChance(completedVerses, totalVerses int) float64 {
 	peacefulVerses := 2
 	baseChance := 0.04
 	maxChance := 0.50
-	if globalAdmin != nil {
-		opts := globalAdmin.GetOptions()
+	if adm := getGlobalAdmin(); adm != nil {
+		opts := adm.GetOptions()
 		if opts.EncounterPeacefulIntroVerses >= 0 {
 			peacefulVerses = opts.EncounterPeacefulIntroVerses
 		}
@@ -2039,50 +2523,92 @@ func (m *DemonManager) getWildDemonsLocked() []WildDemon {
 }
 
 func (m *DemonManager) createDemonForProgress(trans string, v Verse, progressRatio float64) *WildDemon {
-	var rank string
-	var level int
-	var color string
-	var icon string
-	var namePrefix string
-	var title string
-
-	if progressRatio < 0.25 {
-		rank = "imp"
-		level = 1
-		color = "#ef4444"
-		icon = "😈"
-		titles := []string{"Lurker of Eden", "Tempter of Early Verse", "Whispering Imp", "Shadow of Distraction"}
-		title = titles[rand.Intn(len(titles))]
-		namePrefix = "Whispering Imp"
-	} else if progressRatio < 0.60 {
-		rank = "fiend"
-		level = 2
-		color = "#dc2626"
-		icon = "👹"
-		titles := []string{"Stumbling Stone", "Wanderer in the Earth", "Brimstone Stalker", "Deceiver of Mid-Scroll"}
-		title = titles[rand.Intn(len(titles))]
-		namePrefix = "Brimstone Fiend"
-	} else if progressRatio < 0.85 {
-		rank = "tormentor"
-		level = 3
-		color = "#b91c1c"
-		icon = "👺"
-		titles := []string{"Accuser of the Brethren", "Lightning of the Pit", "Fallen Star", "Dragon's Scribe"}
-		title = titles[rand.Intn(len(titles))]
-		namePrefix = "Brimstone Tormentor"
-	} else {
-		rank = "apollyon"
-		level = 4
-		color = "#991b1b"
-		icon = "👑🔥"
-		titles := []string{"Angel of the Bottomless Pit", "Abyssal Destroyer", "Prince of the Underworld", "Shadow Sovereign"}
-		title = titles[rand.Intn(len(titles))]
-		namePrefix = "Apollyon Harbinger"
+	allTypes := GetDemonTypes()
+	var candidates []DemonInfo
+	for _, dt := range allTypes {
+		if dt.SpawnWeight <= 0 && !isBuiltInDemonRank(dt.Rank) {
+			continue
+		}
+		minR := dt.MinProgressRatio
+		maxR := dt.MaxProgressRatio
+		if maxR <= 0 {
+			maxR = 1.0
+		}
+		if progressRatio >= minR && progressRatio <= maxR {
+			candidates = append(candidates, dt)
+		}
 	}
 
-	name := fmt.Sprintf("%s of %s", namePrefix, v.BookName)
-	wpm := 10 + rand.Intn(13) // 10 - 22 WPM
-	hp := 120 + level*60
+	var chosen DemonInfo
+	if len(candidates) > 0 {
+		chosen = candidates[rand.Intn(len(candidates))]
+	} else {
+		var fallbackRank string
+		if progressRatio < 0.25 {
+			fallbackRank = "imp"
+		} else if progressRatio < 0.60 {
+			fallbackRank = "fiend"
+		} else if progressRatio < 0.85 {
+			fallbackRank = "tormentor"
+		} else {
+			fallbackRank = "apollyon"
+		}
+		if dt, ok := GetDemonType(fallbackRank); ok {
+			chosen = dt
+		} else if len(allTypes) > 0 {
+			chosen = allTypes[0]
+		}
+	}
+
+	rank := chosen.Rank
+	level := chosen.Level
+	if level < 1 {
+		level = 1
+	}
+	switch rank {
+	case "fiend":
+		if level < 2 {
+			level = 2
+		}
+	case "tormentor":
+		if level < 3 {
+			level = 3
+		}
+	case "apollyon":
+		if level < 4 {
+			level = 4
+		}
+	}
+
+	maxLvl := chosen.MaxLevel
+	if maxLvl < 1 {
+		maxLvl = 5
+	}
+
+	minW := chosen.WildMinWPM
+	if minW < 4 {
+		minW = 10
+	}
+	maxW := chosen.WildMaxWPM
+	if maxW < minW {
+		maxW = minW
+	}
+	wpm := minW
+	if maxW > minW {
+		wpm = minW + rand.Intn(maxW-minW+1)
+	}
+
+	baseHP := chosen.WildBaseHP
+	if baseHP < 10 {
+		baseHP = 120
+	}
+	hpPerLvl := chosen.WildHPPerLevel
+	if hpPerLvl <= 0 {
+		hpPerLvl = 60
+	}
+	hp := baseHP + level*hpPerLvl
+
+	name := fmt.Sprintf("%s of %s", chosen.Name, v.BookName)
 	id := fmt.Sprintf("wild-ambush-%d", time.Now().UnixNano()%1000000)
 
 	now := time.Now().UTC()
@@ -2090,11 +2616,11 @@ func (m *DemonManager) createDemonForProgress(trans string, v Verse, progressRat
 		ID:          id,
 		Rank:        rank,
 		Level:       level,
-		MaxLevel:    5,
+		MaxLevel:    maxLvl,
 		Name:        name,
-		Title:       title,
-		Icon:        icon,
-		Color:       color,
+		Title:       chosen.Title,
+		Icon:        chosen.Icon,
+		Color:       chosen.Color,
 		Translation: trans,
 		BookName:    v.BookName,
 		Chapter:     v.Chapter,

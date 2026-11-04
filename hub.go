@@ -132,26 +132,20 @@ func (h *Hub) UpdateCursor(c *Client, charIndex, wpm int) {
 	}
 }
 
-func (h *Hub) BroadcastAngelCursor(trans, book string, chapter, verse int, ghost GhostCursor) {
+func (h *Hub) broadcastAll(out Message) {
 	h.mu.RLock()
-	var peers []*safeConn
-	for peer := range h.clients {
-		if peer.Translation == trans && peer.Book == book && peer.Chapter == chapter && peer.Verse == verse {
-			peers = append(peers, peer.conn)
-		}
+	conns := make([]*safeConn, 0, len(h.clients))
+	for c := range h.clients {
+		conns = append(conns, c.conn)
 	}
 	h.mu.RUnlock()
 
-	msg := Message{
-		Type:  "ghost_cursor",
-		Ghost: &ghost,
-	}
-	for _, conn := range peers {
-		_ = conn.WriteJSON(msg)
+	for _, conn := range conns {
+		_ = conn.WriteJSON(out)
 	}
 }
 
-func (h *Hub) BroadcastDemonCursor(trans, book string, chapter, verse int, ghost GhostCursor) {
+func (h *Hub) broadcastToVerse(trans, book string, chapter, verse int, out Message) {
 	h.mu.RLock()
 	var peers []*safeConn
 	for peer := range h.clients {
@@ -161,13 +155,23 @@ func (h *Hub) BroadcastDemonCursor(trans, book string, chapter, verse int, ghost
 	}
 	h.mu.RUnlock()
 
-	msg := Message{
+	for _, conn := range peers {
+		_ = conn.WriteJSON(out)
+	}
+}
+
+func (h *Hub) BroadcastAngelCursor(trans, book string, chapter, verse int, ghost GhostCursor) {
+	h.broadcastToVerse(trans, book, chapter, verse, Message{
 		Type:  "ghost_cursor",
 		Ghost: &ghost,
-	}
-	for _, conn := range peers {
-		_ = conn.WriteJSON(msg)
-	}
+	})
+}
+
+func (h *Hub) BroadcastDemonCursor(trans, book string, chapter, verse int, ghost GhostCursor) {
+	h.broadcastToVerse(trans, book, chapter, verse, Message{
+		Type:  "ghost_cursor",
+		Ghost: &ghost,
+	})
 }
 
 func (h *Hub) ClientCount() int {
@@ -286,40 +290,18 @@ func (h *Hub) BroadcastChatMessage(msg ChatMessage) {
 }
 
 func (h *Hub) BroadcastCommentAdded(comment VerseComment) {
-	h.mu.RLock()
-	conns := make([]*safeConn, 0, len(h.clients))
-	for c := range h.clients {
-		if c.Translation == comment.Translation && c.Book == comment.BookName && c.Chapter == comment.Chapter && c.Verse == comment.Verse {
-			conns = append(conns, c.conn)
-		}
-	}
-	h.mu.RUnlock()
-
-	out := Message{
+	h.broadcastToVerse(comment.Translation, comment.BookName, comment.Chapter, comment.Verse, Message{
 		Type:    "comment_added",
 		Comment: &comment,
-	}
-	for _, conn := range conns {
-		_ = conn.WriteJSON(out)
-	}
+	})
 }
 
 func (h *Hub) BroadcastBossRaidUpdate(raid BossRaid, hit *BossConqueror) {
-	h.mu.RLock()
-	conns := make([]*safeConn, 0, len(h.clients))
-	for c := range h.clients {
-		conns = append(conns, c.conn)
-	}
-	h.mu.RUnlock()
-
-	out := Message{
+	h.broadcastAll(Message{
 		Type:     "boss_raid_update",
 		BossRaid: &raid,
 		BossHit:  hit,
-	}
-	for _, conn := range conns {
-		_ = conn.WriteJSON(out)
-	}
+	})
 }
 
 func (h *Hub) HasClientsOnVerse(trans, book string, chapter, verse int) bool {
@@ -345,93 +327,57 @@ func (h *Hub) GetActivePlayerOnVerse(trans, book string, chapter, verse int) (ch
 }
 
 func (h *Hub) BroadcastWildDemonsList(demons []WildDemon) {
-	h.mu.RLock()
-	conns := make([]*safeConn, 0, len(h.clients))
-	for c := range h.clients {
-		conns = append(conns, c.conn)
+	maxDemons := 666
+	if dm := getGlobalDemonManager(); dm != nil {
+		maxDemons = dm.GetMaxWildDemons()
 	}
-	h.mu.RUnlock()
-
 	activeCount := len(demons)
 	sanctPct := 100
 	if activeCount > 0 {
-		sanctPct = int((1.0 - float64(activeCount)/666.0) * 100)
+		sanctPct = int((1.0 - float64(activeCount)/float64(max(1, maxDemons))) * 100)
 		if sanctPct < 0 {
 			sanctPct = 0
 		}
 	}
 
-	out := Message{
+	h.broadcastAll(Message{
 		Type:           "wild_demons_list_update",
 		WildDemons:     demons,
 		ActiveDemons:   activeCount,
-		MaxDemons:      666,
+		MaxDemons:      maxDemons,
 		Sanctification: sanctPct,
-	}
-	for _, conn := range conns {
-		_ = conn.WriteJSON(out)
-	}
+	})
 }
 
 func (h *Hub) BroadcastSwarmEvent(eventText string, activeDemons, maxDemons, sanctification int) {
-	h.mu.RLock()
-	conns := make([]*safeConn, 0, len(h.clients))
-	for c := range h.clients {
-		conns = append(conns, c.conn)
-	}
-	h.mu.RUnlock()
-
-	out := Message{
+	h.broadcastAll(Message{
 		Type:           "swarm_event",
 		SwarmEvent:     eventText,
 		ActiveDemons:   activeDemons,
 		MaxDemons:      maxDemons,
 		Sanctification: sanctification,
-	}
-	for _, conn := range conns {
-		_ = conn.WriteJSON(out)
-	}
+	})
 }
 
 func (h *Hub) BroadcastMichaelSlay(trans, book string, chapter, verse int, demon WildDemon, content string) {
-	h.mu.RLock()
-	conns := make([]*safeConn, 0, len(h.clients))
-	for c := range h.clients {
-		conns = append(conns, c.conn)
-	}
-	h.mu.RUnlock()
-
-	out := Message{
+	h.broadcastAll(Message{
 		Type:        "michael_slay",
 		Content:     content,
 		WildDemon:   &demon,
 		Book:        book,
 		Translation: trans,
-	}
-	for _, conn := range conns {
-		_ = conn.WriteJSON(out)
-	}
+	})
 }
 
 func (h *Hub) BroadcastDemonEscaped(trans, book string, chapter, verse int, demon WildDemon, nextVerse Verse) {
-	h.mu.RLock()
-	conns := make([]*safeConn, 0, len(h.clients))
-	for c := range h.clients {
-		conns = append(conns, c.conn)
-	}
-	h.mu.RUnlock()
-
 	content := fmt.Sprintf("%s %s completed %s %d:%d before being slain and prowled onto %s %d:%d!", demon.Icon, demon.Name, book, chapter, verse, nextVerse.BookName, nextVerse.Chapter, nextVerse.Verse)
-	out := Message{
+	h.broadcastAll(Message{
 		Type:        "wild_demon_escaped",
 		Content:     content,
 		WildDemon:   &demon,
 		Verse:       &nextVerse,
 		Book:        book,
 		Translation: trans,
-	}
-	for _, conn := range conns {
-		_ = conn.WriteJSON(out)
-	}
+	})
 }
 

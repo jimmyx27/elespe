@@ -255,6 +255,8 @@ func (m *AngelManager) GetGlobalAngelStatus() *AngelInfo {
 
 // StartGlobalAngel runs a background bot that continuously types verses across Scripture
 func (m *AngelManager) StartGlobalAngel(defaultRank string) {
+	m.StopGlobalAngel()
+
 	template, ok := angelTemplates[defaultRank]
 	if !ok {
 		template = angelTemplates["cherub"]
@@ -277,6 +279,57 @@ func (m *AngelManager) StartGlobalAngel(defaultRank string) {
 	go m.runGlobalLoop(bot)
 }
 
+// StopGlobalAngel stops the autonomous global angel scribe if running.
+func (m *AngelManager) StopGlobalAngel() {
+	m.mu.Lock()
+	bot := m.globalAngel
+	m.globalAngel = nil
+	m.mu.Unlock()
+
+	if bot != nil {
+		bot.mu.Lock()
+		if bot.IsRunning {
+			bot.IsRunning = false
+			close(bot.StopChan)
+		}
+		bot.mu.Unlock()
+	}
+}
+
+// SetGlobalAngelRank updates the global angel's rank if running or starts it with the given rank.
+func (m *AngelManager) SetGlobalAngelRank(rank string) {
+	m.mu.RLock()
+	running := m.globalAngel != nil
+	curRank := ""
+	if m.globalAngel != nil {
+		m.globalAngel.mu.RLock()
+		curRank = m.globalAngel.Info.Rank
+		m.globalAngel.mu.RUnlock()
+	}
+	m.mu.RUnlock()
+
+	if running && curRank != rank {
+		m.StartGlobalAngel(rank)
+	}
+}
+
+// Stop cleanly shuts down the global angel and all active user companions.
+func (m *AngelManager) Stop() {
+	m.StopGlobalAngel()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for uid, bot := range m.companions {
+		bot.mu.Lock()
+		if bot.IsRunning {
+			bot.IsRunning = false
+			close(bot.StopChan)
+		}
+		bot.mu.Unlock()
+		delete(m.companions, uid)
+	}
+}
+
 func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 	curTrans := "kjv"
 	curBook := "Genesis"
@@ -284,6 +337,12 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 	curV := 1
 
 	for {
+		select {
+		case <-bot.StopChan:
+			return
+		default:
+		}
+
 		// Find verse text from datasets
 		text := ""
 		td, ok := translations[curTrans]
@@ -302,8 +361,12 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 
 		// Normal angels only move when users have the site open, but Michael forever cruises 24/7!
 		if bot.Info.Rank != "michael" && m.hub != nil && m.hub.ClientCount() == 0 {
-			time.Sleep(1 * time.Second)
-			continue
+			select {
+			case <-bot.StopChan:
+				return
+			case <-time.After(1 * time.Second):
+				continue
+			}
 		}
 
 		bot.mu.Lock()
@@ -317,13 +380,17 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 		bot.mu.Unlock()
 
 		// Slay any wild demons lurking on this verse along the way!
-		if globalDemonManager != nil {
-			globalDemonManager.SlayWildDemonByMichael(curTrans, curBook, curCh, curV)
+		if dm := getGlobalDemonManager(); dm != nil {
+			dm.SlayWildDemonByMichael(curTrans, curBook, curCh, curV)
 		}
 
 		// When no human clients are connected, Michael cruises at a brisk patrol pace
 		if m.hub != nil && m.hub.ClientCount() == 0 && bot.Info.Rank == "michael" {
-			time.Sleep(1500 * time.Millisecond)
+			select {
+			case <-bot.StopChan:
+				return
+			case <-time.After(1500 * time.Millisecond):
+			}
 		} else {
 			// Calculate typing cadence:
 			// Standard: 5 chars per word -> delay per char = 60s / (WPM * 5)
@@ -343,8 +410,12 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 				}
 
 				if bot.Info.Rank != "michael" && m.hub != nil && m.hub.ClientCount() == 0 {
-					time.Sleep(1 * time.Second)
-					continue
+					select {
+					case <-bot.StopChan:
+						return
+					case <-time.After(1 * time.Second):
+						continue
+					}
 				}
 
 				bot.mu.Lock()
@@ -370,7 +441,11 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 				if sleepDur < 10*time.Millisecond {
 					sleepDur = 10 * time.Millisecond
 				}
-				time.Sleep(sleepDur)
+				select {
+				case <-bot.StopChan:
+					return
+				case <-time.After(sleepDur):
+				}
 			}
 		}
 
@@ -381,14 +456,14 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 		}
 
 		// Slay any wild demons that may have spawned or remained on this verse
-		if globalDemonManager != nil {
-			globalDemonManager.SlayWildDemonByMichael(curTrans, curBook, curCh, curV)
+		if dm := getGlobalDemonManager(); dm != nil {
+			dm.SlayWildDemonByMichael(curTrans, curBook, curCh, curV)
 		}
 
 		// Advance to next canonical verse across Scripture, with occasional target crusade towards active demons
 		advanced := false
-		if globalDemonManager != nil && rand.Float64() < 0.25 {
-			wildDemons := globalDemonManager.GetWildDemons()
+		if dm := getGlobalDemonManager(); dm != nil && rand.Float64() < 0.25 {
+			wildDemons := dm.GetWildDemons()
 			if len(wildDemons) > 0 {
 				targetDemon := wildDemons[rand.Intn(len(wildDemons))]
 				curBook = targetDemon.BookName
@@ -406,7 +481,11 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 		}
 
 		// Brief holy reflection pause between verses (1.5 to 2.5 seconds)
-		time.Sleep(2 * time.Second)
+		select {
+		case <-bot.StopChan:
+			return
+		case <-time.After(2 * time.Second):
+		}
 	}
 }
 
@@ -573,8 +652,12 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 
 			// Angels should only move when the user has the site open!
 			if m.hub != nil && !m.hub.IsUserConnected(uid) {
-				time.Sleep(500 * time.Millisecond)
-				continue
+				select {
+				case <-bot.StopChan:
+					return
+				case <-time.After(500 * time.Millisecond):
+					continue
+				}
 			}
 
 			bot.mu.Lock()
@@ -603,7 +686,11 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 				})
 			}
 
-			time.Sleep(charDelay)
+			select {
+			case <-bot.StopChan:
+				return
+			case <-time.After(charDelay):
+			}
 		}
 
 		if !completed {
@@ -617,8 +704,10 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 		}
 
 		// If Archangel Michael completed this verse and a wild demon is lurking here, Michael slays it!
-		if bot.Info.Rank == "michael" && globalDemonManager != nil {
-			globalDemonManager.SlayWildDemonByMichael(trans, book, ch, v)
+		if bot.Info.Rank == "michael" {
+			if dm := getGlobalDemonManager(); dm != nil {
+				dm.SlayWildDemonByMichael(trans, book, ch, v)
+			}
 		}
 
 		// Notify user that angel finished

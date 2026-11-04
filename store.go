@@ -313,25 +313,38 @@ type AngelInfo struct {
 // ---- Demonic Adversary Models ----
 
 type DemonInfo struct {
-	ID            string  `json:"id"`
-	Name          string  `json:"name"`
-	Rank          string  `json:"rank"` // "imp", "fiend", "tormentor", "apollyon"
-	Title         string  `json:"title"`
-	Description   string  `json:"description"`
-	Level         int     `json:"level"`
-	MaxLevel      int     `json:"max_level"`
-	WPM           int     `json:"wpm"`
-	Color         string  `json:"color"`
-	Icon          string  `json:"icon"`
-	BlockDuration float64 `json:"block_duration"`
-	BookName      string  `json:"book_name,omitempty"`
-	Chapter       int     `json:"chapter,omitempty"`
-	Verse         int     `json:"verse,omitempty"`
-	CharIndex     int     `json:"char_index,omitempty"`
-	Progress      float64 `json:"progress,omitempty"`
-	IsBoss        bool    `json:"is_boss,omitempty"`
-	TotalHP       int     `json:"total_hp,omitempty"`
-	CurrentHP     int     `json:"current_hp,omitempty"`
+	ID                   string  `json:"id"`
+	Name                 string  `json:"name"`
+	Rank                 string  `json:"rank"` // "imp", "fiend", "tormentor", "apollyon", or custom rank
+	Title                string  `json:"title"`
+	Description          string  `json:"description"`
+	Level                int     `json:"level"`
+	MaxLevel             int     `json:"max_level"`
+	WPM                  int     `json:"wpm"`
+	BaseLevelWPM         int     `json:"base_level_wpm,omitempty"`
+	WPMPerLevel          int     `json:"wpm_per_level,omitempty"`
+	WildMinWPM           int     `json:"wild_min_wpm,omitempty"`
+	WildMaxWPM           int     `json:"wild_max_wpm,omitempty"`
+	WildBaseHP           int     `json:"wild_base_hp,omitempty"`
+	WildHPPerLevel       int     `json:"wild_hp_per_level,omitempty"`
+	SpawnWeight          int     `json:"spawn_weight,omitempty"`
+	MinProgressRatio     float64 `json:"min_progress_ratio,omitempty"`
+	MaxProgressRatio     float64 `json:"max_progress_ratio,omitempty"`
+	AbilityIntervalChars int     `json:"ability_interval_chars,omitempty"`
+	ShroudChance         float64 `json:"shroud_chance,omitempty"`
+	BaseShroudRange      int     `json:"base_shroud_range,omitempty"`
+	Color                string  `json:"color"`
+	Icon                 string  `json:"icon"`
+	BlockDuration        float64 `json:"block_duration"`
+	BookName             string  `json:"book_name,omitempty"`
+	Chapter              int     `json:"chapter,omitempty"`
+	Verse                int     `json:"verse,omitempty"`
+	CharIndex            int     `json:"char_index,omitempty"`
+	Progress             float64 `json:"progress,omitempty"`
+	IsBoss               bool    `json:"is_boss,omitempty"`
+	IsCustom             bool    `json:"is_custom,omitempty"`
+	TotalHP              int     `json:"total_hp,omitempty"`
+	CurrentHP            int     `json:"current_hp,omitempty"`
 }
 
 type WildDemon struct {
@@ -535,6 +548,7 @@ type Message struct {
 
 	// Live Admin Balance Config Sync
 	BalanceConfig *DemonSyncBalanceConfig `json:"balance_config,omitempty"`
+	RuntimeConfig *AdminRuntimeOptions    `json:"runtime_config,omitempty"`
 }
 
 type SyncVerseItem struct {

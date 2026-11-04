@@ -720,11 +720,21 @@ func (s *postgresStore) MergeUserProgress(ctx context.Context, targetUID, source
 
 	// 7. Merge sanctuary settings
 	_, _ = tx.Exec(ctx, `
-		INSERT INTO sanctuary_settings (uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx)
-		SELECT $1, text_color, font_family, caret_aura, audio_profile, celebrate_fx
+		INSERT INTO sanctuary_settings (
+			uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
+			guardian_name, guardian_pace, guardian_level, guardian_xp,
+			preferred_angel_levels, preferred_demon_levels, demons_defeated, passage_burst_damage
+		)
+		SELECT
+			$1, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
+			guardian_name, guardian_pace, guardian_level, guardian_xp,
+			preferred_angel_levels, preferred_demon_levels, demons_defeated, passage_burst_damage
 		FROM sanctuary_settings
 		WHERE uid = $2
-		ON CONFLICT (uid) DO NOTHING
+		ON CONFLICT (uid) DO UPDATE SET
+			guardian_level = GREATEST(sanctuary_settings.guardian_level, EXCLUDED.guardian_level),
+			guardian_xp = GREATEST(sanctuary_settings.guardian_xp, EXCLUDED.guardian_xp),
+			demons_defeated = sanctuary_settings.demons_defeated + EXCLUDED.demons_defeated
 	`, targetUID, sourceUID)
 
 	return tx.Commit(ctx)
@@ -1104,10 +1114,19 @@ func (s *postgresStore) RecordVerseCompletion(ctx context.Context, uid, translat
 
 func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*SanctuarySettings, error) {
 	var set SanctuarySettings
+	var angelLvlsJSON, demonLvlsJSON []byte
 	err := s.pool.QueryRow(ctx, `
-		SELECT text_color, font_family, caret_aura, audio_profile, celebrate_fx, guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated, COALESCE(passage_burst_damage, 30)
+		SELECT text_color, font_family, caret_aura, audio_profile, celebrate_fx,
+		       guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated,
+		       COALESCE(passage_burst_damage, 30),
+		       COALESCE(preferred_angel_levels, '{}'::jsonb),
+		       COALESCE(preferred_demon_levels, '{}'::jsonb)
 		FROM sanctuary_settings WHERE uid = $1
-	`, uid).Scan(&set.TextColor, &set.FontFamily, &set.CaretAura, &set.AudioProfile, &set.CelebrateFx, &set.GuardianName, &set.GuardianPace, &set.GuardianLevel, &set.GuardianXP, &set.DemonsDefeated, &set.PassageBurstDamage)
+	`, uid).Scan(
+		&set.TextColor, &set.FontFamily, &set.CaretAura, &set.AudioProfile, &set.CelebrateFx,
+		&set.GuardianName, &set.GuardianPace, &set.GuardianLevel, &set.GuardianXP, &set.DemonsDefeated,
+		&set.PassageBurstDamage, &angelLvlsJSON, &demonLvlsJSON,
+	)
 	if err != nil {
 		return &SanctuarySettings{
 			TextColor:          "emerald",
@@ -1123,18 +1142,21 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 			GuardianWards:      0,
 			GuardianPower:      10,
 			GuardianRadiance:   100,
-			PassageBurstDamage: DefaultDemonSyncBalance.PassageBurstBaseDamage,
+			PassageBurstDamage: GetDemonSyncBalance().PassageBurstBaseDamage,
 			TrackerUnlocked:    false,
 		}, nil
 	}
-	if set.GuardianPace == 0 {
-		set.GuardianPace = 5
+	if len(angelLvlsJSON) > 0 {
+		_ = json.Unmarshal(angelLvlsJSON, &set.PreferredAngelLevels)
+	}
+	if len(demonLvlsJSON) > 0 {
+		_ = json.Unmarshal(demonLvlsJSON, &set.PreferredDemonLevels)
 	}
 	if set.GuardianLevel < 1 {
 		set.GuardianLevel = 1
 	}
 	if set.PassageBurstDamage <= 0 {
-		set.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
+		set.PassageBurstDamage = GetDemonSyncBalance().PassageBurstBaseDamage
 	}
 	set.GuardianWards = (set.GuardianLevel - 1) / 3
 	set.GuardianPower = 10 + (set.GuardianLevel-1)*2
@@ -1144,18 +1166,27 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 }
 
 func (s *postgresStore) SaveCustomizations(ctx context.Context, uid string, settings SanctuarySettings) error {
-	if settings.GuardianPace == 0 {
-		settings.GuardianPace = 5
-	}
 	if settings.GuardianLevel < 1 {
 		settings.GuardianLevel = 1
 	}
 	if settings.PassageBurstDamage <= 0 {
-		settings.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
+		settings.PassageBurstDamage = GetDemonSyncBalance().PassageBurstBaseDamage
+	}
+	angelLvlsJSON, _ := json.Marshal(settings.PreferredAngelLevels)
+	if len(angelLvlsJSON) == 0 || string(angelLvlsJSON) == "null" {
+		angelLvlsJSON = []byte("{}")
+	}
+	demonLvlsJSON, _ := json.Marshal(settings.PreferredDemonLevels)
+	if len(demonLvlsJSON) == 0 || string(demonLvlsJSON) == "null" {
+		demonLvlsJSON = []byte("{}")
 	}
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO sanctuary_settings (uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx, guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated, passage_burst_damage, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
+		INSERT INTO sanctuary_settings (
+			uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
+			guardian_name, guardian_pace, guardian_level, guardian_xp,
+			demons_defeated, passage_burst_damage, preferred_angel_levels, preferred_demon_levels, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
 		ON CONFLICT (uid) DO UPDATE SET
 			text_color = EXCLUDED.text_color,
 			font_family = EXCLUDED.font_family,
@@ -1168,8 +1199,12 @@ func (s *postgresStore) SaveCustomizations(ctx context.Context, uid string, sett
 			guardian_xp = EXCLUDED.guardian_xp,
 			demons_defeated = EXCLUDED.demons_defeated,
 			passage_burst_damage = EXCLUDED.passage_burst_damage,
+			preferred_angel_levels = EXCLUDED.preferred_angel_levels,
+			preferred_demon_levels = EXCLUDED.preferred_demon_levels,
 			updated_at = CURRENT_TIMESTAMP
-	`, uid, settings.TextColor, settings.FontFamily, settings.CaretAura, settings.AudioProfile, settings.CelebrateFx, settings.GuardianName, settings.GuardianPace, settings.GuardianLevel, settings.GuardianXP, settings.DemonsDefeated, settings.PassageBurstDamage)
+	`, uid, settings.TextColor, settings.FontFamily, settings.CaretAura, settings.AudioProfile, settings.CelebrateFx,
+		settings.GuardianName, settings.GuardianPace, settings.GuardianLevel, settings.GuardianXP,
+		settings.DemonsDefeated, settings.PassageBurstDamage, angelLvlsJSON, demonLvlsJSON)
 	return err
 }
 
@@ -1210,13 +1245,13 @@ func (s *postgresStore) GetBossRaid(ctx context.Context) (*BossRaid, error) {
 	var b BossRaid
 	var rawConquerors []byte
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, boss_name, boss_title, boss_rank, boss_wpm, max_hp, current_hp, required_wpm,
-		       translation, book_name, chapter, verse, text, conquered, conquerors, updated_at
+		SELECT id, boss_name, boss_title, boss_rank, boss_wpm, COALESCE(level, 2), COALESCE(max_level, 4), COALESCE(is_demon_boss, false),
+		       max_hp, current_hp, required_wpm, translation, book_name, chapter, verse, text, conquered, conquerors, updated_at
 		FROM boss_raids
 		ORDER BY updated_at DESC
 		LIMIT 1
-	`).Scan(&b.ID, &b.BossName, &b.BossTitle, &b.BossRank, &b.BossWPM, &b.MaxHP, &b.CurrentHP, &b.RequiredWPM,
-		&b.Translation, &b.BookName, &b.Chapter, &b.Verse, &b.Text, &b.Conquered, &rawConquerors, &b.UpdatedAt)
+	`).Scan(&b.ID, &b.BossName, &b.BossTitle, &b.BossRank, &b.BossWPM, &b.Level, &b.MaxLevel, &b.IsDemonBoss,
+		&b.MaxHP, &b.CurrentHP, &b.RequiredWPM, &b.Translation, &b.BookName, &b.Chapter, &b.Verse, &b.Text, &b.Conquered, &rawConquerors, &b.UpdatedAt)
 	if err != nil {
 		def := defaultBossRaid()
 		_ = s.ResetBossRaid(ctx, *def)
@@ -1307,16 +1342,25 @@ func (s *postgresStore) RecordBossStrike(ctx context.Context, uid, displayName, 
 }
 
 func (s *postgresStore) ResetBossRaid(ctx context.Context, raid BossRaid) error {
+	if raid.Level < 1 {
+		raid.Level = 2
+	}
+	if raid.MaxLevel < 1 {
+		raid.MaxLevel = 4
+	}
 	raw, _ := json.Marshal(raid.Conquerors)
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO boss_raids (id, boss_name, boss_title, boss_rank, boss_wpm, max_hp, current_hp, required_wpm,
-		                        translation, book_name, chapter, verse, text, conquered, conquerors, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)
+		INSERT INTO boss_raids (id, boss_name, boss_title, boss_rank, boss_wpm, level, max_level, is_demon_boss,
+		                        max_hp, current_hp, required_wpm, translation, book_name, chapter, verse, text, conquered, conquerors, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_TIMESTAMP)
 		ON CONFLICT (id) DO UPDATE SET
 			boss_name = EXCLUDED.boss_name,
 			boss_title = EXCLUDED.boss_title,
 			boss_rank = EXCLUDED.boss_rank,
 			boss_wpm = EXCLUDED.boss_wpm,
+			level = EXCLUDED.level,
+			max_level = EXCLUDED.max_level,
+			is_demon_boss = EXCLUDED.is_demon_boss,
 			max_hp = EXCLUDED.max_hp,
 			current_hp = EXCLUDED.current_hp,
 			required_wpm = EXCLUDED.required_wpm,
@@ -1328,8 +1372,8 @@ func (s *postgresStore) ResetBossRaid(ctx context.Context, raid BossRaid) error 
 			conquered = EXCLUDED.conquered,
 			conquerors = EXCLUDED.conquerors,
 			updated_at = CURRENT_TIMESTAMP
-	`, raid.ID, raid.BossName, raid.BossTitle, raid.BossRank, raid.BossWPM, raid.MaxHP, raid.CurrentHP, raid.RequiredWPM,
-		raid.Translation, raid.BookName, raid.Chapter, raid.Verse, raid.Text, raid.Conquered, raw)
+	`, raid.ID, raid.BossName, raid.BossTitle, raid.BossRank, raid.BossWPM, raid.Level, raid.MaxLevel, raid.IsDemonBoss,
+		raid.MaxHP, raid.CurrentHP, raid.RequiredWPM, raid.Translation, raid.BookName, raid.Chapter, raid.Verse, raid.Text, raid.Conquered, raw)
 	return err
 }
 

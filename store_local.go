@@ -205,35 +205,32 @@ func (s *localStore) GetBookProgress(ctx context.Context, uid, translation, book
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.data.Progress[uid] == nil {
-		s.data.Progress[uid] = make(map[string]BookProgress)
-	}
-
-	k := progressKey(translation, bookName)
-	if bp, ok := s.data.Progress[uid][k]; ok {
-		bpCopy := bp
-		if bpCopy.CurrentVerse > 0 && !bpCopy.IntroCompleted {
-			bpCopy.IntroCompleted = true
-		}
-		return &bpCopy, nil
-	}
-	if translation == "kjv" {
-		if bp, ok := s.data.Progress[uid]["kjv:"+bookName]; ok {
+	userProg := s.data.Progress[uid]
+	if userProg != nil {
+		k := progressKey(translation, bookName)
+		if bp, ok := userProg[k]; ok {
 			bpCopy := bp
 			if bpCopy.CurrentVerse > 0 && !bpCopy.IntroCompleted {
 				bpCopy.IntroCompleted = true
 			}
 			return &bpCopy, nil
 		}
+		if translation == "kjv" {
+			if bp, ok := userProg["kjv:"+bookName]; ok {
+				bpCopy := bp
+				if bpCopy.CurrentVerse > 0 && !bpCopy.IntroCompleted {
+					bpCopy.IntroCompleted = true
+				}
+				return &bpCopy, nil
+			}
+		}
 	}
 
-	bp := BookProgress{
+	return &BookProgress{
 		TotalVerses:     totalVerses,
 		IntroCompleted:  false,
 		ReviewCompleted: false,
-	}
-	s.data.Progress[uid][k] = bp
-	return &bp, s.save()
+	}, nil
 }
 
 func (s *localStore) UpdateBookProgress(ctx context.Context, uid, translation, bookName string, bp *BookProgress) error {
@@ -735,9 +732,17 @@ func (s *localStore) mergeUserProgressLocked(targetUID, sourceUID string) {
 	}
 
 	// 8. Sanctuary Customizations
-	if _, hasTgtSanctuary := s.data.SanctuarySettings[targetUID]; !hasTgtSanctuary {
-		if srcSanctuary, hasSrcSanctuary := s.data.SanctuarySettings[sourceUID]; hasSrcSanctuary {
+	if srcSanctuary, hasSrcSanctuary := s.data.SanctuarySettings[sourceUID]; hasSrcSanctuary {
+		if tgtSanctuary, hasTgtSanctuary := s.data.SanctuarySettings[targetUID]; !hasTgtSanctuary {
 			s.data.SanctuarySettings[targetUID] = srcSanctuary
+		} else {
+			if srcSanctuary.GuardianLevel > tgtSanctuary.GuardianLevel {
+				tgtSanctuary.GuardianLevel = srcSanctuary.GuardianLevel
+				tgtSanctuary.GuardianXP = max(tgtSanctuary.GuardianXP, srcSanctuary.GuardianXP)
+			}
+			tgtSanctuary.DemonsDefeated += srcSanctuary.DemonsDefeated
+			tgtSanctuary.TrackerUnlocked = tgtSanctuary.TrackerUnlocked || srcSanctuary.TrackerUnlocked || tgtSanctuary.DemonsDefeated >= 6
+			s.data.SanctuarySettings[targetUID] = tgtSanctuary
 		}
 	}
 }
@@ -1197,7 +1202,7 @@ func (s *localStore) GetCustomizations(ctx context.Context, uid string) (*Sanctu
 			cCopy.GuardianRadiance = 100 + (cCopy.GuardianLevel-1)*5
 		}
 		if cCopy.PassageBurstDamage <= 0 {
-			cCopy.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
+			cCopy.PassageBurstDamage = GetDemonSyncBalance().PassageBurstBaseDamage
 		}
 		cCopy.TrackerUnlocked = cCopy.DemonsDefeated >= 6
 		return &cCopy, nil
@@ -1214,7 +1219,7 @@ func (s *localStore) GetCustomizations(ctx context.Context, uid string) (*Sanctu
 		GuardianWards:      0,
 		GuardianPower:      10,
 		GuardianRadiance:   100,
-		PassageBurstDamage: DefaultDemonSyncBalance.PassageBurstBaseDamage,
+		PassageBurstDamage: GetDemonSyncBalance().PassageBurstBaseDamage,
 		TrackerUnlocked:    false,
 	}, nil
 }
@@ -1237,7 +1242,7 @@ func (s *localStore) SaveCustomizations(ctx context.Context, uid string, setting
 		settings.GuardianRadiance = 100 + (settings.GuardianLevel-1)*5
 	}
 	if settings.PassageBurstDamage <= 0 {
-		settings.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
+		settings.PassageBurstDamage = GetDemonSyncBalance().PassageBurstBaseDamage
 	}
 	settings.TrackerUnlocked = settings.DemonsDefeated >= 6
 	s.data.SanctuarySettings[uid] = settings
@@ -1294,7 +1299,7 @@ func (s *localStore) RecordWildDemonDefeat(ctx context.Context, uid string, demo
 	cfg.GuardianPower = 10 + (cfg.GuardianLevel-1)*2
 	cfg.GuardianRadiance = 100 + (cfg.GuardianLevel-1)*5
 	if cfg.PassageBurstDamage <= 0 {
-		cfg.PassageBurstDamage = DefaultDemonSyncBalance.PassageBurstBaseDamage
+		cfg.PassageBurstDamage = GetDemonSyncBalance().PassageBurstBaseDamage
 	}
 	cfg.TrackerUnlocked = cfg.DemonsDefeated >= 6
 

@@ -2755,6 +2755,94 @@ func TestAdminConsoleSecurityAndLiveOperations(t *testing.T) {
 	if slayResp.StatusCode != http.StatusOK {
 		t.Errorf("Expected 200 OK slaying admin-spawned demon, got %d", slayResp.StatusCode)
 	}
+
+	// 9. Verify creating a new custom demon type and adjusting existing demon type parameters
+	upsertPayload := `{
+		"action": "upsert_demon_type",
+		"apply_to_active_wild": true,
+		"demon_type": {
+			"rank": "archwraith",
+			"name": "Abyssal Archwraith",
+			"title": "Harvester of Doubt",
+			"description": "A custom demon type created in the Admin Console.",
+			"icon": "👻",
+			"color": "#9333ea",
+			"level": 1,
+			"max_level": 5,
+			"base_level_wpm": 50,
+			"wpm_per_level": 15,
+			"wild_min_wpm": 14,
+			"wild_max_wpm": 20,
+			"wild_base_hp": 180,
+			"wild_hp_per_level": 75,
+			"spawn_weight": 3,
+			"min_progress_ratio": 0.2,
+			"max_progress_ratio": 0.9,
+			"block_duration": 3.2,
+			"ability_interval_chars": 8,
+			"shroud_chance": 0.75,
+			"base_shroud_range": 3
+		}
+	}`
+	upsertReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/action", strings.NewReader(upsertPayload))
+	upsertReq.Header.Set("Content-Type", "application/json")
+	upsertReq.Header.Set("Authorization", "Bearer "+loginData.Token)
+	upsertResp, err := http.DefaultClient.Do(upsertReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var upsertData struct {
+		OK         bool        `json:"ok"`
+		DemonType  DemonInfo   `json:"demon_type"`
+		DemonTypes []DemonInfo `json:"demon_types"`
+	}
+	_ = json.NewDecoder(upsertResp.Body).Decode(&upsertData)
+	upsertResp.Body.Close()
+	if !upsertData.OK || upsertData.DemonType.Rank != "archwraith" || !upsertData.DemonType.IsCustom {
+		t.Fatalf("Expected custom demon type archwraith to be created, got %+v", upsertData)
+	}
+	// Level 3 WPM should be 50 + (3-1)*15 = 80
+	if wpm3 := GetDemonWPM("archwraith", 3); wpm3 != 80 {
+		t.Errorf("Expected archwraith Lv.3 WPM = 80, got %d", wpm3)
+	}
+
+	// Spawn a wild demon of the new custom type using its default parameters
+	spawnCustomReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/action", strings.NewReader(`{"action":"spawn_demon","book_name":"Genesis","chapter":1,"verse":4,"rank":"archwraith","level":2}`))
+	spawnCustomReq.Header.Set("Content-Type", "application/json")
+	spawnCustomReq.Header.Set("Authorization", "Bearer "+loginData.Token)
+	spawnCustomResp, err := http.DefaultClient.Do(spawnCustomReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var spawnCustomData struct {
+		OK        bool       `json:"ok"`
+		WildDemon *WildDemon `json:"wild_demon"`
+	}
+	_ = json.NewDecoder(spawnCustomResp.Body).Decode(&spawnCustomData)
+	spawnCustomResp.Body.Close()
+	if !spawnCustomData.OK || spawnCustomData.WildDemon == nil {
+		t.Fatalf("Expected custom demon type spawn to succeed")
+	}
+	// Expected HP for level 2: 180 + 2*75 = 330
+	if spawnCustomData.WildDemon.MaxHP != 330 || spawnCustomData.WildDemon.Icon != "👻" {
+		t.Errorf("Expected custom wild demon MaxHP=330 and Icon=👻, got MaxHP=%d Icon=%q", spawnCustomData.WildDemon.MaxHP, spawnCustomData.WildDemon.Icon)
+	}
+
+	// Delete the custom demon type and reset demon types
+	delReq, _ := http.NewRequest(http.MethodPost, server.URL+"/api/admin/action", strings.NewReader(`{"action":"delete_demon_type","rank":"archwraith"}`))
+	delReq.Header.Set("Content-Type", "application/json")
+	delReq.Header.Set("Authorization", "Bearer "+loginData.Token)
+	delResp, err := http.DefaultClient.Do(delReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delResp.Body.Close()
+	if delResp.StatusCode != http.StatusOK {
+		t.Errorf("Expected 200 OK deleting custom demon type, got %d", delResp.StatusCode)
+	}
+	if _, exists := GetDemonType("archwraith"); exists {
+		t.Errorf("Expected archwraith to be deleted from demonTemplates")
+	}
 }
 
 

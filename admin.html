@@ -378,6 +378,7 @@
     <nav class="admin-nav">
       <button class="tab-btn active" data-tab="tabOverview">📊 Overview &amp; Analytics</button>
       <button class="tab-btn" data-tab="tabParams">⚙️ Options &amp; Parameters</button>
+      <button class="tab-btn" data-tab="tabDemonTypes">😈 Demon Types &amp; Designer</button>
       <button class="tab-btn" data-tab="tabWorld">👹 World &amp; Live Entities</button>
       <button class="tab-btn" data-tab="tabUsers">👥 Users &amp; Moderation</button>
       <button class="tab-btn" data-tab="tabDebug">🐛 Debug &amp; Telemetry</button>
@@ -645,6 +646,136 @@
           <div style="margin-top: 1.25rem; display: flex; justify-content: flex-end; gap: 0.6rem;">
             <button type="button" class="btn btn-success" id="btnSaveParamsBottom">💾 Save All Options &amp; Broadcast Live</button>
           </div>
+        </div>
+      </div>
+
+      <!-- TAB 2B: DEMON TYPES & DESIGNER -->
+      <div id="tabDemonTypes" class="tab-pane">
+        <div class="section-card" style="border-color: rgba(239, 68, 68, 0.35);">
+          <div class="section-header">
+            <h2>➕ Create New Custom Demon Type</h2>
+            <span style="font-size: 0.78rem; color: var(--muted);">New demon types appear in the player Adversary Selector, Wild Demon Spawns, and Book Ambushes</span>
+          </div>
+          <div class="param-grid" style="grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));">
+            <div class="param-item">
+              <label>Rank ID (slug)</label>
+              <input type="text" id="newDtRank" placeholder="e.g. wraith, archfiend" />
+              <div class="param-hint">Unique lowercase identifier</div>
+            </div>
+            <div class="param-item">
+              <label>Display Name</label>
+              <input type="text" id="newDtName" placeholder="e.g. Abyssal Wraith" />
+              <div class="param-hint">Shown in combat &amp; selector</div>
+            </div>
+            <div class="param-item">
+              <label>Title / Epithet</label>
+              <input type="text" id="newDtTitle" placeholder="e.g. Thief of Joy" />
+              <div class="param-hint">Subtitle shown under name</div>
+            </div>
+            <div class="param-item">
+              <label>Emoji Icon &amp; Color</label>
+              <div style="display:flex; gap:0.4rem;">
+                <input type="text" id="newDtIcon" value="👻" style="width:70px; text-align:center; font-size:1.1rem;" />
+                <input type="text" id="newDtColor" value="#dc2626" placeholder="#dc2626" />
+              </div>
+              <div class="param-hint">Avatar icon &amp; hex accent color</div>
+            </div>
+            <div class="param-item">
+              <label>Challenge Base Lv.1 WPM</label>
+              <input type="number" id="newDtBaseWPM" value="45" min="5" max="300" />
+              <div class="param-hint">Direct duel speed at Level 1</div>
+            </div>
+            <div class="param-item">
+              <label>Challenge WPM / Level</label>
+              <input type="number" id="newDtWPMPerLevel" value="12" min="0" max="100" />
+              <div class="param-hint">Extra WPM per level upgrade</div>
+            </div>
+            <div class="param-item">
+              <label>Default Lv / Max Lv</label>
+              <div style="display:flex; gap:0.4rem;">
+                <input type="number" id="newDtLevel" value="1" min="1" max="10" />
+                <input type="number" id="newDtMaxLevel" value="5" min="1" max="10" />
+              </div>
+              <div class="param-hint">Starting level &amp; max evolution cap</div>
+            </div>
+            <div class="param-item">
+              <label>Wild Roaming WPM (Min / Max)</label>
+              <div style="display:flex; gap:0.4rem;">
+                <input type="number" id="newDtWildMinWPM" value="11" min="4" max="200" />
+                <input type="number" id="newDtWildMaxWPM" value="23" min="4" max="200" />
+              </div>
+              <div class="param-hint">Speed range when spawned in the wild</div>
+            </div>
+            <div class="param-item">
+              <label>Wild Base HP &amp; HP / Level</label>
+              <div style="display:flex; gap:0.4rem;">
+                <input type="number" id="newDtWildBaseHP" value="120" min="10" max="10000" />
+                <input type="number" id="newDtWildHPPerLevel" value="65" min="0" max="2000" />
+              </div>
+              <div class="param-hint">Wild HP = Base + (Level × HP/Lv)</div>
+            </div>
+            <div class="param-item">
+              <label>Wild Spawn Weight</label>
+              <input type="number" id="newDtSpawnWeight" value="2" min="0" max="100" />
+              <div class="param-hint">Relative weight in random spawns (0 = manual only)</div>
+            </div>
+            <div class="param-item">
+              <label>Book Ambush Progress Range</label>
+              <div style="display:flex; gap:0.4rem;">
+                <input type="number" step="0.05" id="newDtMinRatio" value="0.0" min="0" max="1" />
+                <input type="number" step="0.05" id="newDtMaxRatio" value="1.0" min="0" max="1" />
+              </div>
+              <div class="param-hint">Book completion ratio (0.0–1.0) where this rank ambushes</div>
+            </div>
+            <div class="param-item">
+              <label>Smoke Block Duration (sec)</label>
+              <input type="number" step="0.1" id="newDtBlockDuration" value="3.0" min="0.5" max="15" />
+              <div class="param-hint">How long smoke obscures words</div>
+            </div>
+            <div class="param-item">
+              <label>Ability Cadence (Chars)</label>
+              <input type="number" id="newDtAbilityInterval" value="10" min="2" max="100" />
+              <div class="param-hint">Chars typed by demon between ability checks</div>
+            </div>
+            <div class="param-item">
+              <label>Shroud Chance &amp; Word Span</label>
+              <div style="display:flex; gap:0.4rem;">
+                <input type="number" step="0.05" id="newDtShroudChance" value="0.60" min="0" max="1" />
+                <input type="number" id="newDtShroudRange" value="2" min="1" max="10" />
+              </div>
+              <div class="param-hint">Chance (0–1) &amp; base words shrouded</div>
+            </div>
+            <div class="param-item">
+              <label>Boss Flag &amp; Raid HP</label>
+              <div style="display:flex; align-items:center; gap:0.5rem;">
+                <label style="display:inline-flex; align-items:center; gap:0.3rem; margin:0; white-space:nowrap;"><input type="checkbox" id="newDtIsBoss" /> Boss</label>
+                <input type="number" id="newDtTotalHP" value="0" min="0" max="100000" placeholder="Raid HP" />
+              </div>
+              <div class="param-hint">Optional Boss Raid pool HP</div>
+            </div>
+            <div class="param-item" style="grid-column: span 2;">
+              <label>Lore / Ability Description</label>
+              <input type="text" id="newDtDesc" placeholder="Describe this demon's spiritual attacks, smoke shroud, and behavior..." />
+              <div class="param-hint">Displayed in the Adversary Selector &amp; combat tooltips</div>
+            </div>
+          </div>
+          <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.6rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-warning" id="btnCreateAndSpawnDemonType">⚡ Create Type &amp; Immediately Spawn in Scripture</button>
+            <button type="button" class="btn btn-sm btn-success" id="btnCreateDemonType">➕ Create &amp; Register Demon Type</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h2>😈 Registered Demon Types (<span id="demonTypesCountLabel">0</span>)</h2>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <label style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--muted); cursor:pointer;">
+                <input type="checkbox" id="applyDemonTypeToActiveWild" checked /> Also update currently roaming wild demons of that rank on save
+              </label>
+              <button type="button" class="btn btn-sm btn-warning" id="btnResetAllDemonTypes">↺ Reset All Types to Factory Defaults</button>
+            </div>
+          </div>
+          <div id="demonTypesCardsContainer" style="display: flex; flex-direction: column; gap: 1rem;"></div>
         </div>
       </div>
 
@@ -966,6 +1097,7 @@
     let lastDashboardData = null;
     let refreshTimer = null;
     let paramsDirty = false;
+    let demonTypesDirty = false;
 
     function escapeHtml(s) {
       if (s === null || s === undefined) return "";
@@ -1026,6 +1158,9 @@
     // Track if parameter inputs have unsaved edits so auto-refresh doesn't overwrite typing
     document.getElementById("tabParams").addEventListener("input", () => {
       paramsDirty = true;
+    });
+    document.getElementById("demonTypesCardsContainer").addEventListener("input", () => {
+      demonTypesDirty = true;
     });
 
     async function loadDashboard(forcePopulateParams = false) {
@@ -1129,6 +1264,14 @@
         populateParamsForm(opts);
         paramsDirty = false;
       }
+
+      // 2B. Populate Demon Types Designer (only if not dirty or forced)
+      const demonTypes = data.demon_types || opts.demon_types || [];
+      if (!demonTypesDirty || forcePopulateParams) {
+        renderDemonTypesEditor(demonTypes, (dbg.wild_demons || []));
+        demonTypesDirty = false;
+      }
+      populateSpawnRankDropdown(demonTypes);
 
       // 3. World & Live Entities
       if (an.active_boss_raid) {
@@ -1422,11 +1565,345 @@
       try {
         const res = await apiFetch("/api/admin/config/reset", { method: "POST", body: "{}" });
         paramsDirty = false;
+        demonTypesDirty = false;
         showAdminToast(res.message || "Parameters reset to defaults.");
         await loadDashboard(true);
       } catch (err) {
         showAdminToast(err.message, true);
       }
+    };
+
+    function populateSpawnRankDropdown(demonTypes) {
+      const sel = document.getElementById("spawnRank");
+      if (!sel || !Array.isArray(demonTypes) || !demonTypes.length) return;
+      const cur = sel.value || "fiend";
+      sel.innerHTML = demonTypes.map((dt) => `
+        <option value="${escapeHtml(dt.rank)}" ${dt.rank === cur ? "selected" : ""}>
+          ${escapeHtml(dt.icon || "😈")} ${escapeHtml(dt.name)} (${escapeHtml(dt.rank)})
+        </option>
+      `).join("");
+    }
+
+    function renderDemonTypesEditor(demonTypes, wildDemons) {
+      const container = document.getElementById("demonTypesCardsContainer");
+      const countLbl = document.getElementById("demonTypesCountLabel");
+      if (!container) return;
+      countLbl.textContent = (demonTypes || []).length;
+
+      const wildCountByRank = {};
+      (wildDemons || []).forEach((wd) => {
+        wildCountByRank[wd.rank] = (wildCountByRank[wd.rank] || 0) + 1;
+      });
+
+      container.innerHTML = (demonTypes || []).map((dt) => {
+        const r = escapeHtml(dt.rank);
+        const isBuiltIn = !dt.is_custom && (dt.rank === "imp" || dt.rank === "fiend" || dt.rank === "tormentor" || dt.rank === "apollyon");
+        const activeCount = wildCountByRank[dt.rank] || 0;
+        const baseWpm = dt.base_level_wpm || dt.wpm || 15;
+        const wpmStep = dt.wpm_per_level !== undefined ? dt.wpm_per_level : 5;
+        const maxLv = dt.max_level || 5;
+        const maxDuelWpm = baseWpm + (maxLv - 1) * wpmStep;
+
+        return `
+          <div class="section-card" id="dtCard_${r}" style="margin-bottom:0; border-left: 4px solid ${escapeHtml(dt.color || '#ef4444')}; background: rgba(15, 23, 42, 0.72);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.65rem; margin-bottom:0.85rem; padding-bottom:0.6rem; border-bottom:1px solid var(--border);">
+              <div style="display:flex; align-items:center; gap:0.65rem;">
+                <span style="font-size:1.75rem;">${escapeHtml(dt.icon || "😈")}</span>
+                <div>
+                  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    <strong style="font-size:1.02rem; color:${escapeHtml(dt.color || '#f8fafc')};">${escapeHtml(dt.name)}</strong>
+                    <code style="background:rgba(255,255,255,0.08); padding:0.12rem 0.45rem; border-radius:6px; font-size:0.74rem;">rank: ${r}</code>
+                    ${isBuiltIn
+                      ? '<span class="badge" style="background:rgba(99,102,241,0.2);color:#c7d2fe;">Canonical Built-In</span>'
+                      : '<span class="badge" style="background:rgba(168,85,247,0.25);color:#e9d5ff;">Custom Type</span>'}
+                    ${dt.is_boss ? '<span class="badge" style="background:rgba(239,68,68,0.25);color:#fca5a5;">👑 Boss Entity</span>' : ''}
+                    <span class="badge" style="background:rgba(34,197,94,0.15);color:#86efac;">${activeCount} roaming in wild</span>
+                  </div>
+                  <div style="font-size:0.76rem; color:var(--muted); margin-top:0.15rem;">
+                    ${escapeHtml(dt.title)} · Duel WPM: <b>${baseWpm}–${maxDuelWpm} WPM</b> (Lv.1–${maxLv}) · Wild WPM: <b>${dt.wild_min_wpm || 10}–${dt.wild_max_wpm || 22} WPM</b> · Wild HP: <b>${(dt.wild_base_hp || 100) + (dt.wild_hp_per_level || 60)}–${(dt.wild_base_hp || 100) + maxLv * (dt.wild_hp_per_level || 60)} HP</b>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                <button type="button" class="btn btn-sm btn-ghost" onclick="spawnFromDemonType('${r}')">⚡ Spawn Wild Now</button>
+                <button type="button" class="btn btn-sm btn-danger" onclick="deleteOrResetDemonType('${r}', ${isBuiltIn})">
+                  ${isBuiltIn ? "↺ Reset Type" : "🗑️ Delete Type"}
+                </button>
+                <button type="button" class="btn btn-sm btn-success" onclick="saveDemonTypeCard('${r}')">💾 Save ${escapeHtml(dt.name)}</button>
+              </div>
+            </div>
+
+            <div class="param-grid" style="grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap:0.65rem;">
+              <div class="param-item">
+                <label>Display Name</label>
+                <input type="text" id="dt_${r}_name" value="${escapeHtml(dt.name)}" />
+              </div>
+              <div class="param-item">
+                <label>Title / Epithet</label>
+                <input type="text" id="dt_${r}_title" value="${escapeHtml(dt.title)}" />
+              </div>
+              <div class="param-item">
+                <label>Icon &amp; Hex Color</label>
+                <div style="display:flex; gap:0.35rem;">
+                  <input type="text" id="dt_${r}_icon" value="${escapeHtml(dt.icon || '😈')}" style="width:64px; text-align:center;" />
+                  <input type="text" id="dt_${r}_color" value="${escapeHtml(dt.color || '#ef4444')}" />
+                </div>
+              </div>
+              <div class="param-item">
+                <label>Default Lv / Max Lv</label>
+                <div style="display:flex; gap:0.35rem;">
+                  <input type="number" id="dt_${r}_level" value="${dt.level || 1}" min="1" max="10" />
+                  <input type="number" id="dt_${r}_max_level" value="${dt.max_level || 5}" min="1" max="10" />
+                </div>
+              </div>
+              <div class="param-item">
+                <label>Duel Base Lv.1 WPM</label>
+                <input type="number" id="dt_${r}_base_wpm" value="${dt.base_level_wpm || dt.wpm || 15}" min="4" max="300" />
+              </div>
+              <div class="param-item">
+                <label>Duel WPM / Level</label>
+                <input type="number" id="dt_${r}_wpm_per_level" value="${dt.wpm_per_level !== undefined ? dt.wpm_per_level : 5}" min="0" max="100" />
+              </div>
+              <div class="param-item">
+                <label>Wild WPM (Min / Max)</label>
+                <div style="display:flex; gap:0.35rem;">
+                  <input type="number" id="dt_${r}_wild_min_wpm" value="${dt.wild_min_wpm || 10}" min="4" max="200" />
+                  <input type="number" id="dt_${r}_wild_max_wpm" value="${dt.wild_max_wpm || 22}" min="4" max="200" />
+                </div>
+              </div>
+              <div class="param-item">
+                <label>Wild Base HP &amp; HP/Lv</label>
+                <div style="display:flex; gap:0.35rem;">
+                  <input type="number" id="dt_${r}_wild_base_hp" value="${dt.wild_base_hp || 100}" min="10" max="20000" />
+                  <input type="number" id="dt_${r}_wild_hp_per_level" value="${dt.wild_hp_per_level !== undefined ? dt.wild_hp_per_level : 60}" min="0" max="5000" />
+                </div>
+              </div>
+              <div class="param-item">
+                <label>Wild Spawn Weight</label>
+                <input type="number" id="dt_${r}_spawn_weight" value="${dt.spawn_weight !== undefined ? dt.spawn_weight : 1}" min="0" max="100" />
+              </div>
+              <div class="param-item">
+                <label>Ambush Ratio (Min–Max)</label>
+                <div style="display:flex; gap:0.35rem;">
+                  <input type="number" step="0.05" id="dt_${r}_min_ratio" value="${dt.min_progress_ratio !== undefined ? dt.min_progress_ratio : 0}" min="0" max="1" />
+                  <input type="number" step="0.05" id="dt_${r}_max_ratio" value="${dt.max_progress_ratio !== undefined ? dt.max_progress_ratio : 1}" min="0" max="1" />
+                </div>
+              </div>
+              <div class="param-item">
+                <label>Smoke Block Duration (s)</label>
+                <input type="number" step="0.1" id="dt_${r}_block_duration" value="${dt.block_duration || 2.5}" min="0.5" max="15" />
+              </div>
+              <div class="param-item">
+                <label>Ability Interval (Chars)</label>
+                <input type="number" id="dt_${r}_ability_interval" value="${dt.ability_interval_chars || 10}" min="2" max="100" />
+              </div>
+              <div class="param-item">
+                <label>Shroud Chance &amp; Words</label>
+                <div style="display:flex; gap:0.35rem;">
+                  <input type="number" step="0.05" id="dt_${r}_shroud_chance" value="${dt.shroud_chance !== undefined ? dt.shroud_chance : 0.6}" min="0" max="1" />
+                  <input type="number" id="dt_${r}_shroud_range" value="${dt.base_shroud_range || 2}" min="1" max="10" />
+                </div>
+              </div>
+              <div class="param-item">
+                <label>Boss Flag &amp; Raid HP</label>
+                <div style="display:flex; align-items:center; gap:0.4rem;">
+                  <label style="display:inline-flex; align-items:center; gap:0.25rem; margin:0;"><input type="checkbox" id="dt_${r}_is_boss" ${dt.is_boss ? "checked" : ""} /> Boss</label>
+                  <input type="number" id="dt_${r}_total_hp" value="${dt.total_hp || 0}" min="0" max="100000" />
+                </div>
+              </div>
+              <div class="param-item" style="grid-column: span 2;">
+                <label>Description / Lore</label>
+                <input type="text" id="dt_${r}_desc" value="${escapeHtml(dt.description || '')}" />
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function readDemonTypeCard(rank) {
+      const getStr = (suffix, def = "") => {
+        const el = document.getElementById(`dt_${rank}_${suffix}`);
+        return el ? el.value.trim() : def;
+      };
+      const getInt = (suffix, def = 0) => {
+        const el = document.getElementById(`dt_${rank}_${suffix}`);
+        const v = el ? parseInt(el.value, 10) : NaN;
+        return isNaN(v) ? def : v;
+      };
+      const getFloat = (suffix, def = 0) => {
+        const el = document.getElementById(`dt_${rank}_${suffix}`);
+        const v = el ? parseFloat(el.value) : NaN;
+        return isNaN(v) ? def : v;
+      };
+      const isBossEl = document.getElementById(`dt_${rank}_is_boss`);
+      const totalHp = getInt("total_hp", 0);
+      return {
+        id: "demon-" + rank,
+        rank: rank,
+        name: getStr("name", rank),
+        title: getStr("title", "Demonic Adversary"),
+        description: getStr("desc", ""),
+        icon: getStr("icon", "😈"),
+        color: getStr("color", "#ef4444"),
+        level: getInt("level", 1),
+        max_level: getInt("max_level", 5),
+        base_level_wpm: getInt("base_wpm", 20),
+        wpm_per_level: getInt("wpm_per_level", 5),
+        wild_min_wpm: getInt("wild_min_wpm", 10),
+        wild_max_wpm: getInt("wild_max_wpm", 22),
+        wild_base_hp: getInt("wild_base_hp", 100),
+        wild_hp_per_level: getInt("wild_hp_per_level", 60),
+        spawn_weight: getInt("spawn_weight", 1),
+        min_progress_ratio: getFloat("min_ratio", 0.0),
+        max_progress_ratio: getFloat("max_ratio", 1.0),
+        block_duration: getFloat("block_duration", 2.5),
+        ability_interval_chars: getInt("ability_interval", 10),
+        shroud_chance: getFloat("shroud_chance", 0.6),
+        base_shroud_range: getInt("shroud_range", 2),
+        is_boss: isBossEl ? isBossEl.checked : false,
+        total_hp: totalHp,
+        current_hp: totalHp
+      };
+    }
+
+    async function saveDemonTypeCard(rank) {
+      const dt = readDemonTypeCard(rank);
+      const applyWild = document.getElementById("applyDemonTypeToActiveWild")?.checked ?? true;
+      demonTypesDirty = false;
+      await runAdminAction({
+        action: "upsert_demon_type",
+        demon_type: dt,
+        apply_to_active_wild: applyWild
+      });
+    }
+
+    async function deleteOrResetDemonType(rank, isBuiltIn) {
+      const msg = isBuiltIn
+        ? `Reset built-in demon type "${rank}" back to its canonical defaults?`
+        : `Permanently delete custom demon type "${rank}"?`;
+      if (!confirm(msg)) return;
+      demonTypesDirty = false;
+      await runAdminAction({
+        action: "delete_demon_type",
+        rank: rank
+      });
+    }
+
+    async function spawnFromDemonType(rank) {
+      const dt = readDemonTypeCard(rank);
+      const midWpm = Math.round(((dt.wild_min_wpm || 12) + (dt.wild_max_wpm || 20)) / 2);
+      const lvl = dt.level || 1;
+      const hp = (dt.wild_base_hp || 100) + lvl * (dt.wild_hp_per_level || 60);
+      await runAdminAction({
+        action: "spawn_demon",
+        book_name: "Genesis",
+        chapter: 1,
+        verse: 1,
+        rank: rank,
+        level: lvl,
+        wpm: midWpm,
+        hp: hp,
+        name: dt.name
+      });
+    }
+
+    function readNewDemonTypeForm() {
+      const rawRank = document.getElementById("newDtRank").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+      const name = document.getElementById("newDtName").value.trim();
+      const rank = rawRank || name.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+      const totalHp = parseInt(document.getElementById("newDtTotalHP").value, 10) || 0;
+      return {
+        id: "demon-" + rank,
+        rank: rank,
+        name: name || (rank ? rank.toUpperCase() : "Custom Adversary"),
+        title: document.getElementById("newDtTitle").value.trim() || "Shadow Adversary",
+        description: document.getElementById("newDtDesc").value.trim() || "A custom demonic adversary forged in the Sanctuary Admin Console.",
+        icon: document.getElementById("newDtIcon").value.trim() || "👻",
+        color: document.getElementById("newDtColor").value.trim() || "#dc2626",
+        level: parseInt(document.getElementById("newDtLevel").value, 10) || 1,
+        max_level: parseInt(document.getElementById("newDtMaxLevel").value, 10) || 5,
+        base_level_wpm: parseInt(document.getElementById("newDtBaseWPM").value, 10) || 45,
+        wpm_per_level: parseInt(document.getElementById("newDtWPMPerLevel").value, 10) || 12,
+        wild_min_wpm: parseInt(document.getElementById("newDtWildMinWPM").value, 10) || 11,
+        wild_max_wpm: parseInt(document.getElementById("newDtWildMaxWPM").value, 10) || 23,
+        wild_base_hp: parseInt(document.getElementById("newDtWildBaseHP").value, 10) || 120,
+        wild_hp_per_level: parseInt(document.getElementById("newDtWildHPPerLevel").value, 10) || 65,
+        spawn_weight: parseInt(document.getElementById("newDtSpawnWeight").value, 10) || 2,
+        min_progress_ratio: parseFloat(document.getElementById("newDtMinRatio").value) || 0.0,
+        max_progress_ratio: parseFloat(document.getElementById("newDtMaxRatio").value) || 1.0,
+        block_duration: parseFloat(document.getElementById("newDtBlockDuration").value) || 3.0,
+        ability_interval_chars: parseInt(document.getElementById("newDtAbilityInterval").value, 10) || 10,
+        shroud_chance: parseFloat(document.getElementById("newDtShroudChance").value) || 0.60,
+        base_shroud_range: parseInt(document.getElementById("newDtShroudRange").value, 10) || 2,
+        is_boss: document.getElementById("newDtIsBoss").checked,
+        total_hp: totalHp,
+        current_hp: totalHp
+      };
+    }
+
+    document.getElementById("btnCreateDemonType").onclick = async () => {
+      const dt = readNewDemonTypeForm();
+      if (!dt.rank) {
+        showAdminToast("Please enter a Rank ID or Display Name for the new demon type.", true);
+        return;
+      }
+      demonTypesDirty = false;
+      await runAdminAction({
+        action: "upsert_demon_type",
+        demon_type: dt,
+        apply_to_active_wild: true
+      });
+      document.getElementById("newDtRank").value = "";
+      document.getElementById("newDtName").value = "";
+    };
+
+    document.getElementById("btnCreateAndSpawnDemonType").onclick = async () => {
+      const dt = readNewDemonTypeForm();
+      if (!dt.rank) {
+        showAdminToast("Please enter a Rank ID or Display Name for the new demon type.", true);
+        return;
+      }
+      demonTypesDirty = false;
+      try {
+        await apiFetch("/api/admin/action", {
+          method: "POST",
+          body: JSON.stringify({
+            action: "upsert_demon_type",
+            demon_type: dt,
+            apply_to_active_wild: true
+          })
+        });
+        const midWpm = Math.round(((dt.wild_min_wpm || 12) + (dt.wild_max_wpm || 20)) / 2);
+        const lvl = dt.level || 1;
+        const hp = (dt.wild_base_hp || 100) + lvl * (dt.wild_hp_per_level || 60);
+        const res = await apiFetch("/api/admin/action", {
+          method: "POST",
+          body: JSON.stringify({
+            action: "spawn_demon",
+            book_name: "Genesis",
+            chapter: 1,
+            verse: 1,
+            rank: dt.rank,
+            level: lvl,
+            wpm: midWpm,
+            hp: hp,
+            name: dt.name
+          })
+        });
+        document.getElementById("newDtRank").value = "";
+        document.getElementById("newDtName").value = "";
+        showAdminToast(res.message || `Created & spawned ${dt.name}!`);
+        await loadDashboard(true);
+      } catch (err) {
+        showAdminToast(err.message, true);
+      }
+    };
+
+    document.getElementById("btnResetAllDemonTypes").onclick = async () => {
+      if (!confirm("Reset all demon types to factory defaults and remove custom types?")) return;
+      demonTypesDirty = false;
+      await runAdminAction({ action: "reset_demon_types" });
     };
 
     async function runAdminAction(payload) {

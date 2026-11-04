@@ -32,8 +32,15 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Do not intercept WebSocket requests or non-GET requests
-  if (event.request.method !== "GET" || url.protocol === "ws:" || url.protocol === "wss:") {
+  // Do not intercept WebSocket, non-GET, API, or admin console requests
+  if (
+    event.request.method !== "GET" ||
+    url.protocol === "ws:" ||
+    url.protocol === "wss:" ||
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/admin") ||
+    url.pathname === "/health"
+  ) {
     return;
   }
 
