@@ -2468,8 +2468,10 @@ func CalculateEncounterChance(completedVerses, totalVerses int) float64 {
 
 // CheckOrSpawnWildDemonForUser evaluates demon presence and progress-based encounter chance on verse arrival
 func (m *DemonManager) CheckOrSpawnWildDemonForUser(trans string, v Verse, currentVerseIdx, totalVerses int) (*WildDemon, float64, bool) {
+	// Calculate encounter chance before locking DemonManager to avoid lock-order inversion with AdminManager
+	chance := CalculateEncounterChance(currentVerseIdx, totalVerses)
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	// 1. Check if a wild demon is already roaming on this verse (lives until defeated)
 	for _, d := range m.wildDemons {
@@ -2482,18 +2484,20 @@ func (m *DemonManager) CheckOrSpawnWildDemonForUser(trans string, v Verse, curre
 				d.WPM = baseWPM + d.EnrageCount*2
 			}
 			res := *d
+			m.mu.Unlock()
 			return &res, 1.0, false
 		}
 	}
 
-	// 2. Calculate encounter chance based on verses completed in this book
-	chance := CalculateEncounterChance(currentVerseIdx, totalVerses)
+	// 2. Check encounter chance based on verses completed in this book
 	if chance <= 0.0 {
+		m.mu.Unlock()
 		return nil, 0.0, false
 	}
 
 	// 3. Pool capacity check
 	if len(m.wildDemons) >= m.maxWildDemons {
+		m.mu.Unlock()
 		return nil, chance, false
 	}
 
@@ -2504,13 +2508,17 @@ func (m *DemonManager) CheckOrSpawnWildDemonForUser(trans string, v Verse, curre
 		m.wildDemonBases[demon.ID] = demon.WPM
 		go m.runWildDemonLoop(demon)
 
-		if m.hub != nil {
-			m.hub.BroadcastWildDemonsList(m.getWildDemonsLocked())
-		}
+		allDemons := m.getWildDemonsLocked()
 		res := *demon
+		m.mu.Unlock()
+
+		if m.hub != nil {
+			m.hub.BroadcastWildDemonsList(allDemons)
+		}
 		return &res, chance, true
 	}
 
+	m.mu.Unlock()
 	return nil, chance, false
 }
 

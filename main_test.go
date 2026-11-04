@@ -1809,6 +1809,30 @@ func TestWildDemonIntervalSpawningAndProgressEncounters(t *testing.T) {
 			t.Errorf("Existing demon should have 1.0 encounter rate and isAmbush=false")
 		}
 	}
+
+	// Verify dynamic ambush spawn when globalDemonManager is set and hub broadcasts wild_demons_list_update (regression test for mutex deadlock)
+	setGlobalDemonManager(dm)
+	dm.SetMaxWildDemons(100)
+	ambushVerse := Verse{
+		BookName: "Leviticus",
+		Chapter:  19,
+		Verse:    18,
+		Text:     "Thou shalt not avenge, nor bear any grudge against the children of thy people, but thou shalt love thy neighbour as thyself: I am the LORD.",
+	}
+	var spawnedAmbush *WildDemon
+	for attempt := 0; attempt < 100; attempt++ {
+		dAmbush, chAmbush, isAmb := dm.CheckOrSpawnWildDemonForUser("kjv", ambushVerse, 80, 100)
+		if chAmbush <= 0 {
+			t.Fatalf("Expected positive encounter chance at verse 80/100, got %.2f", chAmbush)
+		}
+		if dAmbush != nil && isAmb {
+			spawnedAmbush = dAmbush
+			break
+		}
+	}
+	if spawnedAmbush == nil {
+		t.Fatalf("Expected dynamic ambush demon to spawn within 100 attempts at 50%% encounter rate")
+	}
 }
 
 func TestDemonBalancingSwarmsAndEvolution(t *testing.T) {
