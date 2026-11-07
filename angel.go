@@ -129,24 +129,128 @@ type AngelBot struct {
 
 // AngelManager orchestrates the autonomous global angel scribe and client companions
 type AngelManager struct {
-	mu          sync.RWMutex
-	store       Store
-	hub         *Hub
-	globalAngel *AngelBot
-	companions  map[string]*AngelBot // uid -> companion bot
-	cancelGlobal chan struct{}
+	mu             sync.RWMutex
+	store          Store
+	hub            *Hub
+	globalAngel    *AngelBot
+	companions     map[string]*AngelBot              // uid -> active companion bot
+	guardians      map[string]*AngelBot              // uid -> persistent per-player guardian angel
+	michaelTrail   map[string]time.Time              // verseKey -> timestamp when Big Mike sanctified the verse
+	michaelLease   int                               // remaining verses in Big Mike's summoned crusade lease
+	offlineReports map[string]*GuardianOfflineReport // uid -> offline autonomous guardian journal
+	cancelGlobal   chan struct{}
 }
 
 var globalAngelManager *AngelManager
 
 func newAngelManager(s Store, h *Hub) *AngelManager {
 	m := &AngelManager{
-		store:       s,
-		hub:         h,
-		companions:  make(map[string]*AngelBot),
-		cancelGlobal: make(chan struct{}),
+		store:          s,
+		hub:            h,
+		companions:     make(map[string]*AngelBot),
+		guardians:      make(map[string]*AngelBot),
+		michaelTrail:   make(map[string]time.Time),
+		offlineReports: make(map[string]*GuardianOfflineReport),
+		cancelGlobal:   make(chan struct{}),
 	}
 	return m
+}
+
+func verseTrailKey(trans, book string, chapter, verse int) string {
+	return fmt.Sprintf("%s|%s|%d|%d", trans, book, chapter, verse)
+}
+
+// RecordMichaelTrail marks a verse as graced by Big Mike's Glorious Golden Trail for 30 minutes.
+func (m *AngelManager) RecordMichaelTrail(trans, book string, chapter, verse int) {
+	if book == "" || chapter <= 0 || verse <= 0 {
+		return
+	}
+	now := time.Now().UTC()
+	m.mu.Lock()
+	m.michaelTrail[verseTrailKey(trans, book, chapter, verse)] = now
+	m.michaelTrail[verseTrailKey("", book, chapter, verse)] = now
+	m.mu.Unlock()
+}
+
+// IsVerseOnMichaelTrail returns true if Big Mike is currently on this verse or inscribed it within the last 30 minutes.
+func (m *AngelManager) IsVerseOnMichaelTrail(trans, book string, chapter, verse int) bool {
+	if book == "" || chapter <= 0 || verse <= 0 {
+		return false
+	}
+	m.mu.RLock()
+	bot := m.globalAngel
+	ts, ok := m.michaelTrail[verseTrailKey(trans, book, chapter, verse)]
+	if !ok {
+		ts, ok = m.michaelTrail[verseTrailKey("", book, chapter, verse)]
+	}
+	m.mu.RUnlock()
+
+	if ok && time.Since(ts) <= 30*time.Minute {
+		return true
+	}
+	if bot != nil {
+		bot.mu.RLock()
+		onVerse := bot.Info.Rank == "michael" && bot.BookName == book && bot.Chapter == chapter && bot.Verse == verse
+		bot.mu.RUnlock()
+		if onVerse {
+			return true
+		}
+	}
+	return false
+}
+
+// RecordOfflineGuardianBlessing records a fellowship blessing received by a user's Guardian Angel while offline.
+func (m *AngelManager) RecordOfflineGuardianBlessing(uid string, xp int) {
+	if uid == "" {
+		return
+	}
+	if m.hub != nil && m.hub.IsUserConnected(uid) {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rep, ok := m.offlineReports[uid]
+	if !ok || rep == nil {
+		rep = &GuardianOfflineReport{
+			GuardianName:  "Personal Guardian Angel",
+			GuardianLevel: 1,
+		}
+		if g, hasG := m.guardians[uid]; hasG && g != nil {
+			g.mu.RLock()
+			rep.GuardianName = g.Info.Name
+			rep.GuardianLevel = g.Info.Level
+			if g.BookName != "" {
+				loc := fmt.Sprintf("%s %d:%d", g.BookName, g.Chapter, g.Verse)
+				rep.StartLocation = loc
+				rep.EndLocation = loc
+			}
+			g.mu.RUnlock()
+		}
+		m.offlineReports[uid] = rep
+	}
+	rep.BlessingsReceived++
+	if xp > 0 {
+		rep.BonusXPEarned += xp
+	}
+}
+
+// ConsumeOfflineReport returns and clears any accumulated autonomous Guardian Angel report when the player reconnects.
+func (m *AngelManager) ConsumeOfflineReport(uid string) *GuardianOfflineReport {
+	if uid == "" {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rep, ok := m.offlineReports[uid]
+	if !ok || rep == nil {
+		return nil
+	}
+	delete(m.offlineReports, uid)
+	if rep.VersesInscribed <= 0 && rep.BlessingsReceived <= 0 && rep.DemonsWeakened <= 0 {
+		return nil
+	}
+	cp := *rep
+	return &cp
 }
 
 // GetAngelTemplates returns the list of all available angels
@@ -164,7 +268,15 @@ func (m *AngelManager) GetAngelTemplatesForUser(uid string) []AngelInfo {
 
 	var preferredLevels map[string]int
 	var guardianLevel int = 1
+	var ownerName string
+	var ownerColor string = "#818cf8"
 	if m.store != nil && uid != "" {
+		if acc, _ := m.store.GetAccount(context.Background(), uid); acc != nil {
+			ownerName = acc.DisplayName
+			if acc.AvatarColor != "" {
+				ownerColor = acc.AvatarColor
+			}
+		}
 		an, _ := m.store.GetUserAnalytics(context.Background(), uid)
 		if an != nil && an.AverageWPM > 0 {
 			userAvgWPM = an.AverageWPM
@@ -191,17 +303,35 @@ func (m *AngelManager) GetAngelTemplatesForUser(uid string) []AngelInfo {
 		paceOffset = 10
 	}
 
+	michaelCost := 1
+	michaelCurrency := "book_tokens"
+	if adm := getGlobalAdmin(); adm != nil {
+		opts := adm.GetOptions()
+		if opts.MichaelSummonCurrencyType != "" {
+			michaelCurrency = opts.MichaelSummonCurrencyType
+		}
+		if opts.MichaelSummonCost >= 0 {
+			michaelCost = opts.MichaelSummonCost
+		}
+	}
+
 	for _, rank := range canonicalAngels {
 		if info, ok := angelTemplates[rank]; ok {
 			inf := info
 			if inf.Rank == "guardian" {
+				if uid != "" {
+					inf.ID = "angel-guardian-" + uid
+					inf.OwnerUID = uid
+					inf.OwnerName = ownerName
+					inf.OwnerColor = ownerColor
+				}
 				inf.Name = guardianName
 				inf.PaceOffset = paceOffset
 				inf.Level = guardianLevel
-				inf.MaxLevel = 5
+				inf.MaxLevel = 777
 				levelBonus := (guardianLevel - 1) * 2
 				if userAvgWPM > 0 {
-					calcWPM := int(math.Round(float64(userAvgWPM) * (1.0 + float64(paceOffset)/100.0))) + levelBonus
+					calcWPM := int(math.Round(float64(userAvgWPM)*(1.0+float64(paceOffset)/100.0))) + levelBonus
 					if calcWPM < 15 {
 						calcWPM = 15
 					}
@@ -219,6 +349,10 @@ func (m *AngelManager) GetAngelTemplatesForUser(uid string) []AngelInfo {
 				}
 				inf.Title = fmt.Sprintf("Your Pace (%s · Lv. %d)", paceLabel, guardianLevel)
 			} else {
+				if inf.Rank == "michael" {
+					inf.SummonCost = michaelCost
+					inf.CurrencyType = michaelCurrency
+				}
 				if preferredLevels != nil {
 					if lvl, ok := preferredLevels[inf.Rank]; ok && lvl >= 1 && lvl <= inf.MaxLevel {
 						inf.Level = lvl
@@ -313,7 +447,7 @@ func (m *AngelManager) SetGlobalAngelRank(rank string) {
 	}
 }
 
-// Stop cleanly shuts down the global angel and all active user companions.
+// Stop cleanly shuts down the global angel and all active user companions and guardians.
 func (m *AngelManager) Stop() {
 	m.StopGlobalAngel()
 
@@ -328,19 +462,78 @@ func (m *AngelManager) Stop() {
 		bot.mu.Unlock()
 		delete(m.companions, uid)
 	}
+	for uid, bot := range m.guardians {
+		bot.mu.Lock()
+		if bot.IsRunning {
+			bot.IsRunning = false
+			close(bot.StopChan)
+		}
+		bot.mu.Unlock()
+		delete(m.guardians, uid)
+	}
+}
+
+// SummonGlobalMichaelToVerse relocates the global Big Mike scribe directly to the specified verse,
+// from where he will continue grinding linearly across Scripture.
+func (m *AngelManager) SummonGlobalMichaelToVerse(trans, book string, chapter, verse int, text string) *AngelInfo {
+	m.mu.Lock()
+	bot := m.globalAngel
+	m.michaelLease = 10
+	m.mu.Unlock()
+	if bot == nil {
+		return nil
+	}
+	if trans == "" {
+		trans = "kjv"
+	}
+	bot.mu.Lock()
+	bot.Translation = trans
+	bot.BookName = book
+	bot.Chapter = chapter
+	bot.Verse = verse
+	bot.Text = cleanVerseText(text)
+	bot.CharIndex = 0
+	info := bot.Info
+	info.Translation = trans
+	info.BookName = book
+	info.Chapter = chapter
+	info.Verse = verse
+	info.CharIndex = 0
+	bot.mu.Unlock()
+
+	m.RecordMichaelTrail(trans, book, chapter, verse)
+
+	if dm := getGlobalDemonManager(); dm != nil {
+		dm.SlayWildDemonByMichael(trans, book, chapter, verse)
+	}
+	return &info
 }
 
 func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
-	curTrans := "kjv"
-	curBook := "Genesis"
-	curCh := 1
-	curV := 1
-
 	for {
 		select {
 		case <-bot.StopChan:
 			return
 		default:
+		}
+
+		bot.mu.RLock()
+		curTrans := bot.Translation
+		curBook := bot.BookName
+		curCh := bot.Chapter
+		curV := bot.Verse
+		bot.mu.RUnlock()
+		if curTrans == "" {
+			curTrans = "kjv"
+		}
+		if curBook == "" {
+			curBook = "Genesis"
+		}
+		if curCh <= 0 {
+			curCh = 1
+		}
+		if curV <= 0 {
+			curV = 1
 		}
 
 		// Find verse text from datasets
@@ -370,22 +563,36 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 		}
 
 		bot.mu.Lock()
+		// If relocated externally while resolving text, restart loop with the new verse
+		if bot.BookName != "" && (bot.BookName != curBook || bot.Chapter != curCh || bot.Verse != curV) {
+			bot.mu.Unlock()
+			continue
+		}
 		bot.Translation = curTrans
 		bot.BookName = curBook
 		bot.Chapter = curCh
 		bot.Verse = curV
 		bot.Text = text
 		bot.CharIndex = 0
+		bot.Info.BookName = curBook
+		bot.Info.Chapter = curCh
+		bot.Info.Verse = curV
 		wpm := bot.Info.WPM
+		isMichael := bot.Info.Rank == "michael"
 		bot.mu.Unlock()
+
+		if isMichael {
+			m.RecordMichaelTrail(curTrans, curBook, curCh, curV)
+		}
 
 		// Slay any wild demons lurking on this verse along the way!
 		if dm := getGlobalDemonManager(); dm != nil {
 			dm.SlayWildDemonByMichael(curTrans, curBook, curCh, curV)
 		}
 
+		relocated := false
 		// When no human clients are connected, Michael cruises at a brisk patrol pace
-		if m.hub != nil && m.hub.ClientCount() == 0 && bot.Info.Rank == "michael" {
+		if m.hub != nil && m.hub.ClientCount() == 0 && isMichael {
 			select {
 			case <-bot.StopChan:
 				return
@@ -409,7 +616,7 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 				default:
 				}
 
-				if bot.Info.Rank != "michael" && m.hub != nil && m.hub.ClientCount() == 0 {
+				if !isMichael && m.hub != nil && m.hub.ClientCount() == 0 {
 					select {
 					case <-bot.StopChan:
 						return
@@ -419,19 +626,27 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 				}
 
 				bot.mu.Lock()
+				if bot.Translation != curTrans || bot.BookName != curBook || bot.Chapter != curCh || bot.Verse != curV {
+					bot.mu.Unlock()
+					relocated = true
+					break
+				}
 				bot.CharIndex = i
 				bot.mu.Unlock()
 
 				// Broadcast ghost cursor to anyone on this verse
 				if m.hub != nil {
 					m.hub.BroadcastAngelCursor(curTrans, curBook, curCh, curV, GhostCursor{
-						UID:         bot.Info.ID,
-						DisplayName: bot.Info.Icon + " " + bot.Info.Name,
-						AvatarColor: bot.Info.Color,
-						CharIndex:   i,
-						WPM:         wpm,
-						IsAngel:     true,
-						AngelRank:   bot.Info.Rank,
+						UID:             bot.Info.ID,
+						DisplayName:     bot.Info.Icon + " " + bot.Info.Name,
+						AvatarColor:     bot.Info.Color,
+						CharIndex:       i,
+						WPM:             wpm,
+						IsAngel:         true,
+						AngelRank:       bot.Info.Rank,
+						AngelLevel:      bot.Info.Level,
+						TrailUpTo:       i,
+						IsGloriousTrail: isMichael,
 					})
 				}
 
@@ -449,7 +664,20 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 			}
 		}
 
+		if relocated {
+			continue
+		}
+
 		// Verse completed by global angel!
+		if isMichael {
+			m.RecordMichaelTrail(curTrans, curBook, curCh, curV)
+			m.mu.Lock()
+			if m.michaelLease > 0 {
+				m.michaelLease--
+			}
+			m.mu.Unlock()
+		}
+
 		// Record global completion count
 		if m.store != nil {
 			_, _, _ = m.store.RecordVerseCompletion(context.Background(), bot.Info.ID, curTrans, curBook, curCh, curV)
@@ -460,33 +688,155 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 			dm.SlayWildDemonByMichael(curTrans, curBook, curCh, curV)
 		}
 
-		// Advance to next canonical verse across Scripture, with occasional target crusade towards active demons
-		advanced := false
-		if dm := getGlobalDemonManager(); dm != nil && rand.Float64() < 0.25 {
-			wildDemons := dm.GetWildDemons()
-			if len(wildDemons) > 0 {
-				targetDemon := wildDemons[rand.Intn(len(wildDemons))]
-				curBook = targetDemon.BookName
-				curCh = targetDemon.Chapter
-				curV = targetDemon.Verse
-				advanced = true
+		// Strictly linear canonical progression across Scripture until summoned!
+		if nextV, ok := getNextCanonicalVerse(curTrans, curBook, curCh, curV); ok {
+			bot.mu.Lock()
+			if bot.Translation == curTrans && bot.BookName == curBook && bot.Chapter == curCh && bot.Verse == curV {
+				bot.BookName = nextV.BookName
+				bot.Chapter = nextV.Chapter
+				bot.Verse = nextV.Verse
+				bot.Info.BookName = nextV.BookName
+				bot.Info.Chapter = nextV.Chapter
+				bot.Info.Verse = nextV.Verse
+				bot.CharIndex = 0
 			}
-		}
-		if !advanced {
-			if nextV, ok := getNextCanonicalVerse(curTrans, curBook, curCh, curV); ok {
-				curBook = nextV.BookName
-				curCh = nextV.Chapter
-				curV = nextV.Verse
-			}
+			bot.mu.Unlock()
 		}
 
-		// Brief holy reflection pause between verses (1.5 to 2.5 seconds)
+		// Brief holy reflection pause between verses
 		select {
 		case <-bot.StopChan:
 			return
-		case <-time.After(2 * time.Second):
+		case <-time.After(1500 * time.Millisecond):
 		}
 	}
+}
+
+// EnsurePlayerGuardian ensures that a player's persistent Guardian Angel exists and is synced to their verse.
+// While the player is active, the Guardian works through the same verse alongside them; when the player stops or leaves,
+// the Guardian continues grinding linearly across Scripture as the player's ghost without granting user progress.
+func (m *AngelManager) EnsurePlayerGuardian(uid, displayName, avatarColor, trans, book string, chapter, verse int, text string) *AngelInfo {
+	if uid == "" {
+		return nil
+	}
+	if trans == "" {
+		trans = "kjv"
+	}
+	if book == "" {
+		book = "Genesis"
+	}
+	if chapter <= 0 {
+		chapter = 1
+	}
+	if verse <= 0 {
+		verse = 1
+	}
+	cleanedText := cleanVerseText(text)
+	if cleanedText == "" {
+		if td, ok := translations[trans]; ok {
+			for _, v := range td.VersesByBook[book] {
+				if v.Chapter == chapter && v.Verse == verse {
+					cleanedText = cleanVerseText(v.Text)
+					break
+				}
+			}
+		}
+		if cleanedText == "" {
+			cleanedText = "In the beginning God created the heaven and the earth."
+		}
+	}
+
+	var template AngelInfo
+	templates := m.GetAngelTemplatesForUser(uid)
+	for _, t := range templates {
+		if t.Rank == "guardian" {
+			template = t
+			break
+		}
+	}
+	if template.Rank == "" {
+		template = angelTemplates["guardian"]
+	}
+	template.ID = "angel-guardian-" + uid
+	template.IsGuardian = true
+	template.OwnerUID = uid
+	if displayName != "" {
+		template.OwnerName = displayName
+	} else if template.OwnerName == "" {
+		if len(uid) >= 6 {
+			template.OwnerName = "Scribe " + uid[:6]
+		} else {
+			template.OwnerName = "Scribe " + uid
+		}
+	}
+	if avatarColor != "" {
+		template.OwnerColor = avatarColor
+	} else if template.OwnerColor == "" {
+		template.OwnerColor = template.Color
+	}
+	template.Translation = trans
+	template.BookName = book
+	template.Chapter = chapter
+	template.Verse = verse
+
+	m.mu.Lock()
+	existing, ok := m.guardians[uid]
+	if ok && existing != nil {
+		existing.mu.Lock()
+		wasRunning := existing.IsRunning
+		if wasRunning {
+			existing.Info.Name = template.Name
+			existing.Info.Title = template.Title
+			existing.Info.WPM = template.WPM
+			existing.Info.Level = template.Level
+			existing.Info.PaceOffset = template.PaceOffset
+			existing.Info.OwnerUID = uid
+			existing.Info.OwnerName = template.OwnerName
+			existing.Info.OwnerColor = template.OwnerColor
+			existing.Info.Translation = trans
+			existing.Info.BookName = book
+			existing.Info.Chapter = chapter
+			existing.Info.Verse = verse
+			if existing.Translation != trans || existing.BookName != book || existing.Chapter != chapter || existing.Verse != verse {
+				existing.Translation = trans
+				existing.BookName = book
+				existing.Chapter = chapter
+				existing.Verse = verse
+				existing.Text = cleanedText
+				existing.CharIndex = 0
+			}
+			info := existing.Info
+			existing.mu.Unlock()
+			if _, hasComp := m.companions[uid]; !hasComp {
+				m.companions[uid] = existing
+			}
+			m.mu.Unlock()
+			return &info
+		}
+		existing.mu.Unlock()
+	}
+
+	bot := &AngelBot{
+		Info:        template,
+		Translation: trans,
+		BookName:    book,
+		Chapter:     chapter,
+		Verse:       verse,
+		Text:        cleanedText,
+		CharIndex:   0,
+		StopChan:    make(chan struct{}),
+		IsRunning:   true,
+	}
+	m.guardians[uid] = bot
+	if comp, hasComp := m.companions[uid]; !hasComp || comp == nil || comp.Info.IsGuardian {
+		m.companions[uid] = bot
+	}
+	m.mu.Unlock()
+
+	go m.runCompanionLoop(uid, bot)
+
+	info := template
+	return &info
 }
 
 // SummonCompanion creates or switches an Angel companion for a user's active verse
@@ -496,25 +846,43 @@ func (m *AngelManager) SummonCompanion(uid, rank, trans, book string, chapter, v
 
 // SummonCompanionWithLevel creates or switches an Angel companion with a specified level
 func (m *AngelManager) SummonCompanionWithLevel(uid, rank string, level int, trans, book string, chapter, verse int, text string) *AngelInfo {
+	if rank == "" || rank == "guardian" {
+		info := m.EnsurePlayerGuardian(uid, "", "", trans, book, chapter, verse, text)
+		m.mu.Lock()
+		if g, ok := m.guardians[uid]; ok {
+			if prev, hasPrev := m.companions[uid]; hasPrev && prev != nil && prev != g && !prev.Info.IsGuardian {
+				prev.mu.Lock()
+				if prev.IsRunning {
+					prev.IsRunning = false
+					close(prev.StopChan)
+				}
+				prev.mu.Unlock()
+			}
+			m.companions[uid] = g
+		}
+		m.mu.Unlock()
+		return info
+	}
+
+	// Dismiss any previous non-guardian companion without stopping the player's persistent guardian
 	m.DismissCompanion(uid)
+
+	if rank == "michael" {
+		m.SummonGlobalMichaelToVerse(trans, book, chapter, verse, text)
+	}
 
 	template, ok := angelTemplates[rank]
 	if !ok {
-		template = angelTemplates["guardian"]
+		template = angelTemplates["cherub"]
 	}
-
-	if template.Rank == "guardian" {
-		templates := m.GetAngelTemplatesForUser(uid)
-		for _, t := range templates {
-			if t.Rank == "guardian" {
-				template = t
-				break
-			}
-		}
-	} else if level > 0 {
+	if level > 0 {
 		template.Level = level
 		template.WPM = GetAngelWPM(rank, level)
 	}
+	template.Translation = trans
+	template.BookName = book
+	template.Chapter = chapter
+	template.Verse = verse
 
 	bot := &AngelBot{
 		Info:        template,
@@ -535,18 +903,18 @@ func (m *AngelManager) SummonCompanionWithLevel(uid, rank string, level int, tra
 	go m.runCompanionLoop(uid, bot)
 
 	info := template
-	info.BookName = book
-	info.Chapter = chapter
-	info.Verse = verse
 	return &info
 }
 
 // UpdateCompanionWPM updates the guardian companion bot's speed dynamically as user improves
 func (m *AngelManager) UpdateCompanionWPM(uid string) {
 	m.mu.RLock()
-	bot, ok := m.companions[uid]
+	bot, ok := m.guardians[uid]
+	if !ok || bot == nil {
+		bot = m.companions[uid]
+	}
 	m.mu.RUnlock()
-	if !ok || !bot.Info.IsGuardian {
+	if bot == nil || !bot.Info.IsGuardian {
 		return
 	}
 
@@ -555,51 +923,172 @@ func (m *AngelManager) UpdateCompanionWPM(uid string) {
 		if t.Rank == "guardian" {
 			bot.mu.Lock()
 			bot.Info.WPM = t.WPM
+			bot.Info.Level = t.Level
 			bot.Info.Title = t.Title
 			bot.Info.Name = t.Name
+			if t.OwnerName != "" {
+				bot.Info.OwnerName = t.OwnerName
+			}
+			if t.OwnerColor != "" {
+				bot.Info.OwnerColor = t.OwnerColor
+			}
 			bot.mu.Unlock()
 			break
 		}
 	}
 }
 
-// DismissCompanion stops any companion angel active for a user
+// DismissCompanion stops any temporary non-guardian companion for a user, while keeping their persistent Guardian Angel running in m.guardians.
 func (m *AngelManager) DismissCompanion(uid string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if bot, ok := m.companions[uid]; ok {
-		bot.mu.Lock()
-		if bot.IsRunning {
-			bot.IsRunning = false
-			close(bot.StopChan)
+	if bot, ok := m.companions[uid]; ok && bot != nil {
+		if !bot.Info.IsGuardian {
+			bot.mu.Lock()
+			if bot.IsRunning {
+				bot.IsRunning = false
+				close(bot.StopChan)
+			}
+			bot.mu.Unlock()
 		}
-		bot.mu.Unlock()
 		delete(m.companions, uid)
 	}
+}
+
+// OnUserDisconnect is called when a player's WebSocket closes.
+// Temporary non-guardian companions are dismissed, while the player's Guardian Angel continues grinding linearly across Scripture.
+func (m *AngelManager) OnUserDisconnect(uid string) {
+	m.DismissCompanion(uid)
 }
 
 // GetActiveCompanion returns current active companion info for a user or nil
 func (m *AngelManager) GetActiveCompanion(uid string) *AngelInfo {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	bot, ok := m.companions[uid]
-	if !ok {
+	if !ok || bot == nil {
+		bot = m.guardians[uid]
+	}
+	m.mu.RUnlock()
+	if bot == nil {
 		return nil
 	}
 	bot.mu.RLock()
 	defer bot.mu.RUnlock()
 	info := bot.Info
+	info.Translation = bot.Translation
+	info.BookName = bot.BookName
+	info.Chapter = bot.Chapter
+	info.Verse = bot.Verse
+	info.CharIndex = bot.CharIndex
+	if len(bot.Text) > 0 {
+		info.Progress = float64(bot.CharIndex) / float64(len(bot.Text))
+	}
 	return &info
 }
 
-// UpdateCompanionLocation informs the companion of a new verse location
-func (m *AngelManager) UpdateCompanionLocation(uid, trans, book string, chapter, verse int, text string) {
+// GetPlayerGuardian returns the persistent Guardian Angel info for a specific player UID.
+func (m *AngelManager) GetPlayerGuardian(uid string) *AngelInfo {
 	m.mu.RLock()
-	bot, ok := m.companions[uid]
+	bot, ok := m.guardians[uid]
+	m.mu.RUnlock()
+	if !ok || bot == nil {
+		return nil
+	}
+	bot.mu.RLock()
+	defer bot.mu.RUnlock()
+	info := bot.Info
+	info.Translation = bot.Translation
+	info.BookName = bot.BookName
+	info.Chapter = bot.Chapter
+	info.Verse = bot.Verse
+	info.CharIndex = bot.CharIndex
+	if len(bot.Text) > 0 {
+		info.Progress = float64(bot.CharIndex) / float64(len(bot.Text))
+	}
+	if m.hub != nil {
+		info.PlayerOnline = m.hub.IsUserConnected(uid)
+	}
+	return &info
+}
+
+// GetRoamingGuardians returns all active player Guardian Angels across Scripture so players can see, jump to, and interact with them.
+func (m *AngelManager) GetRoamingGuardians() []AngelInfo {
+	m.mu.RLock()
+	bots := make(map[string]*AngelBot, len(m.guardians))
+	for uid, b := range m.guardians {
+		if b != nil {
+			bots[uid] = b
+		}
+	}
 	m.mu.RUnlock()
 
-	if !ok {
+	list := make([]AngelInfo, 0, len(bots))
+	for uid, bot := range bots {
+		bot.mu.RLock()
+		if !bot.IsRunning {
+			bot.mu.RUnlock()
+			continue
+		}
+		info := bot.Info
+		info.OwnerUID = uid
+		info.Translation = bot.Translation
+		info.BookName = bot.BookName
+		info.Chapter = bot.Chapter
+		info.Verse = bot.Verse
+		info.CharIndex = bot.CharIndex
+		if len(bot.Text) > 0 {
+			info.Progress = float64(bot.CharIndex) / float64(len(bot.Text))
+		}
+		bot.mu.RUnlock()
+		if m.hub != nil {
+			info.PlayerOnline = m.hub.IsUserConnected(uid)
+		}
+		list = append(list, info)
+	}
+	return list
+}
+
+// GetGuardiansOnVerse returns all player Guardian Angels currently typing on a specific verse.
+func (m *AngelManager) GetGuardiansOnVerse(trans, book string, chapter, verse int) []AngelInfo {
+	all := m.GetRoamingGuardians()
+	res := make([]AngelInfo, 0)
+	for _, g := range all {
+		if (g.Translation == trans || g.Translation == "") && g.BookName == book && g.Chapter == chapter && g.Verse == verse {
+			res = append(res, g)
+		}
+	}
+	return res
+}
+
+// SeedExistingUserGuardians initializes persistent Guardian Angels for existing users in the store on startup.
+func (m *AngelManager) SeedExistingUserGuardians() {
+	if m.store == nil {
+		return
+	}
+	entries, err := m.store.ListGuardianSeedEntries(context.Background())
+	if err != nil || len(entries) == 0 {
+		return
+	}
+	for _, e := range entries {
+		m.EnsurePlayerGuardian(e.UID, e.Name, e.Color, "kjv", e.BookName, e.Chapter, e.Verse, "")
+	}
+}
+
+// UpdateCompanionLocation informs the user's Guardian Angel and any active companion of a new verse location
+func (m *AngelManager) UpdateCompanionLocation(uid, trans, book string, chapter, verse int, text string) {
+	if uid == "" {
+		return
+	}
+	// Always ensure the player's persistent Guardian Angel is active and synced to their current verse
+	m.EnsurePlayerGuardian(uid, "", "", trans, book, chapter, verse, text)
+
+	m.mu.RLock()
+	bot, ok := m.companions[uid]
+	gBot := m.guardians[uid]
+	m.mu.RUnlock()
+
+	if !ok || bot == nil || bot == gBot {
 		return
 	}
 
@@ -610,6 +1099,10 @@ func (m *AngelManager) UpdateCompanionLocation(uid, trans, book string, chapter,
 	bot.Verse = verse
 	bot.Text = cleanVerseText(text)
 	bot.CharIndex = 0
+	bot.Info.Translation = trans
+	bot.Info.BookName = book
+	bot.Info.Chapter = chapter
+	bot.Info.Verse = verse
 	bot.mu.Unlock()
 }
 
@@ -617,6 +1110,8 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 	for {
 		bot.mu.RLock()
 		running := bot.IsRunning
+		isGuardian := bot.Info.IsGuardian || bot.Info.Rank == "guardian"
+		isMichael := bot.Info.Rank == "michael"
 		wpm := bot.Info.WPM
 		text := bot.Text
 		trans := bot.Translation
@@ -632,6 +1127,10 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 			case <-time.After(300 * time.Millisecond):
 				continue
 			}
+		}
+
+		if isMichael {
+			m.RecordMichaelTrail(trans, book, ch, v)
 		}
 
 		charDelay := time.Duration(float64(time.Minute) / float64(wpm*5))
@@ -650,8 +1149,9 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 			default:
 			}
 
-			// Angels should only move when the user has the site open!
-			if m.hub != nil && !m.hub.IsUserConnected(uid) {
+			// Non-guardian temporary companions only move while the user is connected;
+			// Persistent player Guardian Angels NEVER stop—they continue mashing out verses as the player's ghost!
+			if !isGuardian && m.hub != nil && !m.hub.IsUserConnected(uid) {
 				select {
 				case <-bot.StopChan:
 					return
@@ -671,18 +1171,35 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 				break
 			}
 			bot.CharIndex = i
+			botInfo := bot.Info
 			bot.mu.Unlock()
 
-			// Broadcast ghost cursor
+			// Broadcast ghost cursor to anyone on this verse
 			if m.hub != nil {
+				playerOnline := m.hub.IsUserConnected(uid)
+				displayName := botInfo.Icon + " " + botInfo.Name
+				if isGuardian && botInfo.OwnerName != "" {
+					displayName = fmt.Sprintf("%s %s (%s)", botInfo.Icon, botInfo.Name, botInfo.OwnerName)
+				}
+				avatarColor := botInfo.Color
+				if isGuardian && botInfo.OwnerColor != "" {
+					avatarColor = botInfo.OwnerColor
+				}
 				m.hub.BroadcastAngelCursor(trans, book, ch, v, GhostCursor{
-					UID:         bot.Info.ID,
-					DisplayName: bot.Info.Icon + " " + bot.Info.Name,
-					AvatarColor: bot.Info.Color,
-					CharIndex:   i,
-					WPM:         wpm,
-					IsAngel:     true,
-					AngelRank:   bot.Info.Rank,
+					UID:             botInfo.ID,
+					DisplayName:     displayName,
+					AvatarColor:     avatarColor,
+					CharIndex:       i,
+					WPM:             wpm,
+					IsAngel:         true,
+					AngelRank:       botInfo.Rank,
+					AngelLevel:      botInfo.Level,
+					OwnerUID:        uid,
+					OwnerName:       botInfo.OwnerName,
+					OwnerColor:      botInfo.OwnerColor,
+					PlayerOnline:    playerOnline,
+					TrailUpTo:       i,
+					IsGloriousTrail: botInfo.Rank == "michael",
 				})
 			}
 
@@ -697,43 +1214,94 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 			continue
 		}
 
-		// When companion completes the passage:
-		// Record verse completion
+		// When companion/guardian completes the passage:
+		// Record ONLY global verse completion (bot.Info.ID starts with "angel-", so it NEVER grants user progress!)
 		if m.store != nil {
 			_, _, _ = m.store.RecordVerseCompletion(context.Background(), bot.Info.ID, trans, book, ch, v)
 		}
 
-		// If Archangel Michael completed this verse and a wild demon is lurking here, Michael slays it!
-		if bot.Info.Rank == "michael" {
+		// If Archangel Michael completed this verse, record his Glorious Golden Trail and slay any lurking wild demon!
+		if isMichael {
+			m.RecordMichaelTrail(trans, book, ch, v)
 			if dm := getGlobalDemonManager(); dm != nil {
 				dm.SlayWildDemonByMichael(trans, book, ch, v)
 			}
 		}
 
-		// Notify user that angel finished
-		if m.hub != nil {
+		bot.mu.RLock()
+		infoSnap := bot.Info
+		bot.mu.RUnlock()
+
+		// Autonomous Guardian Angel skirmish against wild demons & offline journal tracking
+		if isGuardian {
+			var weakenedDemon *WildDemon
+			if dm := getGlobalDemonManager(); dm != nil {
+				weakenedDemon = dm.SkirmishWildDemonByGuardian(trans, book, ch, v, 5+infoSnap.Level)
+				if weakenedDemon != nil && m.hub != nil {
+					m.hub.BroadcastWildDemonsList(dm.GetWildDemons())
+				}
+			}
+
+			userOnline := m.hub != nil && m.hub.IsUserConnected(uid)
+			if !userOnline && uid != "" {
+				loc := fmt.Sprintf("%s %d:%d", book, ch, v)
+				m.mu.Lock()
+				rep, ok := m.offlineReports[uid]
+				if !ok || rep == nil {
+					rep = &GuardianOfflineReport{
+						GuardianName:  infoSnap.Name,
+						GuardianLevel: infoSnap.Level,
+						StartLocation: loc,
+					}
+					m.offlineReports[uid] = rep
+				}
+				rep.GuardianName = infoSnap.Name
+				rep.GuardianLevel = infoSnap.Level
+				if rep.StartLocation == "" {
+					rep.StartLocation = loc
+				}
+				rep.EndLocation = loc
+				rep.VersesInscribed++
+				if weakenedDemon != nil {
+					rep.DemonsWeakened++
+				}
+				m.mu.Unlock()
+			}
+		}
+
+		// Notify user (if connected) that angel finished the verse
+		if m.hub != nil && m.hub.IsUserConnected(uid) {
 			m.hub.SendToUID(uid, Message{
 				Type:    "angel_complete",
-				Content: bot.Info.Icon + " " + bot.Info.Name + " has finished typing the verse at " + bot.Info.Title + " pace (" + fmt.Sprintf("%d", wpm) + " WPM)!",
-				Angel:   &bot.Info,
+				Content: infoSnap.Icon + " " + infoSnap.Name + " has finished typing the verse at " + infoSnap.Title + " pace (" + fmt.Sprintf("%d", wpm) + " WPM)!",
+				Angel:   &infoSnap,
 			})
 		}
 
-		// Advance companion to next canonical verse across Scripture!
+		// Advance companion/guardian linearly to next canonical verse across Scripture!
+		// Note: This NEVER updates the user's BookProgress; when the user stops typing or leaves,
+		// their Guardian Angel continues mashing out verses on its own as their ghost.
 		if nextV, ok := getNextCanonicalVerse(trans, book, ch, v); ok {
 			bot.mu.Lock()
-			bot.BookName = nextV.BookName
-			bot.Chapter = nextV.Chapter
-			bot.Verse = nextV.Verse
-			bot.Text = cleanVerseText(nextV.Text)
-			bot.CharIndex = 0
+			// Only advance if the user hasn't already moved the bot to another verse
+			if bot.Translation == trans && bot.BookName == book && bot.Chapter == ch && bot.Verse == v {
+				bot.BookName = nextV.BookName
+				bot.Chapter = nextV.Chapter
+				bot.Verse = nextV.Verse
+				bot.Text = cleanVerseText(nextV.Text)
+				bot.CharIndex = 0
+				bot.Info.BookName = nextV.BookName
+				bot.Info.Chapter = nextV.Chapter
+				bot.Info.Verse = nextV.Verse
+				infoSnap = bot.Info
+			}
 			bot.mu.Unlock()
 
-			if m.hub != nil {
+			if m.hub != nil && m.hub.IsUserConnected(uid) {
 				m.hub.SendToUID(uid, Message{
 					Type:    "angel_advanced",
-					Content: fmt.Sprintf("%s %s advanced to %s %d:%d!", bot.Info.Icon, bot.Info.Name, nextV.BookName, nextV.Chapter, nextV.Verse),
-					Angel:   &bot.Info,
+					Content: fmt.Sprintf("%s %s advanced to %s %d:%d! (Continues ahead without granting book progress until you type the verse)", infoSnap.Icon, infoSnap.Name, nextV.BookName, nextV.Chapter, nextV.Verse),
+					Angel:   &infoSnap,
 					Book:    nextV.BookName,
 					Verse:   &nextV,
 				})
@@ -744,7 +1312,7 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 		select {
 		case <-bot.StopChan:
 			return
-		case <-time.After(2 * time.Second):
+		case <-time.After(1500 * time.Millisecond):
 		}
 	}
 }

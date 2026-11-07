@@ -643,6 +643,70 @@
             </div>
           </div>
 
+          <h3 style="font-size: 0.85rem; color: #f59e0b; margin: 1.25rem 0 0.65rem;">5. Guardian Angel Sync Leveling &amp; Big Mike Summon Currency</h3>
+          <div class="param-grid">
+            <div class="param-item">
+              <label>Big Mike Summon Currency Type</label>
+              <select id="opt_michael_summon_currency_type">
+                <option value="book_tokens">🪙 Book Completion Tokens (Default)</option>
+                <option value="verses_completed">📜 Verses Completed Currency</option>
+                <option value="demons_defeated">😈 Wild Demons Exorcised Currency</option>
+                <option value="free">✨ Free (No Currency Required)</option>
+              </select>
+              <div class="param-hint">Adjustable currency required to summon Big Mike to a player's verse</div>
+            </div>
+            <div class="param-item">
+              <label>Big Mike Summon Cost</label>
+              <input type="number" id="opt_michael_summon_cost" min="0" max="1000" />
+              <div class="param-hint">Cost per Big Mike summon in the selected currency (default: 1)</div>
+            </div>
+            <div class="param-item">
+              <label>Tokens Earned Per Book Completed</label>
+              <input type="number" id="opt_tokens_per_book_completed" min="0" max="100" />
+              <div class="param-hint">Summon tokens awarded upon finishing a Book Review (default: 1)</div>
+            </div>
+            <div class="param-item">
+              <label>Verses Milestone Per Bonus Token</label>
+              <input type="number" id="opt_tokens_per_verses_milestone" min="0" max="10000" />
+              <div class="param-hint">0 = disabled; &gt;0 awards +1 token every N verses typed</div>
+            </div>
+            <div class="param-item">
+              <label>Tokens Earned Per Demon Exorcised</label>
+              <input type="number" id="opt_tokens_per_demon_defeated" min="0" max="100" />
+              <div class="param-hint">Bonus summon tokens awarded per wild demon defeated (default: 0)</div>
+            </div>
+            <div class="param-item">
+              <label>Guardian Sync XP / Letter</label>
+              <input type="number" id="opt_guardian_xp_per_letter" min="0" max="100" />
+              <div class="param-hint">Guardian XP gained per letter typed in sync (default: 1)</div>
+            </div>
+            <div class="param-item">
+              <label>Guardian Sync XP / Word</label>
+              <input type="number" id="opt_guardian_xp_per_word" min="0" max="500" />
+              <div class="param-hint">Guardian XP gained per word completed in sync (default: 5)</div>
+            </div>
+            <div class="param-item">
+              <label>Guardian Sync XP / Verse</label>
+              <input type="number" id="opt_guardian_xp_per_verse" min="0" max="2000" />
+              <div class="param-hint">Guardian XP gained per verse completed alongside Guardian (default: 25)</div>
+            </div>
+            <div class="param-item">
+              <label>Guardian Sync XP / Book</label>
+              <input type="number" id="opt_guardian_xp_per_book" min="0" max="10000" />
+              <div class="param-hint">Guardian XP gained per book completed alongside Guardian (default: 250)</div>
+            </div>
+            <div class="param-item">
+              <label>Fellowship Angel Sync DMG Bonus (%)</label>
+              <input type="number" id="opt_peer_angel_sync_damage_bonus_pct" min="0" max="500" />
+              <div class="param-hint">Bonus Holy Smite damage % when in sync with another player's angel (default: 35)</div>
+            </div>
+            <div class="param-item">
+              <label>Fellowship Angel Sync XP Bonus (%)</label>
+              <input type="number" id="opt_peer_angel_sync_xp_bonus_pct" min="0" max="500" />
+              <div class="param-hint">Bonus Guardian XP % when in sync with another player's angel (default: 50)</div>
+            </div>
+          </div>
+
           <div style="margin-top: 1.25rem; display: flex; justify-content: flex-end; gap: 0.6rem;">
             <button type="button" class="btn btn-success" id="btnSaveParamsBottom">💾 Save All Options &amp; Broadcast Live</button>
           </div>
@@ -1414,11 +1478,11 @@
           <td>🔥 ${u.current_streak}d <span style="color:var(--muted);">(best ${u.longest_streak}d)</span></td>
           <td><b>${u.total_verses_typed}</b> v · ${(u.total_chars_typed || 0).toLocaleString()} c</td>
           <td><b>${u.top_wpm}</b> / ${u.avg_wpm} WPM</td>
-          <td>Lv. <b>${u.guardian_level}</b> (${u.guardian_power} Pwr · ${u.guardian_wards} 🛡️)</td>
+          <td>Lv. <b>${u.guardian_level}</b> (${u.guardian_power} Pwr · ${u.guardian_wards} 🛡️ · 🪙 ${u.summon_tokens || 0})</td>
           <td><b>${u.demons_defeated}</b> ${u.tracker_unlocked ? '🧭' : ''}</td>
           <td>💥 <b>${u.passage_burst_damage}</b></td>
           <td>
-            <button class="btn btn-sm btn-ghost" onclick="promptEditUser('${escapeHtml(u.uid)}', ${u.guardian_level}, ${u.demons_defeated}, ${u.passage_burst_damage})">✏️ Edit</button>
+            <button class="btn btn-sm btn-ghost" onclick="promptEditUser('${escapeHtml(u.uid)}', ${u.guardian_level}, ${u.demons_defeated}, ${u.passage_burst_damage}, ${u.summon_tokens || 0})">✏️ Edit</button>
           </td>
         </tr>
       `).join("") || `<tr><td colspan="10" style="color:var(--muted);">No matching users found</td></tr>`;
@@ -1430,19 +1494,22 @@
       }
     });
 
-    function promptEditUser(uid, curLv, curDemons, curBurst) {
+    function promptEditUser(uid, curLv, curDemons, curBurst, curTokens) {
       const lv = prompt(`Set Guardian Angel Level for ${uid}:`, curLv);
       if (lv === null) return;
       const demons = prompt(`Set Total Wild Demons Defeated for ${uid} (>=6 unlocks Demon Tracker):`, curDemons);
       if (demons === null) return;
       const burst = prompt(`Set Passage Finish Base Burst Damage for ${uid} (5-300):`, curBurst);
       if (burst === null) return;
+      const tokens = prompt(`Set Big Mike Summon Tokens for ${uid}:`, curTokens || 0);
+      if (tokens === null) return;
       runAdminAction({
         action: "update_user",
         uid: uid,
         guardian_level: parseInt(lv, 10) || 1,
         demons_defeated: parseInt(demons, 10) || 0,
-        passage_burst_damage: parseInt(burst, 10) || 30
+        passage_burst_damage: parseInt(burst, 10) || 30,
+        summon_tokens: Math.max(0, parseInt(tokens, 10) || 0)
       });
     }
 
@@ -1484,6 +1551,17 @@
       setVal("opt_encounter_max_chance", opts.encounter_max_chance);
       setVal("opt_encounter_peaceful_intro_verses", opts.encounter_peaceful_intro_verses);
       setVal("opt_global_angel_wpm", opts.global_angel_wpm);
+      setVal("opt_michael_summon_currency_type", opts.michael_summon_currency_type || "book_tokens");
+      setVal("opt_michael_summon_cost", opts.michael_summon_cost !== undefined ? opts.michael_summon_cost : 1);
+      setVal("opt_tokens_per_book_completed", opts.tokens_per_book_completed !== undefined ? opts.tokens_per_book_completed : 1);
+      setVal("opt_tokens_per_verses_milestone", opts.tokens_per_verses_milestone || 0);
+      setVal("opt_tokens_per_demon_defeated", opts.tokens_per_demon_defeated || 0);
+      setVal("opt_guardian_xp_per_letter", opts.guardian_xp_per_letter !== undefined ? opts.guardian_xp_per_letter : 1);
+      setVal("opt_guardian_xp_per_word", opts.guardian_xp_per_word !== undefined ? opts.guardian_xp_per_word : 5);
+      setVal("opt_guardian_xp_per_verse", opts.guardian_xp_per_verse !== undefined ? opts.guardian_xp_per_verse : 25);
+      setVal("opt_guardian_xp_per_book", opts.guardian_xp_per_book !== undefined ? opts.guardian_xp_per_book : 250);
+      setVal("opt_peer_angel_sync_damage_bonus_pct", opts.peer_angel_sync_damage_bonus_pct !== undefined ? opts.peer_angel_sync_damage_bonus_pct : 35);
+      setVal("opt_peer_angel_sync_xp_bonus_pct", opts.peer_angel_sync_xp_bonus_pct !== undefined ? opts.peer_angel_sync_xp_bonus_pct : 50);
 
       document.getElementById("opt_mandatory_book_intro").checked = !!opts.mandatory_book_intro;
       document.getElementById("opt_voice_mode_enabled").checked = !!opts.voice_mode_enabled;
@@ -1535,6 +1613,17 @@
         global_angel_wpm: intVal("opt_global_angel_wpm", 160),
         devil_24_7_rank: "imp",
         devil_24_7_level: 1,
+        michael_summon_currency_type: (document.getElementById("opt_michael_summon_currency_type").value || "book_tokens"),
+        michael_summon_cost: intVal("opt_michael_summon_cost", 1),
+        tokens_per_book_completed: intVal("opt_tokens_per_book_completed", 1),
+        tokens_per_verses_milestone: intVal("opt_tokens_per_verses_milestone", 0),
+        tokens_per_demon_defeated: intVal("opt_tokens_per_demon_defeated", 0),
+        guardian_xp_per_letter: intVal("opt_guardian_xp_per_letter", 1),
+        guardian_xp_per_word: intVal("opt_guardian_xp_per_word", 5),
+        guardian_xp_per_verse: intVal("opt_guardian_xp_per_verse", 25),
+        guardian_xp_per_book: intVal("opt_guardian_xp_per_book", 250),
+        peer_angel_sync_damage_bonus_pct: intVal("opt_peer_angel_sync_damage_bonus_pct", 35),
+        peer_angel_sync_xp_bonus_pct: intVal("opt_peer_angel_sync_xp_bonus_pct", 50),
         mandatory_book_intro: document.getElementById("opt_mandatory_book_intro").checked,
         voice_mode_enabled: document.getElementById("opt_voice_mode_enabled").checked,
         chat_enabled: document.getElementById("opt_chat_enabled").checked,

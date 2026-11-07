@@ -1021,13 +1021,14 @@ func TestWebSocketSanctuaryAndAngelIntegration(t *testing.T) {
 		t.Errorf("Expected 5 angels in angels_list, got %d", len(angelMsg.Angels))
 	}
 
-	// 3. Save sanctuary customization
+	// 3. Save sanctuary customization (with 1 Summon Token to test Big Mike summoning)
 	newSettings := SanctuarySettings{
 		TextColor:    "amethyst",
 		FontFamily:   "serif",
 		CaretAura:    "flame",
 		AudioProfile: "chime",
 		CelebrateFx:  "gold",
+		SummonTokens: 1,
 	}
 	if err := wsConn.WriteJSON(Message{Type: "save_sanctuary", Sanctuary: &newSettings}); err != nil {
 		t.Fatal(err)
@@ -2868,6 +2869,272 @@ func TestAdminConsoleSecurityAndLiveOperations(t *testing.T) {
 		t.Errorf("Expected archwraith to be deleted from demonTemplates")
 	}
 }
+
+func TestPersistentGuardianGhostSyncLevelingAndMichaelCurrency(t *testing.T) {
+	if err := loadTranslationsAndGuides(); err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir, err := os.MkdirTemp("", "elespe_guardian_ghost_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ls, err := newLocalStore(filepath.Join(tmpDir, "data.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = ls
+	globalHub = newHub()
+	go globalHub.run()
+	globalAngelManager = newAngelManager(ls, globalHub)
+	defer globalAngelManager.Stop()
+
+	ctx := context.Background()
+	uidA := "player_alpha"
+	uidB := "player_bravo"
+	_ = ls.EnsureUser(ctx, uidA)
+	_ = ls.EnsureUser(ctx, uidB)
+
+	// 1. Test Guardian Sync Leveling from Letters, Words, Verses, and Books + Summon Token reward
+	// Default XP: 1/letter, 5/word, 25/verse, 250/book. Level 1 -> 2 requires 100 XP.
+	sanct1, xpGained1, leveledUp1, err := ls.RecordGuardianSyncProgress(ctx, uidA, 30, 10, 1, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("RecordGuardianSyncProgress failed: %v", err)
+	}
+	// 30*1 + 10*5 + 1*25 = 105 XP -> should level up from Lv.1 to Lv.2 (with 5 XP remainder)!
+	if xpGained1 != 105 || !leveledUp1 || sanct1.GuardianLevel != 2 || sanct1.GuardianXP != 5 {
+		t.Errorf("Expected 105 XP, leveledUp=true, Level=2, XP=5; got xpGained=%d leveledUp=%v Level=%d XP=%d",
+			xpGained1, leveledUp1, sanct1.GuardianLevel, sanct1.GuardianXP)
+	}
+	if sanct1.SyncedLetters != 30 || sanct1.SyncedWords != 10 || sanct1.SyncedVerses != 1 {
+		t.Errorf("Unexpected synced counters: %+v", sanct1)
+	}
+
+	// Book completion awards +250 XP and +1 Summon Token
+	sanct2, xpGained2, leveledUp2, err := ls.RecordGuardianSyncProgress(ctx, uidA, 0, 0, 0, 1, 0, 1)
+	if err != nil {
+		t.Fatalf("RecordGuardianSyncProgress book failed: %v", err)
+	}
+	if xpGained2 != 250 || !leveledUp2 || sanct2.SyncedBooks != 1 || sanct2.SummonTokens != 1 {
+		t.Errorf("Expected book sync XP=250, SyncedBooks=1, SummonTokens=1; got xp=%d books=%d tokens=%d",
+			xpGained2, sanct2.SyncedBooks, sanct2.SummonTokens)
+	}
+
+	// 2. Test Persistent Player Guardian Ghost continues mashing out verses when player disconnects WITHOUT granting user progress
+	shortVerse := "Jesus wept."
+	gInfo := globalAngelManager.EnsurePlayerGuardian(uidB, "Bravo Scribe", "#10b981", "kjv", "John", 11, 35, shortVerse)
+	if gInfo == nil || gInfo.Rank != "guardian" || gInfo.OwnerUID != uidB {
+		t.Fatalf("Expected persistent guardian for %s, got %+v", uidB, gInfo)
+	}
+
+	// Speed up Bravo's guardian bot so it finishes the verse quickly while Bravo is offline
+	globalAngelManager.mu.RLock()
+	bravoBot := globalAngelManager.guardians[uidB]
+	globalAngelManager.mu.RUnlock()
+	if bravoBot == nil {
+		t.Fatalf("Expected Bravo guardian bot in guardians map")
+	}
+	bravoBot.mu.Lock()
+	bravoBot.Info.WPM = 600
+	bravoBot.mu.Unlock()
+
+	// Simulate Bravo disconnecting
+	globalAngelManager.OnUserDisconnect(uidB)
+
+	// Verify Bravo's guardian is still in RoamingGuardians even while Bravo is offline
+	roaming := globalAngelManager.GetRoamingGuardians()
+	foundBravo := false
+	for _, rg := range roaming {
+		if rg.OwnerUID == uidB {
+			foundBravo = true
+			if rg.PlayerOnline {
+				t.Errorf("Expected PlayerOnline=false for disconnected user %s", uidB)
+			}
+		}
+	}
+	if !foundBravo {
+		t.Errorf("Expected disconnected player's guardian to remain in GetRoamingGuardians()")
+	}
+
+	// Wait for Bravo's autonomous guardian ghost to finish John 11:35 and advance linearly to John 11:36
+	deadline := time.Now().Add(3 * time.Second)
+	advancedLinearly := false
+	for time.Now().Before(deadline) {
+		curG := globalAngelManager.GetPlayerGuardian(uidB)
+		if curG != nil && curG.BookName == "John" && curG.Chapter == 11 && curG.Verse >= 36 {
+			advancedLinearly = true
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !advancedLinearly {
+		curG := globalAngelManager.GetPlayerGuardian(uidB)
+		t.Errorf("Expected disconnected player's guardian ghost to advance linearly past John 11:35, got %+v", curG)
+	}
+
+	// Verify Bravo's personal BookProgress and personal UserCompletions were NOT incremented by the autonomous ghost!
+	uComps, gComps, _ := ls.GetVerseCompletions(ctx, uidB, "kjv", "John", 11, 35)
+	if uComps != 0 {
+		t.Errorf("Autonomous guardian ghost must NOT grant personal verse completions to offline player, got uComps=%d", uComps)
+	}
+	if gComps < 1 {
+		t.Errorf("Expected global completions to record autonomous angel inscription, got gComps=%d", gComps)
+	}
+	bpBravo, _ := ls.GetBookProgress(ctx, uidB, "kjv", "John", 879)
+	if bpBravo != nil && bpBravo.CurrentVerse != 0 {
+		t.Errorf("Autonomous guardian ghost must NOT advance user BookProgress, got CurrentVerse=%d", bpBravo.CurrentVerse)
+	}
+
+	// 3. Test Big Mike linear canonical progression & Summon Currency enforcement over WebSocket
+	globalAngelManager.StartGlobalAngel("michael")
+	mInfo := globalAngelManager.SummonGlobalMichaelToVerse("kjv", "Genesis", 1, 1, "In the beginning God created the heaven and the earth.")
+	if mInfo == nil || mInfo.BookName != "Genesis" || mInfo.Chapter != 1 || mInfo.Verse != 1 {
+		t.Fatalf("Expected global Michael at Genesis 1:1, got %+v", mInfo)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(handleWebSocket))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "?uid=token_tester&trans=kjv"
+	wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial failed: %v", err)
+	}
+	defer wsConn.Close()
+
+	readUntilType := func(targetTypes ...string) (Message, error) {
+		_ = wsConn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		for {
+			var m Message
+			if err := wsConn.ReadJSON(&m); err != nil {
+				return m, err
+			}
+			for _, tt := range targetTypes {
+				if m.Type == tt {
+					return m, nil
+				}
+			}
+		}
+	}
+
+	if _, err := readUntilType("books"); err != nil {
+		t.Fatalf("Failed to read books on connect: %v", err)
+	}
+
+	// Attempt to summon Big Mike with 0 Summon Tokens -> should be denied!
+	if err := wsConn.WriteJSON(Message{Type: "summon_angel", AngelRank: "michael"}); err != nil {
+		t.Fatal(err)
+	}
+	denyMsg, err := readUntilType("angel_summon_denied")
+	if err != nil {
+		t.Fatalf("Expected angel_summon_denied when summoning Big Mike with 0 tokens, got err: %v", err)
+	}
+	if !strings.Contains(denyMsg.Content, "Token") {
+		t.Errorf("Expected token denial message, got %q", denyMsg.Content)
+	}
+
+	// Test interacting with Bravo's Guardian Angel -> should grant AngelSyncBuff and +1 Holy Ward
+	if err := wsConn.WriteJSON(Message{Type: "interact_angel", PeerAngelUID: uidB}); err != nil {
+		t.Fatal(err)
+	}
+	buffMsg, err := readUntilType("angel_interaction_buff")
+	if err != nil {
+		t.Fatalf("Expected angel_interaction_buff, got err: %v", err)
+	}
+	if buffMsg.AngelBuff == nil || !buffMsg.AngelBuff.Active || buffMsg.HolyWards < 1 {
+		t.Errorf("Expected active AngelSyncBuff and HolyWards>=1, got %+v", buffMsg)
+	}
+}
+
+func TestDemonTaintRighteousnessDebuffAndGloriousMichaelTrail(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "elespe_taint_trail_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ls, err := newLocalStore(filepath.Join(tmpDir, "data.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = ls
+	globalHub = newHub()
+	go globalHub.run()
+	globalAngelManager = newAngelManager(ls, globalHub)
+	defer globalAngelManager.Stop()
+	globalDemonManager = newDemonManager(ls, globalHub)
+	defer globalDemonManager.Stop()
+
+	// 1. Test Big Mike Glorious Golden Trail recording & inspection
+	globalAngelManager.RecordMichaelTrail("kjv", "Genesis", 1, 1)
+	if !globalAngelManager.IsVerseOnMichaelTrail("kjv", "Genesis", 1, 1) {
+		t.Errorf("Expected Genesis 1:1 to be on Big Mike's Glorious Golden Trail")
+	}
+	if globalAngelManager.IsVerseOnMichaelTrail("kjv", "Genesis", 1, 2) {
+		t.Errorf("Did not expect Genesis 1:2 to be on Big Mike's Glorious Golden Trail yet")
+	}
+
+	// 2. Grab an active Wild Demon and test Autonomous Guardian Skirmish + Righteousness Debuff
+	demons := globalDemonManager.GetWildDemons()
+	if len(demons) == 0 {
+		t.Fatalf("Expected roaming wild demons on startup")
+	}
+	wildD := demons[0]
+	initialHP := wildD.CurrentHP
+	initialWPM := wildD.WPM
+
+	skirmished := globalDemonManager.SkirmishWildDemonByGuardian(wildD.Translation, wildD.BookName, wildD.Chapter, wildD.Verse, 10)
+	if skirmished == nil {
+		t.Fatalf("Expected SkirmishWildDemonByGuardian to hit wild demon on %s %d:%d", wildD.BookName, wildD.Chapter, wildD.Verse)
+	}
+	if !skirmished.AngelicBeacon {
+		t.Errorf("Expected AngelicBeacon=true after autonomous guardian skirmish")
+	}
+	if skirmished.CurrentHP >= initialHP {
+		t.Errorf("Expected demon HP to decrease from %d after guardian skirmish, got %d", initialHP, skirmished.CurrentHP)
+	}
+
+	// Apply Righteousness Sanctified Rebuke
+	rebuked, defeated := globalDemonManager.DebuffWildDemonByRighteousness(wildD.ID, 15)
+	if defeated || rebuked == nil {
+		t.Fatalf("Expected demon to survive rebuke and be debuffed, got defeated=%v, rebuked=%+v", defeated, rebuked)
+	}
+	if !rebuked.Debuffed || rebuked.DebuffStacks != 1 {
+		t.Errorf("Expected Debuffed=true and DebuffStacks=1, got %+v", rebuked)
+	}
+	if rebuked.WPM >= initialWPM && initialWPM > 5 {
+		t.Errorf("Expected debuffed demon WPM (%d) to be slower than initial WPM (%d)", rebuked.WPM, initialWPM)
+	}
+
+	// Verify debuffed demon takes +25% bonus damage on ApplyWildDemonDamage
+	hpBeforeStrike := rebuked.CurrentHP
+	struck, _ := globalDemonManager.ApplyWildDemonDamage(wildD.ID, 20)
+	if struck == nil {
+		t.Fatalf("Expected ApplyWildDemonDamage to return updated demon")
+	}
+	actualDmg := hpBeforeStrike - struck.CurrentHP
+	if actualDmg != 25 { // 20 * 1.25 = 25
+		t.Errorf("Expected 25 damage (20 + 25%% debuff vulnerability), got %d", actualDmg)
+	}
+
+	// 3. Test Offline Guardian Report accumulation & consumption
+	globalAngelManager.RecordOfflineGuardianBlessing("offline_scribe", 25)
+	rep := globalAngelManager.ConsumeOfflineReport("offline_scribe")
+	if rep == nil || rep.BlessingsReceived != 1 || rep.BonusXPEarned != 25 {
+		t.Errorf("Expected offline report with 1 blessing received and 25 bonus XP, got %+v", rep)
+	}
+	if repAgain := globalAngelManager.ConsumeOfflineReport("offline_scribe"); repAgain != nil {
+		t.Errorf("Expected second ConsumeOfflineReport to return nil, got %+v", repAgain)
+	}
+
+	// 4. Test Capitalized Letters helper & bonus XP / damage
+	if got := countUppercaseRunes("In the Beginning GOD created."); got != 5 {
+		t.Errorf("Expected 5 uppercase runes in 'In the Beginning GOD created.', got %d", got)
+	}
+}
+
 
 
 

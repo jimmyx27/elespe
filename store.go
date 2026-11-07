@@ -272,8 +272,50 @@ type SanctuarySettings struct {
 	GuardianRadiance     int            `json:"guardian_radiance,omitempty"`     // Shroud dissipation rate %
 	PassageBurstDamage   int            `json:"passage_burst_damage,omitempty"`  // Adjustable base burst damage when finishing a passage before a demon
 	TrackerUnlocked      bool           `json:"tracker_unlocked,omitempty"`      // Unlocked after defeating 6 demons in the wild
+	SummonTokens         int            `json:"summon_tokens"`                   // Archangel summon tokens (earned by completing books or configurable milestones)
+	TokensSpent          int            `json:"tokens_spent,omitempty"`          // Total summon tokens spent
+	SyncedLetters        int            `json:"synced_letters,omitempty"`        // Letters completed in sync with Guardian Angel
+	SyncedWords          int            `json:"synced_words,omitempty"`          // Words completed in sync with Guardian Angel
+	SyncedVerses         int            `json:"synced_verses,omitempty"`         // Verses completed alongside Guardian Angel
+	SyncedBooks          int            `json:"synced_books,omitempty"`          // Books completed alongside Guardian Angel
+	GuardianBookName     string         `json:"guardian_book_name,omitempty"`    // Last known or current book of the player's Guardian Angel
+	GuardianChapter      int            `json:"guardian_chapter,omitempty"`      // Last known or current chapter of the player's Guardian Angel
+	GuardianVerse        int            `json:"guardian_verse,omitempty"`        // Last known or current verse of the player's Guardian Angel
 	PreferredAngelLevels map[string]int `json:"preferred_angel_levels,omitempty"`
 	PreferredDemonLevels map[string]int `json:"preferred_demon_levels,omitempty"`
+}
+
+type AngelSyncBuff struct {
+	Active         bool   `json:"active"`
+	SourceUID      string `json:"source_uid,omitempty"`
+	SourceName     string `json:"source_name,omitempty"`
+	AngelName      string `json:"angel_name,omitempty"`
+	AngelLevel     int    `json:"angel_level,omitempty"`
+	DamageBonusPct int    `json:"damage_bonus_pct,omitempty"`
+	XPBonusPct     int    `json:"xp_bonus_pct,omitempty"`
+	BonusWards     int    `json:"bonus_wards,omitempty"`
+	Description    string `json:"description,omitempty"`
+}
+
+type GuardianSeedEntry struct {
+	UID      string `json:"uid"`
+	Name     string `json:"name"`
+	Color    string `json:"color"`
+	BookName string `json:"book_name"`
+	Chapter  int    `json:"chapter"`
+	Verse    int    `json:"verse"`
+}
+
+type GuardianOfflineReport struct {
+	GuardianName      string `json:"guardian_name,omitempty"`
+	GuardianLevel     int    `json:"guardian_level,omitempty"`
+	VersesInscribed   int    `json:"verses_inscribed"`
+	BlessingsReceived int    `json:"blessings_received"`
+	DemonsWeakened    int    `json:"demons_weakened"`
+	StartLocation     string `json:"start_location,omitempty"`
+	EndLocation       string `json:"end_location,omitempty"`
+	XPEarned          int    `json:"xp_earned,omitempty"`
+	BonusXPEarned     int    `json:"bonus_xp_earned,omitempty"`
 }
 
 type CustomizationUnlock struct {
@@ -303,11 +345,18 @@ type AngelInfo struct {
 	Verse       int     `json:"verse,omitempty"`
 	CharIndex   int     `json:"char_index,omitempty"`
 	Progress    float64 `json:"progress,omitempty"`
-	IsGuardian  bool    `json:"is_guardian,omitempty"`
-	PaceOffset  int     `json:"pace_offset,omitempty"`
-	Level       int     `json:"level,omitempty"`
-	MaxLevel    int     `json:"max_level,omitempty"`
-	IsDemon     bool    `json:"is_demon,omitempty"`
+	IsGuardian   bool    `json:"is_guardian,omitempty"`
+	PaceOffset   int     `json:"pace_offset,omitempty"`
+	Level        int     `json:"level,omitempty"`
+	MaxLevel     int     `json:"max_level,omitempty"`
+	IsDemon      bool    `json:"is_demon,omitempty"`
+	OwnerUID     string  `json:"owner_uid,omitempty"`
+	OwnerName    string  `json:"owner_name,omitempty"`
+	OwnerColor   string  `json:"owner_color,omitempty"`
+	SummonCost   int     `json:"summon_cost,omitempty"`
+	CurrencyType string  `json:"currency_type,omitempty"`
+	PlayerOnline bool    `json:"player_online,omitempty"`
+	Translation  string  `json:"translation,omitempty"`
 }
 
 // ---- Demonic Adversary Models ----
@@ -365,9 +414,13 @@ type WildDemon struct {
 	BaseWPM     int       `json:"base_wpm,omitempty"`
 	MaxHP       int       `json:"max_hp"`
 	CurrentHP   int       `json:"current_hp"`
-	EnrageCount int       `json:"enrage_count"`
-	CharIndex   int       `json:"char_index"`
-	SpawnedAt   time.Time `json:"spawned_at,omitempty"`
+	EnrageCount   int       `json:"enrage_count"`
+	CharIndex     int       `json:"char_index"`
+	TaintedUpTo   int       `json:"tainted_up_to,omitempty"`
+	Debuffed      bool      `json:"debuffed,omitempty"`
+	DebuffStacks  int       `json:"debuff_stacks,omitempty"`
+	AngelicBeacon bool      `json:"angelic_beacon,omitempty"`
+	SpawnedAt     time.Time `json:"spawned_at,omitempty"`
 	LastEvolve  time.Time `json:"last_evolve,omitempty"`
 	AgeMinutes  int       `json:"age_minutes,omitempty"`
 	verseEpoch  int
@@ -413,20 +466,27 @@ type BossConqueror struct {
 // ---- WebSocket & API Messages ----
 
 type GhostCursor struct {
-	UID         string `json:"uid"`
-	DisplayName string `json:"display_name"`
-	AvatarColor string `json:"avatar_color"`
-	CharIndex   int    `json:"char_index"`
-	WPM         int    `json:"wpm"`
-	IsAngel     bool   `json:"is_angel,omitempty"`
-	AngelRank   string `json:"angel_rank,omitempty"`
-	IsDemon     bool   `json:"is_demon,omitempty"`
-	DemonRank   string `json:"demon_rank,omitempty"`
-	DemonLevel  int    `json:"demon_level,omitempty"`
-	CurrentHP   int    `json:"current_hp,omitempty"`
-	MaxHP       int    `json:"max_hp,omitempty"`
-	CastAbility string `json:"cast_ability,omitempty"` // "shroud", "typo", ""
-	ShroudRange int    `json:"shroud_range,omitempty"` // number of chars to shroud
+	UID             string `json:"uid"`
+	DisplayName     string `json:"display_name"`
+	AvatarColor     string `json:"avatar_color"`
+	CharIndex       int    `json:"char_index"`
+	TrailUpTo       int    `json:"trail_up_to,omitempty"`
+	IsGloriousTrail bool   `json:"is_glorious_trail,omitempty"`
+	WPM             int    `json:"wpm"`
+	IsAngel         bool   `json:"is_angel,omitempty"`
+	AngelRank    string `json:"angel_rank,omitempty"`
+	AngelLevel   int    `json:"angel_level,omitempty"`
+	OwnerUID     string `json:"owner_uid,omitempty"`
+	OwnerName    string `json:"owner_name,omitempty"`
+	OwnerColor   string `json:"owner_color,omitempty"`
+	PlayerOnline bool   `json:"player_online,omitempty"`
+	IsDemon      bool   `json:"is_demon,omitempty"`
+	DemonRank    string `json:"demon_rank,omitempty"`
+	DemonLevel   int    `json:"demon_level,omitempty"`
+	CurrentHP    int    `json:"current_hp,omitempty"`
+	MaxHP        int    `json:"max_hp,omitempty"`
+	CastAbility  string `json:"cast_ability,omitempty"` // "shroud", "typo", ""
+	ShroudRange  int    `json:"shroud_range,omitempty"` // number of chars to shroud
 }
 
 type Message struct {
@@ -504,12 +564,31 @@ type Message struct {
 	Unlocks   []CustomizationUnlock `json:"unlocks,omitempty"`
 	NewUnlock *CustomizationUnlock `json:"new_unlock,omitempty"`
 
-	// Heavenly Angel Bot
-	Angel      *AngelInfo  `json:"angel,omitempty"`
-	Angels     []AngelInfo `json:"angels,omitempty"`
-	AngelSpeed int         `json:"angel_speed,omitempty"`
-	AngelRank  string      `json:"angel_rank,omitempty"`
-	AngelLevel int         `json:"angel_level,omitempty"`
+	// Heavenly Angel Bot & Guardian Sync
+	Angel                 *AngelInfo     `json:"angel,omitempty"`
+	Angels                []AngelInfo    `json:"angels,omitempty"`
+	RoamingGuardians      []AngelInfo    `json:"roaming_guardians,omitempty"`
+	AngelSpeed            int            `json:"angel_speed,omitempty"`
+	AngelRank             string         `json:"angel_rank,omitempty"`
+	AngelLevel            int            `json:"angel_level,omitempty"`
+	GuardianSyncedLetters int            `json:"guardian_synced_letters,omitempty"`
+	GuardianSyncedWords   int            `json:"guardian_synced_words,omitempty"`
+	GuardianInSync        bool           `json:"guardian_in_sync,omitempty"`
+	PeerAngelUID          string         `json:"peer_angel_uid,omitempty"`
+	PeerAngelInSync       bool           `json:"peer_angel_in_sync,omitempty"`
+	AngelBuff             *AngelSyncBuff `json:"angel_buff,omitempty"`
+	GuardianXPGained      int                    `json:"guardian_xp_gained,omitempty"`
+	GuardianLeveledUp     bool                   `json:"guardian_leveled_up,omitempty"`
+	SummonTokens          int                    `json:"summon_tokens,omitempty"`
+	MichaelTrailActive    bool                   `json:"michael_trail_active,omitempty"`
+	MichaelTrailUpTo      int                    `json:"michael_trail_up_to,omitempty"`
+	AngelTrailUpTo        int                    `json:"angel_trail_up_to,omitempty"`
+	DemonTaintedUpTo      int                    `json:"demon_tainted_up_to,omitempty"`
+	Righteousness         int                    `json:"righteousness,omitempty"`
+	PurifiedLetters       int                    `json:"purified_letters,omitempty"`
+	GoldenTrailLetters    int                    `json:"golden_trail_letters,omitempty"`
+	CapitalizedLetters    int                    `json:"capitalized_letters,omitempty"`
+	OfflineReport         *GuardianOfflineReport `json:"offline_report,omitempty"`
 
 	// Demonic Adversary
 	Demon                *DemonInfo  `json:"demon,omitempty"`
@@ -631,6 +710,8 @@ type Store interface {
 
 	// Wild Demons & Combat Progression
 	RecordWildDemonDefeat(ctx context.Context, uid string, demonRank string, demonLevel int) (*SanctuarySettings, bool, error)
+	RecordGuardianSyncProgress(ctx context.Context, uid string, syncedLetters, syncedWords, versesCompleted, booksCompleted, bonusXP, tokensEarned int) (*SanctuarySettings, int, bool, error)
+	ListGuardianSeedEntries(ctx context.Context) ([]GuardianSeedEntry, error)
 }
 
 // Password hashing utility using SHA-256 with static application salt
@@ -639,4 +720,14 @@ func hashPassword(password string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(salt + password))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func clampInt(val, minVal, maxVal int) int {
+	if val < minVal {
+		return minVal
+	}
+	if val > maxVal {
+		return maxVal
+	}
+	return val
 }

@@ -937,6 +937,7 @@ func (m *DemonManager) runDevil24_7Loop(bot *DemonBot) {
 					DemonLevel:  bot.Info.Level,
 					CastAbility: ability,
 					ShroudRange: shroudRange,
+					TrailUpTo:   i,
 				})
 			}
 
@@ -1106,6 +1107,7 @@ func (m *DemonManager) runDemonCompanionLoop(uid string, bot *DemonBot) {
 					DemonLevel:  lvl,
 					CastAbility: ability,
 					ShroudRange: shroudRange,
+					TrailUpTo:   i,
 				})
 			}
 
@@ -1418,6 +1420,9 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				continue
 			}
 			d.CharIndex += charsPerTick
+			if d.CharIndex > d.TaintedUpTo {
+				d.TaintedUpTo = d.CharIndex
+			}
 			reachedEnd := d.CharIndex >= totalChars
 			demonID := d.ID
 			m.mu.Unlock()
@@ -1470,6 +1475,10 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				break
 			}
 			d.CharIndex = i
+			if i > d.TaintedUpTo {
+				d.TaintedUpTo = i
+			}
+			taintedUpTo := d.TaintedUpTo
 			if hasActivePlayer {
 				baseWPM, ok := m.wildDemonBases[d.ID]
 				if !ok || baseWPM <= 0 {
@@ -1478,6 +1487,13 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				d.BaseWPM = baseWPM
 				baseWPM += d.EnrageCount * 2
 				d.WPM = CalculateDynamicDemonWPM(baseWPM, playerCharIdx, i, playerWPM)
+			}
+			if d.DebuffStacks > 0 {
+				slowFactor := 1.0 - float64(d.DebuffStacks)*0.20
+				if slowFactor < 0.40 {
+					slowFactor = 0.40
+				}
+				d.WPM = int(float64(d.WPM) * slowFactor)
 			}
 			curWpm := d.WPM
 			minWpm := GetDemonSyncBalance().MinDemonWPM
@@ -1506,6 +1522,7 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 					DemonLevel:  dLevel,
 					CurrentHP:   curHP,
 					MaxHP:       maxHP,
+					TrailUpTo:   taintedUpTo,
 				})
 			}
 
@@ -1555,6 +1572,7 @@ func (m *DemonManager) AdvanceWildDemonToNextVerse(demonID string) (*WildDemon, 
 	nextV, ok := getNextCanonicalVerse(oldTrans, oldBook, oldCh, oldV)
 	if !ok {
 		target.CharIndex = 0
+		target.TaintedUpTo = 0
 		target.verseEpoch++
 		res := *target
 		m.mu.Unlock()
@@ -1569,6 +1587,7 @@ func (m *DemonManager) AdvanceWildDemonToNextVerse(demonID string) (*WildDemon, 
 			if other.ID != target.ID && other.BookName == nextV.BookName && other.Chapter == nextV.Chapter && other.Verse == nextV.Verse {
 				shiftWildDemonLocation(other)
 				other.CharIndex = 0
+				other.TaintedUpTo = 0
 				other.verseEpoch++
 			}
 		}
@@ -1592,6 +1611,8 @@ func (m *DemonManager) AdvanceWildDemonToNextVerse(demonID string) (*WildDemon, 
 	target.Verse = nextV.Verse
 	target.Text = cleanVerseText(nextV.Text)
 	target.CharIndex = 0
+	target.TaintedUpTo = 0
+	target.AngelicBeacon = false
 	target.verseEpoch++
 	if baseWPM, ok := m.wildDemonBases[target.ID]; ok && baseWPM > 0 {
 		target.BaseWPM = baseWPM
@@ -1638,6 +1659,7 @@ func (m *DemonManager) DriveWildDemonToNextVerse(demonID string, destVerse *Vers
 	}
 	if !ok {
 		target.CharIndex = 0
+		target.TaintedUpTo = 0
 		target.verseEpoch++
 		if baseWPM, okB := m.wildDemonBases[target.ID]; okB && baseWPM > 0 {
 			target.BaseWPM = baseWPM
@@ -1653,6 +1675,7 @@ func (m *DemonManager) DriveWildDemonToNextVerse(demonID string, destVerse *Vers
 		if other.ID != target.ID && other.BookName == nextV.BookName && other.Chapter == nextV.Chapter && other.Verse == nextV.Verse {
 			shiftWildDemonLocation(other)
 			other.CharIndex = 0
+			other.TaintedUpTo = 0
 			other.verseEpoch++
 		}
 	}
@@ -1666,6 +1689,8 @@ func (m *DemonManager) DriveWildDemonToNextVerse(demonID string, destVerse *Vers
 	target.Verse = nextV.Verse
 	target.Text = cleanVerseText(nextV.Text)
 	target.CharIndex = 0
+	target.TaintedUpTo = 0
+	target.AngelicBeacon = false
 	target.verseEpoch++
 	if baseWPM, okB := m.wildDemonBases[target.ID]; okB && baseWPM > 0 {
 		target.BaseWPM = baseWPM
@@ -1753,6 +1778,13 @@ func (m *DemonManager) ApplyWildDemonDamage(demonID string, damage int) (*WildDe
 	for idx, d := range m.wildDemons {
 		if d.ID == demonID {
 			if d.CurrentHP > 0 {
+				if d.DebuffStacks > 0 && damage > 0 {
+					bonus := (damage * 25 * d.DebuffStacks) / 100
+					if bonus < 1 {
+						bonus = 1
+					}
+					damage += bonus
+				}
 				d.CurrentHP -= damage
 				if d.CurrentHP <= 0 {
 					d.CurrentHP = 0
@@ -1770,6 +1802,72 @@ func (m *DemonManager) ApplyWildDemonDamage(demonID string, damage int) (*WildDe
 	return nil, false
 }
 
+// DebuffWildDemonByRighteousness applies a Sanctified Rebuke debuff to a wild demon when a player purifies its tainted letters.
+// It slows the demon's WPM by 20%, increases its DebuffStacks (making it take +25% bonus damage per stack), and deals rebuke damage.
+func (m *DemonManager) DebuffWildDemonByRighteousness(demonID string, rebukeDamage int) (*WildDemon, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	minWpm := GetDemonSyncBalance().MinDemonWPM
+	if minWpm < 6 {
+		minWpm = 6
+	}
+
+	for idx, d := range m.wildDemons {
+		if d.ID == demonID && d.CurrentHP > 0 {
+			d.Debuffed = true
+			d.DebuffStacks++
+			d.WPM = int(float64(d.WPM) * 0.80)
+			if d.WPM < minWpm {
+				d.WPM = minWpm
+			}
+			if base, ok := m.wildDemonBases[d.ID]; ok && base > minWpm {
+				newBase := int(float64(base) * 0.85)
+				if newBase < minWpm {
+					newBase = minWpm
+				}
+				m.wildDemonBases[d.ID] = newBase
+				d.BaseWPM = newBase
+			}
+			if rebukeDamage > 0 {
+				d.CurrentHP -= rebukeDamage
+				if d.CurrentHP <= 0 {
+					d.CurrentHP = 0
+					res := *d
+					m.wildDemons = append(m.wildDemons[:idx], m.wildDemons[idx+1:]...)
+					m.slainDemons[d.ID] = d
+					return &res, true
+				}
+			}
+			res := *d
+			return &res, false
+		}
+	}
+	return nil, false
+}
+
+// SkirmishWildDemonByGuardian allows an autonomous Guardian Angel ghost to deal chip damage (never killing, leaving >= 1 HP)
+// and mark an AngelicBeacon on a wild demon occupying the same verse.
+func (m *DemonManager) SkirmishWildDemonByGuardian(trans, book string, chapter, verse, chipDamage int) *WildDemon {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, d := range m.wildDemons {
+		if d.Translation == trans && d.BookName == book && d.Chapter == chapter && d.Verse == verse && d.CurrentHP > 0 {
+			d.AngelicBeacon = true
+			if chipDamage > 0 && d.CurrentHP > 1 {
+				d.CurrentHP -= chipDamage
+				if d.CurrentHP < 1 {
+					d.CurrentHP = 1
+				}
+			}
+			res := *d
+			return &res
+		}
+	}
+	return nil
+}
+
 // AdjustWildDemonPaceForPlayer updates the wild demon's WPM on the given verse when a player's cursor moves.
 func (m *DemonManager) AdjustWildDemonPaceForPlayer(trans, book string, chapter, verse, userCharIdx, userWPM int) *WildDemon {
 	m.mu.Lock()
@@ -1785,6 +1883,17 @@ func (m *DemonManager) AdjustWildDemonPaceForPlayer(trans, book string, chapter,
 			d.BaseWPM = baseWPM
 			baseWPM += d.EnrageCount * 2
 			d.WPM = CalculateDynamicDemonWPM(baseWPM, userCharIdx, d.CharIndex, userWPM)
+			if d.DebuffStacks > 0 {
+				slowFactor := 1.0 - float64(d.DebuffStacks)*0.20
+				if slowFactor < 0.40 {
+					slowFactor = 0.40
+				}
+				d.WPM = int(float64(d.WPM) * slowFactor)
+				minWpm := GetDemonSyncBalance().MinDemonWPM
+				if d.WPM < minWpm {
+					d.WPM = minWpm
+				}
+			}
 			res := *d
 			return &res
 		}
@@ -1828,6 +1937,10 @@ func (m *DemonManager) RespawnWildDemon(demonID string) *WildDemon {
 			d.CurrentHP = d.MaxHP
 			d.EnrageCount = 0
 			d.CharIndex = 0
+			d.TaintedUpTo = 0
+			d.Debuffed = false
+			d.DebuffStacks = 0
+			d.AngelicBeacon = false
 			d.verseEpoch++
 			if base, ok := m.wildDemonBases[d.ID]; ok {
 				d.BaseWPM = base
@@ -1844,6 +1957,10 @@ func (m *DemonManager) RespawnWildDemon(demonID string) *WildDemon {
 		d.CurrentHP = d.MaxHP
 		d.EnrageCount = 0
 		d.CharIndex = 0
+		d.TaintedUpTo = 0
+		d.Debuffed = false
+		d.DebuffStacks = 0
+		d.AngelicBeacon = false
 		d.verseEpoch++
 		if base, ok := m.wildDemonBases[d.ID]; ok {
 			d.BaseWPM = base

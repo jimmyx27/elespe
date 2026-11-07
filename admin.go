@@ -60,6 +60,17 @@ type AdminRuntimeOptions struct {
 	EncounterPeacefulIntroVerses int                    `json:"encounter_peaceful_intro_verses"`
 	GlobalAngelRank              string                 `json:"global_angel_rank"`
 	GlobalAngelWPM               int                    `json:"global_angel_wpm"`
+	MichaelSummonCurrencyType    string                 `json:"michael_summon_currency_type"`    // "book_tokens" (default), "verses_completed", "demons_defeated", "free"
+	MichaelSummonCost            int                    `json:"michael_summon_cost"`             // Default 1 token
+	TokensPerBookCompleted       int                    `json:"tokens_per_book_completed"`       // Default 1 token per completed book
+	TokensPerVersesMilestone     int                    `json:"tokens_per_verses_milestone"`     // Optional: grant 1 token every N verses (0 = disabled)
+	TokensPerDemonDefeated       int                    `json:"tokens_per_demon_defeated"`       // Optional: grant N tokens per wild demon defeated (0 = disabled)
+	GuardianXPPerLetter          int                    `json:"guardian_xp_per_letter"`          // Default 1 XP per letter typed in sync
+	GuardianXPPerWord            int                    `json:"guardian_xp_per_word"`            // Default 5 XP per word completed in sync
+	GuardianXPPerVerse           int                    `json:"guardian_xp_per_verse"`           // Default 25 XP per verse completed alongside Guardian
+	GuardianXPPerBook            int                    `json:"guardian_xp_per_book"`            // Default 250 XP per book completed alongside Guardian
+	PeerAngelSyncDamageBonusPct  int                    `json:"peer_angel_sync_damage_bonus_pct"`// Default +35% damage when in sync with another player's angel
+	PeerAngelSyncXPBonusPct      int                    `json:"peer_angel_sync_xp_bonus_pct"`    // Default +50% Guardian XP when in sync with another player's angel
 	Devil24_7Rank                string                 `json:"devil_24_7_rank"`
 	Devil24_7Level               int                    `json:"devil_24_7_level"`
 	MandatoryBookIntro           bool                   `json:"mandatory_book_intro"`
@@ -142,6 +153,17 @@ func defaultAdminRuntimeOptions(baseBalance DemonSyncBalanceConfig) AdminRuntime
 		EncounterPeacefulIntroVerses: 2,
 		GlobalAngelRank:              "michael",
 		GlobalAngelWPM:               160,
+		MichaelSummonCurrencyType:    "book_tokens",
+		MichaelSummonCost:            1,
+		TokensPerBookCompleted:       1,
+		TokensPerVersesMilestone:     0,
+		TokensPerDemonDefeated:       0,
+		GuardianXPPerLetter:          1,
+		GuardianXPPerWord:            5,
+		GuardianXPPerVerse:           25,
+		GuardianXPPerBook:            250,
+		PeerAngelSyncDamageBonusPct:  35,
+		PeerAngelSyncXPBonusPct:      50,
 		Devil24_7Rank:                "imp",
 		Devil24_7Level:               1,
 		MandatoryBookIntro:           true,
@@ -182,6 +204,33 @@ func initAdminSystem(configDir string) *AdminManager {
 				mgr.passwordHash = saved.PasswordHash
 			}
 			if saved.Options.MaxWildDemons > 0 {
+				if saved.Options.MichaelSummonCurrencyType == "" {
+					saved.Options.MichaelSummonCurrencyType = "book_tokens"
+				}
+				if saved.Options.MichaelSummonCost <= 0 && saved.Options.MichaelSummonCurrencyType != "free" {
+					saved.Options.MichaelSummonCost = 1
+				}
+				if saved.Options.TokensPerBookCompleted <= 0 {
+					saved.Options.TokensPerBookCompleted = 1
+				}
+				if saved.Options.GuardianXPPerLetter <= 0 {
+					saved.Options.GuardianXPPerLetter = 1
+				}
+				if saved.Options.GuardianXPPerWord <= 0 {
+					saved.Options.GuardianXPPerWord = 5
+				}
+				if saved.Options.GuardianXPPerVerse <= 0 {
+					saved.Options.GuardianXPPerVerse = 25
+				}
+				if saved.Options.GuardianXPPerBook <= 0 {
+					saved.Options.GuardianXPPerBook = 250
+				}
+				if saved.Options.PeerAngelSyncDamageBonusPct <= 0 {
+					saved.Options.PeerAngelSyncDamageBonusPct = 35
+				}
+				if saved.Options.PeerAngelSyncXPBonusPct <= 0 {
+					saved.Options.PeerAngelSyncXPBonusPct = 50
+				}
 				mgr.options = saved.Options
 			}
 		}
@@ -624,6 +673,33 @@ func (m *AdminManager) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if incoming.GlobalAngelWPM > 500 {
 		incoming.GlobalAngelWPM = 500
 	}
+	if incoming.MichaelSummonCurrencyType == "" {
+		incoming.MichaelSummonCurrencyType = "book_tokens"
+	}
+	if incoming.MichaelSummonCost < 0 {
+		incoming.MichaelSummonCost = 0
+	}
+	if incoming.TokensPerBookCompleted < 0 {
+		incoming.TokensPerBookCompleted = 0
+	}
+	if incoming.GuardianXPPerLetter < 1 {
+		incoming.GuardianXPPerLetter = 1
+	}
+	if incoming.GuardianXPPerWord < 1 {
+		incoming.GuardianXPPerWord = 5
+	}
+	if incoming.GuardianXPPerVerse < 1 {
+		incoming.GuardianXPPerVerse = 25
+	}
+	if incoming.GuardianXPPerBook < 1 {
+		incoming.GuardianXPPerBook = 250
+	}
+	if incoming.PeerAngelSyncDamageBonusPct < 0 {
+		incoming.PeerAngelSyncDamageBonusPct = 0
+	}
+	if incoming.PeerAngelSyncXPBonusPct < 0 {
+		incoming.PeerAngelSyncXPBonusPct = 0
+	}
 	if incoming.DemonBalance.StacksPerDamageTier < 1 {
 		incoming.DemonBalance.StacksPerDamageTier = 5
 	}
@@ -722,6 +798,7 @@ type AdminUserRow struct {
 	GuardianPower      int       `json:"guardian_power"`
 	GuardianWards      int       `json:"guardian_wards"`
 	DemonsDefeated     int       `json:"demons_defeated"`
+	SummonTokens       int       `json:"summon_tokens"`
 	PassageBurstDamage int       `json:"passage_burst_damage"`
 	TrackerUnlocked    bool      `json:"tracker_unlocked"`
 	BadgesCount        int       `json:"badges_count"`
@@ -1071,6 +1148,7 @@ func collectAdminAnalytics(ctx context.Context) AdminAnalyticsSnapshot {
 					row.GuardianPower = sc.GuardianPower
 				}
 				row.DemonsDefeated = sc.DemonsDefeated
+				row.SummonTokens = sc.SummonTokens
 				if sc.PassageBurstDamage > 0 {
 					row.PassageBurstDamage = sc.PassageBurstDamage
 				}
@@ -1399,6 +1477,7 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		GuardianLevel      int       `json:"guardian_level"`
 		GuardianPower      int       `json:"guardian_power"`
 		DemonsDefeated     int       `json:"demons_defeated"`
+		SummonTokens       *int      `json:"summon_tokens,omitempty"`
 		PassageBurstDamage int       `json:"passage_burst_damage"`
 		CommentID          int       `json:"comment_id"`
 		ChatID             int       `json:"chat_id"`
@@ -1640,6 +1719,9 @@ func (m *AdminManager) handleAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.PassageBurstDamage > 0 {
 			customs.PassageBurstDamage = req.PassageBurstDamage
+		}
+		if req.SummonTokens != nil && *req.SummonTokens >= 0 {
+			customs.SummonTokens = *req.SummonTokens
 		}
 		_ = store.SaveCustomizations(ctx, req.UID, *customs)
 		if globalHub != nil {

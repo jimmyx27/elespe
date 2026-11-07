@@ -741,6 +741,12 @@ func (s *localStore) mergeUserProgressLocked(targetUID, sourceUID string) {
 				tgtSanctuary.GuardianXP = max(tgtSanctuary.GuardianXP, srcSanctuary.GuardianXP)
 			}
 			tgtSanctuary.DemonsDefeated += srcSanctuary.DemonsDefeated
+			tgtSanctuary.SummonTokens += srcSanctuary.SummonTokens
+			tgtSanctuary.TokensSpent += srcSanctuary.TokensSpent
+			tgtSanctuary.SyncedLetters += srcSanctuary.SyncedLetters
+			tgtSanctuary.SyncedWords += srcSanctuary.SyncedWords
+			tgtSanctuary.SyncedVerses += srcSanctuary.SyncedVerses
+			tgtSanctuary.SyncedBooks += srcSanctuary.SyncedBooks
 			tgtSanctuary.TrackerUnlocked = tgtSanctuary.TrackerUnlocked || srcSanctuary.TrackerUnlocked || tgtSanctuary.DemonsDefeated >= 6
 			s.data.SanctuarySettings[targetUID] = tgtSanctuary
 		}
@@ -1280,6 +1286,11 @@ func (s *localStore) RecordWildDemonDefeat(ctx context.Context, uid string, demo
 	}
 
 	cfg.DemonsDefeated++
+	if adm := getGlobalAdmin(); adm != nil {
+		if tpd := adm.GetOptions().TokensPerDemonDefeated; tpd > 0 {
+			cfg.SummonTokens += tpd
+		}
+	}
 	if demonLevel < 1 {
 		demonLevel = 1
 	}
@@ -1288,7 +1299,7 @@ func (s *localStore) RecordWildDemonDefeat(ctx context.Context, uid string, demo
 
 	leveledUp := false
 	neededXP := cfg.GuardianLevel * 100
-	for cfg.GuardianXP >= neededXP {
+	for cfg.GuardianXP >= neededXP && cfg.GuardianLevel < 777 {
 		cfg.GuardianXP -= neededXP
 		cfg.GuardianLevel++
 		leveledUp = true
@@ -1307,6 +1318,118 @@ func (s *localStore) RecordWildDemonDefeat(ctx context.Context, uid string, demo
 	_ = s.save()
 	res := cfg
 	return &res, leveledUp, nil
+}
+
+func computeGuardianSyncXPGained(syncedLetters, syncedWords, versesCompleted, booksCompleted, bonusXP int) int {
+	xpPerLetter := 1
+	xpPerWord := 5
+	xpPerVerse := 25
+	xpPerBook := 250
+	if adm := getGlobalAdmin(); adm != nil {
+		opts := adm.GetOptions()
+		if opts.GuardianXPPerLetter > 0 {
+			xpPerLetter = opts.GuardianXPPerLetter
+		}
+		if opts.GuardianXPPerWord > 0 {
+			xpPerWord = opts.GuardianXPPerWord
+		}
+		if opts.GuardianXPPerVerse > 0 {
+			xpPerVerse = opts.GuardianXPPerVerse
+		}
+		if opts.GuardianXPPerBook > 0 {
+			xpPerBook = opts.GuardianXPPerBook
+		}
+	}
+	xp := 0
+	if syncedLetters > 0 {
+		xp += syncedLetters * xpPerLetter
+	}
+	if syncedWords > 0 {
+		xp += syncedWords * xpPerWord
+	}
+	if versesCompleted > 0 {
+		xp += versesCompleted * xpPerVerse
+	}
+	if booksCompleted > 0 {
+		xp += booksCompleted * xpPerBook
+	}
+	if bonusXP > 0 {
+		xp += bonusXP
+	}
+	return xp
+}
+
+func (s *localStore) RecordGuardianSyncProgress(ctx context.Context, uid string, syncedLetters, syncedWords, versesCompleted, booksCompleted, bonusXP, tokensEarned int) (*SanctuarySettings, int, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.data.SanctuarySettings == nil {
+		s.data.SanctuarySettings = make(map[string]SanctuarySettings)
+	}
+
+	cfg, ok := s.data.SanctuarySettings[uid]
+	if !ok {
+		cfg = SanctuarySettings{
+			TextColor:          "emerald",
+			FontFamily:         "sans",
+			CaretAura:          "default",
+			AudioProfile:       "classic",
+			CelebrateFx:        "confetti",
+			GuardianLevel:      1,
+			GuardianXP:         0,
+			DemonsDefeated:     0,
+			GuardianWards:      0,
+			GuardianPower:      10,
+			GuardianRadiance:   100,
+			PassageBurstDamage: GetDemonSyncBalance().PassageBurstBaseDamage,
+			TrackerUnlocked:    false,
+		}
+	}
+
+	if cfg.GuardianLevel < 1 {
+		cfg.GuardianLevel = 1
+	}
+
+	if syncedLetters > 0 {
+		cfg.SyncedLetters += syncedLetters
+	}
+	if syncedWords > 0 {
+		cfg.SyncedWords += syncedWords
+	}
+	if versesCompleted > 0 {
+		cfg.SyncedVerses += versesCompleted
+	}
+	if booksCompleted > 0 {
+		cfg.SyncedBooks += booksCompleted
+	}
+	if tokensEarned > 0 {
+		cfg.SummonTokens += tokensEarned
+	}
+
+	xpGained := computeGuardianSyncXPGained(syncedLetters, syncedWords, versesCompleted, booksCompleted, bonusXP)
+	cfg.GuardianXP += xpGained
+
+	leveledUp := false
+	neededXP := cfg.GuardianLevel * 100
+	for cfg.GuardianXP >= neededXP && cfg.GuardianLevel < 777 {
+		cfg.GuardianXP -= neededXP
+		cfg.GuardianLevel++
+		leveledUp = true
+		neededXP = cfg.GuardianLevel * 100
+	}
+
+	cfg.GuardianWards = (cfg.GuardianLevel - 1) / 3
+	cfg.GuardianPower = 10 + (cfg.GuardianLevel-1)*2
+	cfg.GuardianRadiance = 100 + (cfg.GuardianLevel-1)*5
+	if cfg.PassageBurstDamage <= 0 {
+		cfg.PassageBurstDamage = GetDemonSyncBalance().PassageBurstBaseDamage
+	}
+	cfg.TrackerUnlocked = cfg.DemonsDefeated >= 6
+
+	s.data.SanctuarySettings[uid] = cfg
+	_ = s.save()
+	res := cfg
+	return &res, xpGained, leveledUp, nil
 }
 
 func defaultBossRaid() *BossRaid {
@@ -1460,5 +1583,83 @@ func (s *localStore) ResetBossRaid(ctx context.Context, raid BossRaid) error {
 
 	s.data.BossRaid = &raid
 	return s.save()
+}
+
+func (s *localStore) ListGuardianSeedEntries(ctx context.Context) ([]GuardianSeedEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	seen := make(map[string]bool)
+	entries := make([]GuardianSeedEntry, 0, 32)
+	for uid, acc := range s.data.Accounts {
+		if uid == "" || strings.HasPrefix(uid, "angel-") || strings.HasPrefix(uid, "demon-") {
+			continue
+		}
+		seen[uid] = true
+		name := "Scribe"
+		color := "#a855f7"
+		if acc != nil {
+			if acc.DisplayName != "" {
+				name = acc.DisplayName
+			}
+			if acc.AvatarColor != "" {
+				color = acc.AvatarColor
+			}
+		}
+		sc, hasSc := s.data.SanctuarySettings[uid]
+		book := "Genesis"
+		ch := 1
+		v := 1
+		if hasSc && sc.GuardianBookName != "" {
+			book = sc.GuardianBookName
+			if sc.GuardianChapter > 0 {
+				ch = sc.GuardianChapter
+			}
+			if sc.GuardianVerse > 0 {
+				v = sc.GuardianVerse
+			}
+		}
+		entries = append(entries, GuardianSeedEntry{
+			UID:      uid,
+			Name:     name,
+			Color:    color,
+			BookName: book,
+			Chapter:  ch,
+			Verse:    v,
+		})
+		if len(entries) >= 32 {
+			break
+		}
+	}
+	for uid, sc := range s.data.SanctuarySettings {
+		if len(entries) >= 32 {
+			break
+		}
+		if seen[uid] || uid == "" || strings.HasPrefix(uid, "angel-") || strings.HasPrefix(uid, "demon-") {
+			continue
+		}
+		seen[uid] = true
+		book := sc.GuardianBookName
+		if book == "" {
+			book = "Genesis"
+		}
+		ch := sc.GuardianChapter
+		if ch <= 0 {
+			ch = 1
+		}
+		v := sc.GuardianVerse
+		if v <= 0 {
+			v = 1
+		}
+		entries = append(entries, GuardianSeedEntry{
+			UID:      uid,
+			Name:     "Scribe " + uid[:min(len(uid), 4)],
+			Color:    "#a855f7",
+			BookName: book,
+			Chapter:  ch,
+			Verse:    v,
+		})
+	}
+	return entries, nil
 }
 

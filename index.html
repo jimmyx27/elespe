@@ -1256,6 +1256,153 @@
         100% { background-color: transparent; }
       }
 
+      /* Wild Demon Red Tainted Letters & Righteousness Purification Flash */
+      .char.demon-tainted {
+        color: #f87171 !important;
+        opacity: 0.96 !important;
+        text-shadow: 0 0 8px rgba(239, 68, 68, 0.85), 0 0 14px rgba(185, 28, 28, 0.55);
+        background: linear-gradient(180deg, transparent 56%, rgba(239, 68, 68, 0.26) 100%);
+        border-bottom: 1.5px solid rgba(239, 68, 68, 0.72);
+        border-radius: 2px;
+      }
+      .char.purified-flash {
+        animation: righteousPurifyFlash 0.65s ease-out;
+      }
+      @keyframes righteousPurifyFlash {
+        0% {
+          background-color: rgba(251, 191, 36, 0.92);
+          color: #ffffff !important;
+          text-shadow: 0 0 16px #fde047, 0 0 28px #f59e0b;
+        }
+        100% {
+          background-color: transparent;
+        }
+      }
+
+      /* Sacred Capitalized Letters & Capital Strike Flash */
+      .char.capital-letter:not(.correct):not(.incorrect) {
+        font-weight: 700;
+        text-decoration: underline rgba(56, 189, 248, 0.45) 1px;
+        text-underline-offset: 4px;
+      }
+      .char.capital-strike-flash {
+        animation: sacredCapitalFlash 0.55s ease-out;
+      }
+      @keyframes sacredCapitalFlash {
+        0% {
+          background-color: rgba(56, 189, 248, 0.78);
+          color: #ffffff !important;
+          text-shadow: 0 0 14px #38bdf8, 0 0 24px #fbbf24;
+        }
+        100% {
+          background-color: transparent;
+        }
+      }
+
+      /* Angel Golden Trail & Big Mike's Glorious Golden Glowing Trail */
+      .char.angel-golden-trail {
+        color: #fbbf24 !important;
+        opacity: 0.95 !important;
+        text-shadow: 0 0 8px rgba(251, 191, 36, 0.68), 0 0 14px rgba(245, 158, 11, 0.38);
+        background: linear-gradient(180deg, transparent 60%, rgba(251, 191, 36, 0.2) 100%);
+        border-bottom: 1px dotted rgba(251, 191, 36, 0.6);
+        border-radius: 2px;
+      }
+      .char.michael-glorious-trail {
+        color: #fef08a !important;
+        opacity: 1 !important;
+        font-weight: 700;
+        text-shadow:
+          0 0 6px #fef08a,
+          0 0 14px #fbbf24,
+          0 0 24px #f59e0b,
+          0 0 38px rgba(249, 115, 22, 0.88);
+        background: linear-gradient(180deg, rgba(254, 240, 138, 0.1) 0%, rgba(251, 191, 36, 0.3) 100%);
+        border-bottom: 2px solid #fde047;
+        border-radius: 3px;
+        box-shadow: 0 2px 12px rgba(251, 191, 36, 0.45);
+        animation: michaelGloriousShimmer 1.8s infinite alternate ease-in-out;
+      }
+      @keyframes michaelGloriousShimmer {
+        0% {
+          text-shadow: 0 0 6px #fef08a, 0 0 14px #fbbf24, 0 0 24px #f59e0b;
+          filter: brightness(1.05);
+        }
+        100% {
+          text-shadow: 0 0 10px #ffffff, 0 0 20px #fde047, 0 0 34px #f59e0b, 0 0 48px #ea580c;
+          filter: brightness(1.25);
+        }
+      }
+      .typing-stage.michael-trail-stage {
+        border-color: #fde047 !important;
+        box-shadow: 0 0 28px rgba(251, 191, 36, 0.48), 0 0 60px rgba(245, 158, 11, 0.28), inset 0 0 22px rgba(254, 240, 138, 0.16) !important;
+      }
+      .ghost-cursor.is-glorious-michael {
+        filter: drop-shadow(0 0 14px #fde047) drop-shadow(0 0 28px #f59e0b) !important;
+      }
+      .ghost-cursor.is-glorious-michael .ghost-tag {
+        background: linear-gradient(135deg, #fef08a, #f59e0b, #ea580c) !important;
+        color: #1e1b4b !important;
+        border: 1.5px solid #ffffff !important;
+        box-shadow: 0 0 16px #fde047, 0 0 30px #f59e0b !important;
+        font-weight: 900 !important;
+      }
+      .ghost-cursor.is-glorious-michael .ghost-caret {
+        width: 4px !important;
+        height: 18px !important;
+        background: linear-gradient(180deg, #ffffff, #fde047, #f59e0b) !important;
+        box-shadow: 0 0 14px #fde047, 0 0 24px #f59e0b !important;
+        opacity: 1 !important;
+      }
+
+      /* Live Scripture World Ribbon */
+      .live-world-ribbon {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0.35rem 0.7rem;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        font-size: 0.72rem;
+      }
+      .world-ribbon-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border);
+        color: var(--text-sub);
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .world-ribbon-pill:hover {
+        border-color: var(--accent);
+        color: var(--text);
+        transform: translateY(-1px);
+      }
+      .michael-trail-banner {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0.45rem 0.85rem;
+        margin-bottom: 0.55rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.25), rgba(245, 158, 11, 0.3), rgba(234, 88, 12, 0.2));
+        border: 1.5px solid #fde047;
+        box-shadow: 0 0 22px rgba(251, 191, 36, 0.4), inset 0 0 14px rgba(254, 240, 138, 0.18);
+        color: #fef08a;
+        font-size: 0.76rem;
+        font-weight: 800;
+      }
+
       .demon-card {
         background: linear-gradient(135deg, rgba(20, 10, 15, 0.95), rgba(30, 15, 20, 0.95));
         border: 1px solid rgba(239, 68, 68, 0.35);
@@ -1725,15 +1872,64 @@
             <button id="btnExitMode" class="mode-banner-back">← Back to Scripture</button>
           </div>
 
+          <!-- Live Scripture World Ribbon (Big Mike's Crusade, Fellowship Guardian Ghosts, Active Wild Demons) -->
+          <div id="liveWorldRibbon" class="live-world-ribbon">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+              <button type="button" id="ribbonMichaelPill" class="world-ribbon-pill" title="Big Mike's live linear crusade across Scripture — click to jump to his verse!" style="border-color: rgba(251, 191, 36, 0.45); color: #fde047;">
+                <span>⚔️</span>
+                <span id="ribbonMichaelText">Big Mike: Genesis 1:1 (160 WPM)</span>
+              </button>
+              <button type="button" id="ribbonGuardiansPill" class="world-ribbon-pill" title="Persistent Player Guardian Angel Ghosts roaming Scripture — click to view &amp; jump!" style="border-color: rgba(56, 189, 248, 0.4); color: #7dd3fc;">
+                <span>👼</span>
+                <span id="ribbonGuardiansText">1 Guardian Scribe</span>
+              </button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+              <button type="button" id="ribbonDemonsPill" class="world-ribbon-pill" title="Active Wild Demons roaming Scripture — click to open Demon Tracker" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
+                <span>😈</span>
+                <span id="ribbonDemonsText">7 Wild Demons</span>
+              </button>
+            </div>
+          </div>
+
           <div id="verse" class="verse-card">
+            <!-- Big Mike's Glorious Golden Glowing Trail Banner -->
+            <div id="michaelTrailBanner" class="michael-trail-banner">
+              <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                <span>⚔️✨</span>
+                <span>GLORIOUS GOLDEN TRAIL OF BIG MIKE — This verse shines with Archangel Michael's radiant golden trail!</span>
+              </div>
+              <span style="background: rgba(0, 0, 0, 0.35); border: 1px solid #fde047; padding: 2px 8px; border-radius: 999px; color: #ffffff;">
+                🔥 2× Holy Smite · ⚖️ 2× Righteousness · ⭐ 2× Sync XP
+              </span>
+            </div>
+
             <!-- Angel Companion Live Race / Pace HUD -->
             <div id="angelPaceHUD" class="angel-pace-hud" style="display: none;">
               <div class="angel-pace-header">
-                <span id="angelHUDName">👼 Guardian Cherub (20 WPM)</span>
-                <span id="angelHUDComparison">You: 0 WPM · Pace: 20 WPM</span>
+                <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                  <span id="angelHUDName">👼 Guardian Angel (40 WPM)</span>
+                  <span id="angelHUDLevelBadge" style="font-size: 0.7rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(168, 85, 247, 0.22); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.45);">⭐ Lv. 1 (0/100 XP)</span>
+                  <span id="angelHUDSyncBadge" style="font-size: 0.7rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4);">✨ In Sync (+XP)</span>
+                </div>
+                <span id="angelHUDComparison">You: 0 WPM · Pace: 40 WPM</span>
               </div>
               <div class="angel-progress-track">
                 <div id="angelProgressBar" class="angel-progress-fill"></div>
+              </div>
+            </div>
+
+            <!-- Fellowship Peer Guardian Angel HUD (visible when another player's Guardian Angel ghost is on this verse) -->
+            <div id="fellowshipAngelHUD" class="angel-pace-hud" style="display: none; background: linear-gradient(135deg, rgba(14, 116, 144, 0.25), rgba(59, 130, 246, 0.18)); border: 1px solid rgba(56, 189, 248, 0.45);">
+              <div class="angel-pace-header" style="gap: 0.5rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                  <span id="fellowshipAngelName" style="font-weight: 800; color: #7dd3fc;">🕊️ Fellowship Guardian</span>
+                  <span id="fellowshipAngelStatusPill" style="font-size: 0.68rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: rgba(56, 189, 248, 0.2); color: #bae6fd; border: 1px solid rgba(56, 189, 248, 0.4);">👻 Player Ghost</span>
+                  <span id="fellowshipAngelBuffPill" style="font-size: 0.7rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(245, 158, 11, 0.2); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.45);">⚡ Sync Buff: +35% Smite · +50% XP</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                  <button type="button" id="btnInteractPeerAngel" class="presence-btn" style="font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-color: #38bdf8; color: #e0f2fe; background: rgba(56, 189, 248, 0.2); cursor: pointer;">🙌 Harmonize &amp; Bless (+Ward)</button>
+                </div>
               </div>
             </div>
 
@@ -1743,8 +1939,10 @@
                 <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                   <span id="wildDemonIconName" style="font-weight: 800; color: #f87171; font-size: 0.9rem;">😈 Whispering Imp (Lv. 1)</span>
                   <span id="wildDemonPaceBadge" style="font-size: 0.7rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 7px; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700;">Target: 12 WPM</span>
+                  <span id="demonDebuffBadge" style="display: none; font-size: 0.7rem; background: rgba(251, 191, 36, 0.22); color: #fde047; padding: 2px 7px; border-radius: 999px; border: 1px solid #f59e0b; font-weight: 800;" title="Demon debuffed by Righteousness!">⛓️ Rebuked</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                  <span id="righteousnessBadge" style="font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(251, 191, 36, 0.16); color: #fde047; border: 1px solid rgba(251, 191, 36, 0.45);" title="Type red demon-tainted letters and golden angel trail letters to build Righteousness! At 100%, unleashes Sanctified Rebuke to debuff the demon!">⚖️ Righteousness: 0%</span>
                   <span id="burstDamageBadge" style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: rgba(168, 85, 247, 0.2); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.45);" title="Adjustable Passage Finish Burst Damage — applied to the demon when you finish a passage before it!">
                     <span>💥 Burst:</span>
                     <button type="button" id="btnBurstDamageDown" style="background: rgba(0,0,0,0.35); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.4); border-radius: 4px; padding: 0 4px; font-size: 0.68rem; font-weight: 900; cursor: pointer; line-height: 1.2;" title="Decrease base passage burst damage (-5)">−</button>
@@ -2341,22 +2539,36 @@
             <div class="global-angel-card" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(99, 102, 241, 0.12)); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem;">
                 <div>
-                  <div style="display:flex; align-items:center; gap:0.4rem;">
-                    <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800; color: #f59e0b;">Global Server Scribe</span>
-                    <span style="font-size: 0.68rem; background: rgba(245, 158, 11, 0.2); color: #fbbf24; padding: 1px 6px; border-radius: 999px; font-weight: 700;">Active while site is open</span>
+                  <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                    <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800; color: #f59e0b;">Global Server Scribe · Linear Grind</span>
+                    <span style="font-size: 0.68rem; background: rgba(245, 158, 11, 0.2); color: #fbbf24; padding: 1px 6px; border-radius: 999px; font-weight: 700;">Grinds Linearly Until Summoned</span>
+                    <span id="summonTokensHeaderBadge" style="font-size: 0.72rem; background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); padding: 1px 8px; border-radius: 999px; font-weight: 800;" title="Earn Summon Tokens by completing Book Reviews">🪙 0 Summon Tokens</span>
                   </div>
-                  <h4 style="margin: 0.15rem 0; font-size: 1.1rem; color: var(--text);" id="globalAngelTitle">🕊️ Guardian Cherub (20 WPM)</h4>
-                  <p style="margin: 0; font-size: 0.82rem; color: var(--muted);" id="globalAngelLocation">Continually inscribing verses across the fellowship...</p>
+                  <h4 style="margin: 0.15rem 0; font-size: 1.1rem; color: var(--text);" id="globalAngelTitle">⚔️ Big Mike (160 WPM)</h4>
+                  <p style="margin: 0; font-size: 0.82rem; color: var(--muted);" id="globalAngelLocation">Grinding linearly verse-by-verse through Scripture...</p>
                 </div>
-                <button id="btnWatchGlobalAngel" class="presence-btn" style="border-color: #f59e0b; color: #f59e0b; font-weight: 700;">👁️ Watch Scribe Live</button>
+                <button id="btnWatchGlobalAngel" class="presence-btn" style="border-color: #f59e0b; color: #f59e0b; font-weight: 700;">👁️ Watch Big Mike Live</button>
               </div>
+            </div>
+
+            <!-- Roaming Player Guardian Ghosts Section -->
+            <div style="background: rgba(168, 85, 247, 0.07); border: 1px solid rgba(168, 85, 247, 0.28); border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem;">
+                <div>
+                  <h4 style="margin: 0; font-size: 0.86rem; color: #d8b4fe; text-transform: uppercase; letter-spacing: 0.5px;">👻 Fellowship Guardian Ghosts (Live Across Scripture)</h4>
+                  <p style="margin: 0.15rem 0 0; font-size: 0.76rem; color: var(--muted);">
+                    Every player's Guardian Angel continues mashing out verses linearly when they stop or leave (without granting book progress). Sync with another player's angel for <b>+35% Smite Damage</b>, <b>+50% Guardian XP</b>, and <b>Angelic Aegis Wards</b>!
+                  </p>
+                </div>
+              </div>
+              <div id="roamingGuardiansContainer" style="display: flex; flex-direction: column; gap: 0.45rem; max-height: 170px; overflow-y: auto;"></div>
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.4rem;">
               <div>
-                <h4 style="margin: 0; font-size: 0.88rem; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px;">Summon an Angel Companion</h4>
+                <h4 style="margin: 0; font-size: 0.88rem; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px;">Your Guardian Angel &amp; Heavenly Host</h4>
                 <p style="margin: 0.2rem 0 0; font-size: 0.8rem; color: var(--muted);">
-                  Angels type alongside you cleanly floating above the text line without blocking your view. They rest when the site is closed.
+                  Your Guardian Angel automatically works through the same verse as you while you are active, leveling up as you complete letters, words, verses, and books in sync. Summoning Big Mike requires a Book Summon Token 🪙.
                 </p>
               </div>
             </div>
@@ -2577,12 +2789,27 @@
       let currentCustomizations = JSON.parse(localStorage.getItem("sanctuary_settings") || '{"text_color":"emerald","font_family":"sans","caret_aura":"default","audio_profile":"classic","celebrate_fx":"confetti"}');
       let availableUnlocks = [];
 
-      // Heavenly Angel Bots State
+      // Heavenly Angel Bots & Guardian Sync State
       let activeAngelCompanion = null;
       let angelsList = [];
       let globalAngelStatus = null;
+      let roamingGuardians = [];
       let angelAutoAdvance = localStorage.getItem("angel_auto_advance") === "true";
       let selectedAngelLevels = { cherub: 1, seraph: 1, gabriel: 1, michael: 1 };
+      let guardianCharIndex = 0;
+      let isGuardianInSync = true;
+      let unsentSyncedLetters = 0;
+      let unsentSyncedWords = 0;
+      let unsentPurifiedLetters = 0;
+      let unsentGoldenTrailLetters = 0;
+      let unsentCapitalizedLetters = 0;
+      let currentRighteousness = 0;
+      let isMichaelGloriousTrailOnVerse = false;
+      const peerGuardiansOnVerse = new Map();
+      let activePeerAngelBuff = null;
+      const angelGoldenTrailIndices = new Set();
+      const michaelGloriousTrailIndices = new Set();
+      const syncedCapitalIndices = new Set();
 
       // Demonic Adversary & 24/7 Devil State
       let activeDemonCompanion = null;
@@ -2591,6 +2818,7 @@
       let selectedDemonLevels = { imp: 1, fiend: 1, tormentor: 1, apollyon: 1 };
       const demonShroudedIndices = new Set();
       const demonCorruptedIndices = new Set();
+      const demonTaintedIndices = new Set();
 
       // Celestial & Demonic Boss Raid State
       let currentBossRaid = null;
@@ -3310,11 +3538,18 @@
         updateSyncStacksBadge();
         updateHolyWardsBadge();
         updateBurstDamageBadge();
+        updateRighteousnessUI();
+        updateDemonDebuffBadge();
+        const taintEnd = Math.max(d.tainted_up_to !== undefined ? d.tainted_up_to : -1, d.char_index !== undefined ? d.char_index : -1);
+        if (taintEnd >= 0) {
+          markDemonTaintedRange(taintEnd);
+        }
         renderGhostCursor({
           uid: d.id,
           display_name: `${d.icon || '😈'} ${d.name}`,
           avatar_color: d.color || "#ef4444",
           char_index: d.char_index || 0,
+          trail_up_to: taintEnd >= 0 ? taintEnd : (d.char_index || 0),
           wpm: d.wpm || 12,
           is_demon: true,
           demon_rank: d.rank,
@@ -3349,6 +3584,8 @@
         demonPunctuationCount = 0;
         syncedWordEndIndices.clear();
         if (wildDemonHUD) wildDemonHUD.style.display = "none";
+        const debuffEl = document.getElementById("demonDebuffBadge");
+        if (debuffEl) debuffEl.style.display = "none";
         if (typingStage) typingStage.classList.remove("holy-resonance");
       }
 
@@ -3710,45 +3947,214 @@
         }, 3200);
       }
 
+      // ---- Taint, Golden Trails, Righteousness & Live World Ribbon Helpers ----
+      function markDemonTaintedRange(upToIdx) {
+        if (!currentTargetText || upToIdx < 0) return;
+        const limit = Math.min(currentTargetText.length - 1, upToIdx);
+        const typedLen = currentTyped ? currentTyped.length : 0;
+        for (let k = 0; k <= limit; k++) {
+          if (michaelGloriousTrailIndices.has(k)) continue;
+          demonTaintedIndices.add(k);
+          if (k >= typedLen && verseReader) {
+            const ch = verseReader.children[k];
+            if (ch && !ch.classList.contains("correct")) {
+              ch.classList.add("demon-tainted");
+            }
+          }
+        }
+      }
+
+      function markAngelTrailRange(upToIdx, isGlorious = false) {
+        if (!currentTargetText || upToIdx < 0) return;
+        const limit = Math.min(currentTargetText.length - 1, upToIdx);
+        const typedLen = currentTyped ? currentTyped.length : 0;
+        if (isGlorious) {
+          isMichaelGloriousTrailOnVerse = true;
+          updateMichaelTrailUI();
+        }
+        for (let k = 0; k <= limit; k++) {
+          if (isGlorious) {
+            michaelGloriousTrailIndices.add(k);
+            demonTaintedIndices.delete(k);
+          } else {
+            angelGoldenTrailIndices.add(k);
+          }
+          if (k >= typedLen && verseReader) {
+            const ch = verseReader.children[k];
+            if (ch && !ch.classList.contains("correct")) {
+              if (isGlorious) {
+                ch.classList.remove("demon-tainted", "angel-golden-trail");
+                ch.classList.add("michael-glorious-trail");
+              } else if (!ch.classList.contains("michael-glorious-trail")) {
+                ch.classList.add("angel-golden-trail");
+              }
+            }
+          }
+        }
+      }
+
+      function updateRighteousnessUI() {
+        const badge = document.getElementById("righteousnessBadge");
+        if (!badge) return;
+        const pct = Math.min(100, Math.max(0, Math.round(currentRighteousness)));
+        badge.textContent = `✨ Righteousness: ${pct}%`;
+        if (pct >= 80) {
+          badge.style.background = "rgba(250, 204, 21, 0.32)";
+          badge.style.color = "#fef08a";
+          badge.style.boxShadow = "0 0 12px rgba(250, 204, 21, 0.45)";
+        } else {
+          badge.style.background = "rgba(250, 204, 21, 0.18)";
+          badge.style.color = "#fde047";
+          badge.style.boxShadow = "none";
+        }
+      }
+
+      function updateDemonDebuffBadge() {
+        const badge = document.getElementById("demonDebuffBadge");
+        if (!badge) return;
+        if (!activeWildDemon) {
+          badge.style.display = "none";
+          return;
+        }
+        const stacks = activeWildDemon.debuff_stacks || (activeWildDemon.debuffed ? 1 : 0);
+        if (stacks > 0) {
+          badge.style.display = "inline-flex";
+          const bonusPct = stacks * 25;
+          badge.textContent = `⚡ Sanctified Debuff x${stacks} (-20% WPM · +${bonusPct}% DMG Taken)`;
+        } else if (activeWildDemon.angelic_beacon) {
+          badge.style.display = "inline-flex";
+          badge.textContent = `🕊️ Guardian Skirmish Beacon (+1 Holy Ward)`;
+        } else {
+          badge.style.display = "none";
+        }
+      }
+
+      function updateMichaelTrailUI() {
+        const banner = document.getElementById("michaelTrailBanner");
+        const active = isMichaelGloriousTrailOnVerse || michaelGloriousTrailIndices.size > 0;
+        if (banner) {
+          banner.style.display = active ? "flex" : "none";
+        }
+        if (typingStage) {
+          typingStage.classList.toggle("michael-trail-stage", active);
+        }
+      }
+
+      function updateLiveWorldRibbon() {
+        const mText = document.getElementById("ribbonMichaelText");
+        const gText = document.getElementById("ribbonGuardiansText");
+        const dText = document.getElementById("ribbonDemonsText");
+        const mPill = document.getElementById("ribbonMichaelPill");
+        const gPill = document.getElementById("ribbonGuardiansPill");
+        const dPill = document.getElementById("ribbonDemonsPill");
+
+        if (mText) {
+          if (globalAngelStatus && globalAngelStatus.book_name) {
+            const mBook = displayBookName(globalAngelStatus.book_name);
+            mText.innerHTML = `Big Mike: <strong>${escapeHtml(mBook)} ${globalAngelStatus.chapter || 1}:${globalAngelStatus.verse || 1}</strong> · Glorious Trail`;
+          } else {
+            mText.innerHTML = `Big Mike: <strong>Inscribing Linearly</strong> · Glorious Trail`;
+          }
+        }
+        if (gText) {
+          const rgCount = Array.isArray(roamingGuardians) ? roamingGuardians.length : 1;
+          const peerCount = peerGuardiansOnVerse ? peerGuardiansOnVerse.size : 0;
+          gText.innerHTML = `Guardians: <strong>${rgCount} Active</strong>${peerCount > 0 ? ` · <span style="color:#6ee7b7;">${peerCount} On Verse!</span>` : ''}`;
+        }
+        if (dText) {
+          const dCount = (globalActiveDemons !== undefined && globalActiveDemons > 0)
+            ? globalActiveDemons
+            : (Array.isArray(wildDemonsCache) ? wildDemonsCache.length : 0);
+          dText.innerHTML = `Wild Demons: <strong>${dCount} Roaming</strong>${activeWildDemon ? ` · <span style="color:#fca5a5;">⚔️ ${escapeHtml(activeWildDemon.name)} Here!</span>` : ''}`;
+        }
+
+        if (mPill && !mPill._bound) {
+          mPill._bound = true;
+          mPill.onclick = () => {
+            if (btnWatchGlobalAngel) btnWatchGlobalAngel.click();
+          };
+        }
+        if (gPill && !gPill._bound) {
+          gPill._bound = true;
+          gPill.onclick = () => {
+            if (btnAngels) btnAngels.click();
+          };
+        }
+        if (dPill && !dPill._bound) {
+          dPill._bound = true;
+          dPill.onclick = () => {
+            if (btnDemonTracker) btnDemonTracker.click();
+          };
+        }
+      }
+
       // ---- Rendering the Typable Verse with Character-Level Feedback ----
+      function isCapitalizedLetterChar(ch) {
+        return !!ch && ch !== ch.toLowerCase() && ch === ch.toUpperCase();
+      }
+
+      function applyCharSpanClasses(span, i, typedLen) {
+        const keepPurified = span.classList.contains("purified-flash");
+        const keepCleansed = span.classList.contains("cleansed-flash");
+        const keepCapitalFlash = span.classList.contains("capital-strike-flash");
+        span.className = "char";
+        if (keepPurified) span.classList.add("purified-flash");
+        if (keepCleansed) span.classList.add("cleansed-flash");
+        if (keepCapitalFlash) span.classList.add("capital-strike-flash");
+
+        if (activeWildDemon && demonCheckpointIndex > 0 && i === demonCheckpointIndex) {
+          span.classList.add("checkpoint-marker");
+        }
+
+        if (i < typedLen) {
+          span.classList.add(currentTyped[i] === currentTargetText[i] ? "correct" : "incorrect");
+        } else {
+          span.classList.add(i === typedLen ? "current" : "pending");
+          if (isCapitalizedLetterChar(currentTargetText[i])) {
+            span.classList.add("capital-letter");
+          }
+          if (michaelGloriousTrailIndices.has(i) || isMichaelGloriousTrailOnVerse) {
+            span.classList.add("michael-glorious-trail");
+          } else if (angelGoldenTrailIndices.has(i)) {
+            span.classList.add("angel-golden-trail");
+          }
+          if (demonTaintedIndices.has(i) && !michaelGloriousTrailIndices.has(i)) {
+            span.classList.add("demon-tainted");
+          }
+          if (demonShroudedIndices.has(i)) span.classList.add("demon-shrouded");
+          if (demonCorruptedIndices.has(i)) span.classList.add("demon-corrupted");
+        }
+      }
+
       function renderTypingStage() {
         if (!currentTargetText) {
           verseReader.textContent = "";
+          verseReader._renderedTarget = "";
           submitPromptBar.classList.remove("active");
           typingStage.classList.remove("is-complete");
           return;
         }
 
-        const frag = document.createDocumentFragment();
         const targetLen = currentTargetText.length;
         const typedLen = currentTyped.length;
 
-        for (let i = 0; i < targetLen; i++) {
-          const span = document.createElement("span");
-          span.textContent = currentTargetText[i];
-          span.className = "char";
-          span.setAttribute("data-index", i);
-
-          if (activeWildDemon && demonCheckpointIndex > 0 && i === demonCheckpointIndex) {
-            span.classList.add("checkpoint-marker");
+        if (verseReader._renderedTarget === currentTargetText && verseReader.children.length === targetLen) {
+          for (let i = 0; i < targetLen; i++) {
+            applyCharSpanClasses(verseReader.children[i], i, typedLen);
           }
-
-          if (i < typedLen) {
-            span.classList.add(currentTyped[i] === currentTargetText[i] ? "correct" : "incorrect");
-          } else if (i === typedLen) {
-            span.classList.add("current");
-            if (demonShroudedIndices.has(i)) span.classList.add("demon-shrouded");
-            if (demonCorruptedIndices.has(i)) span.classList.add("demon-corrupted");
-          } else {
-            span.classList.add("pending");
-            if (demonShroudedIndices.has(i)) span.classList.add("demon-shrouded");
-            if (demonCorruptedIndices.has(i)) span.classList.add("demon-corrupted");
+        } else {
+          const frag = document.createDocumentFragment();
+          for (let i = 0; i < targetLen; i++) {
+            const span = document.createElement("span");
+            span.textContent = currentTargetText[i];
+            span.setAttribute("data-index", i);
+            applyCharSpanClasses(span, i, typedLen);
+            frag.appendChild(span);
           }
-          frag.appendChild(span);
+          verseReader.innerHTML = "";
+          verseReader.appendChild(frag);
+          verseReader._renderedTarget = currentTargetText;
         }
-
-        verseReader.innerHTML = "";
-        verseReader.appendChild(frag);
 
         const isMatched = (typedLen === targetLen && currentTyped === currentTargetText);
         if (isMatched) {
@@ -3809,6 +4215,106 @@
         return false;
       }
 
+      function getPeerAngelSyncStatus() {
+        const userChars = currentTyped ? currentTyped.length : 0;
+        let syncedPeer = null;
+        let closestPeer = null;
+        let minDiff = Infinity;
+        for (const [, peer] of peerGuardiansOnVerse.entries()) {
+          if (!peer || peer.owner_uid === uid) continue;
+          const diff = Math.abs(userChars - (peer.char_index || 0));
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestPeer = peer;
+          }
+          if (diff <= 10) {
+            syncedPeer = peer;
+          }
+        }
+        if (!syncedPeer && activePeerAngelBuff && activePeerAngelBuff.active && closestPeer) {
+          syncedPeer = closestPeer;
+        }
+        return {
+          inSync: !!syncedPeer,
+          peer: syncedPeer || closestPeer,
+          peerUID: (syncedPeer && (syncedPeer.owner_uid || syncedPeer.uid)) || (activePeerAngelBuff && activePeerAngelBuff.source_uid) || ""
+        };
+      }
+
+      function updateGuardianAndPeerSyncHUD() {
+        const userChars = currentTyped ? currentTyped.length : 0;
+        const diff = Math.abs(userChars - guardianCharIndex);
+        isGuardianInSync = diff <= 10;
+
+        const gLevel = currentCustomizations.guardian_level || 1;
+        const gXP = currentCustomizations.guardian_xp || 0;
+        const reqXP = gLevel * 100;
+        const lvlBadge = document.getElementById("angelHUDLevelBadge");
+        if (lvlBadge) {
+          lvlBadge.textContent = `⭐ Lv. ${gLevel} (${gXP}/${reqXP} XP)`;
+        }
+        const syncBadge = document.getElementById("angelHUDSyncBadge");
+        if (syncBadge) {
+          if (isGuardianInSync) {
+            syncBadge.style.background = "rgba(16, 185, 129, 0.2)";
+            syncBadge.style.color = "#6ee7b7";
+            syncBadge.style.borderColor = "rgba(16, 185, 129, 0.45)";
+            syncBadge.textContent = `✨ In Sync (+XP)`;
+          } else {
+            syncBadge.style.background = "rgba(245, 158, 11, 0.16)";
+            syncBadge.style.color = "#fde68a";
+            syncBadge.style.borderColor = "rgba(245, 158, 11, 0.35)";
+            syncBadge.textContent = `🕊️ Pace Diff: ${diff}c`;
+          }
+        }
+
+        const peerStatus = getPeerAngelSyncStatus();
+        const fHUD = document.getElementById("fellowshipAngelHUD");
+        if (fHUD) {
+          if (peerStatus.peer) {
+            fHUD.style.display = "flex";
+            const fName = document.getElementById("fellowshipAngelName");
+            const fPill = document.getElementById("fellowshipAngelStatusPill");
+            const fBuff = document.getElementById("fellowshipAngelBuffPill");
+            const btnInteract = document.getElementById("btnInteractPeerAngel");
+            const ownerLabel = peerStatus.peer.owner_name || peerStatus.peer.display_name || "Fellow Scribe";
+            if (fName) {
+              fName.textContent = `🕊️ ${peerStatus.peer.display_name || (ownerLabel + "'s Guardian")} (${peerStatus.peer.wpm || 40} WPM)`;
+            }
+            if (fPill) {
+              const online = !!peerStatus.peer.player_online;
+              fPill.textContent = online ? `🟢 ${ownerLabel} Online` : `👻 ${ownerLabel}'s Ghost`;
+            }
+            if (fBuff) {
+              if (peerStatus.inSync) {
+                fBuff.style.background = "rgba(16, 185, 129, 0.22)";
+                fBuff.style.color = "#6ee7b7";
+                fBuff.style.borderColor = "rgba(16, 185, 129, 0.45)";
+                fBuff.textContent = "✨ IN SYNC: +35% Smite DMG · +50% XP · Auto-Cleanse";
+              } else {
+                fBuff.style.background = "rgba(245, 158, 11, 0.18)";
+                fBuff.style.color = "#fde68a";
+                fBuff.style.borderColor = "rgba(245, 158, 11, 0.4)";
+                fBuff.textContent = "⚡ Match Angel Pace (±10 chars) or Bless for Buff!";
+              }
+            }
+            if (btnInteract) {
+              btnInteract.onclick = () => interactWithPeerAngel(peerStatus.peer.owner_uid || peerStatus.peer.uid);
+            }
+          } else {
+            fHUD.style.display = "none";
+          }
+        }
+      }
+
+      function interactWithPeerAngel(peerUID) {
+        if (!ws || ws.readyState !== WebSocket.OPEN || !peerUID) return;
+        ws.send(JSON.stringify({
+          type: "interact_angel",
+          peer_angel_uid: peerUID
+        }));
+      }
+
       function cleanseDemonIndex(idx) {
         if (demonShroudedIndices.has(idx) || demonCorruptedIndices.has(idx)) {
           demonShroudedIndices.delete(idx);
@@ -3822,6 +4328,52 @@
         }
       }
 
+      function processTrailAndTaintOnCorrectIndex(idx) {
+        const wasGlorious = isMichaelGloriousTrailOnVerse || michaelGloriousTrailIndices.has(idx);
+        const wasAngelGolden = wasGlorious || angelGoldenTrailIndices.has(idx);
+        const isCapital = currentTargetText ? isCapitalizedLetterChar(currentTargetText[idx]) : false;
+        let purified = false;
+
+        if (isCapital) {
+          unsentCapitalizedLetters += 1;
+          currentRighteousness = Math.min(150, currentRighteousness + (wasGlorious ? 8 : 4));
+          const charEl = verseReader ? verseReader.children[idx] : null;
+          if (charEl) {
+            charEl.classList.add("capital-strike-flash");
+            setTimeout(() => charEl && charEl.classList.remove("capital-strike-flash"), 550);
+          }
+        }
+
+        if (demonTaintedIndices.has(idx)) {
+          demonTaintedIndices.delete(idx);
+          purified = true;
+          unsentPurifiedLetters += 1;
+          currentRighteousness = Math.min(150, currentRighteousness + (wasGlorious ? 10 : 5) + (isCapital ? 4 : 0));
+          const charEl = verseReader ? verseReader.children[idx] : null;
+          if (charEl) {
+            charEl.classList.remove("demon-tainted");
+            charEl.classList.add("purified-flash");
+            setTimeout(() => charEl && charEl.classList.remove("purified-flash"), 520);
+          }
+        }
+
+        if (wasAngelGolden) {
+          unsentGoldenTrailLetters += 1;
+          currentRighteousness = Math.min(150, currentRighteousness + (wasGlorious ? 3 : 1));
+          // Golden trail also auto-cleanses shroud/corruption ahead!
+          cleanseDemonIndex(idx + 1);
+          if (wasGlorious) {
+            cleanseDemonIndex(idx + 2);
+          }
+        }
+
+        if (purified || wasAngelGolden || isCapital) {
+          updateRighteousnessUI();
+        }
+
+        return { purified, wasAngelGolden, wasGlorious, isCapital };
+      }
+
       function processTypedChar(typedChar) {
         if (!currentTargetText || isSpectator) return;
         if (currentTyped.length >= currentTargetText.length) return;
@@ -3829,11 +4381,20 @@
         const nextIdx = currentTyped.length;
         const expectedChar = currentTargetText[nextIdx];
         let isCorrectKeystroke = false;
+        let purifiedCountThisKey = 0;
+        let capitalizedCountThisKey = 0;
+        let onAngelGoldenThisKey = false;
+        let onGloriousTrailThisKey = isMichaelGloriousTrailOnVerse;
 
         if (charsMatch(typedChar, expectedChar)) {
           // Canonicalize to expectedChar so currentTyped === currentTargetText upon completion
           currentTyped += expectedChar;
           cleanseDemonIndex(nextIdx);
+          const trailRes = processTrailAndTaintOnCorrectIndex(nextIdx);
+          if (trailRes.purified) purifiedCountThisKey++;
+          if (trailRes.isCapital) capitalizedCountThisKey++;
+          if (trailRes.wasAngelGolden) onAngelGoldenThisKey = true;
+          if (trailRes.wasGlorious) onGloriousTrailThisKey = true;
           isCorrectKeystroke = true;
         } else if (expectedChar === "¿" || expectedChar === "¡") {
           // Auto-skip leading/inline inverted punctuation if the user types the character after ¿ or ¡
@@ -3845,6 +4406,11 @@
             for (let k = nextIdx; k <= lookIdx; k++) {
               currentTyped += currentTargetText[k];
               cleanseDemonIndex(k);
+              const trailRes = processTrailAndTaintOnCorrectIndex(k);
+              if (trailRes.purified) purifiedCountThisKey++;
+              if (trailRes.isCapital) capitalizedCountThisKey++;
+              if (trailRes.wasAngelGolden) onAngelGoldenThisKey = true;
+              if (trailRes.wasGlorious) onGloriousTrailThisKey = true;
             }
             isCorrectKeystroke = true;
           } else {
@@ -3860,7 +4426,51 @@
         recordKeystrokeForWPM();
 
         if (isCorrectKeystroke) {
-          // Wild Demon Combat Strike, Punctuation Checkpoint & Word-in-Sync Stack check
+          // Guardian Angel & Fellowship Peer Angel Sync Progression (Letters & Words)
+          updateGuardianAndPeerSyncHUD();
+          const peerStatus = getPeerAngelSyncStatus();
+          if (peerStatus.inSync) {
+            cleanseDemonIndex(currentTyped.length);
+            cleanseDemonIndex(currentTyped.length + 1);
+            cleanseDemonIndex(currentTyped.length + 2);
+          }
+
+          const completedCharIdx = currentTyped.length - 1;
+          const completedWordBoundary = completedCharIdx >= 0 &&
+            currentTargetText[completedCharIdx] !== " " &&
+            (completedCharIdx + 1 === currentTargetText.length || currentTargetText[completedCharIdx + 1] === " ");
+
+          if (isGuardianInSync || peerStatus.inSync || onAngelGoldenThisKey || purifiedCountThisKey > 0 || capitalizedCountThisKey > 0) {
+            if (isGuardianInSync || peerStatus.inSync) {
+              unsentSyncedLetters += 1;
+              if (completedWordBoundary) {
+                unsentSyncedWords += 1;
+              }
+            }
+            if ((completedWordBoundary && unsentSyncedWords >= 1) || unsentSyncedLetters >= 15 || unsentGoldenTrailLetters >= 15 || unsentPurifiedLetters >= 10 || unsentCapitalizedLetters >= 5) {
+              if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: "guardian_sync_tick",
+                  guardian_synced_letters: unsentSyncedLetters,
+                  guardian_synced_words: unsentSyncedWords,
+                  guardian_in_sync: isGuardianInSync,
+                  peer_angel_in_sync: peerStatus.inSync,
+                  peer_angel_uid: peerStatus.peerUID,
+                  purified_letters: unsentPurifiedLetters,
+                  golden_trail_letters: unsentGoldenTrailLetters,
+                  capitalized_letters: unsentCapitalizedLetters,
+                  michael_trail_active: onGloriousTrailThisKey
+                }));
+              }
+              unsentSyncedLetters = 0;
+              unsentSyncedWords = 0;
+              unsentPurifiedLetters = 0;
+              unsentGoldenTrailLetters = 0;
+              unsentCapitalizedLetters = 0;
+            }
+          }
+
+          // Wild Demon Combat Strike, Capitalized Letter Bonus Stacks & Smite, Taint Purification & Checkpoints
           if (activeWildDemon) {
             const cpInfo = calculatePunctuationCheckpoint(currentTargetText, currentTyped.length);
             demonPunctuationCount = Math.max(demonPunctuationCount, cpInfo.punctCount);
@@ -3875,18 +4485,39 @@
             }
 
             const inResonance = checkHolyResonance();
+            const completedIdx = currentTyped.length - 1;
 
-            if (inResonance) {
-              // Gain a stack for every word typed in sync
-              const completedIdx = currentTyped.length - 1;
+            // Bonus Sync Stacks for typing a Capitalized Letter!
+            if (capitalizedCountThisKey > 0 && completedIdx >= 0 && !syncedCapitalIndices.has(completedIdx)) {
+              syncedCapitalIndices.add(completedIdx);
+              const prevTierCap = getSyncDamageTier(currentSyncStacks);
+              const capStackGain = capitalizedCountThisKey + (onGloriousTrailThisKey ? 1 : 0);
+              currentSyncStacks += capStackGain;
+              if (DEMON_SYNC_BALANCE.maxStacks > 0 && currentSyncStacks > DEMON_SYNC_BALANCE.maxStacks) {
+                currentSyncStacks = DEMON_SYNC_BALANCE.maxStacks;
+              }
+              const newTierCap = getSyncDamageTier(currentSyncStacks);
+              updateSyncStacksBadge();
+              checkHolyResonance();
+              if (newTierCap > prevTierCap) {
+                const gPower = currentCustomizations.guardian_power || 10;
+                const baseDmg = Math.max(1, Math.round(gPower / 10));
+                const boostedDmg = calculateSyncStackDamage(baseDmg, currentSyncStacks);
+                showTempHint(`🔠🔥 <strong>Capital Letter Bonus (+${capStackGain} Stack${capStackGain === 1 ? '' : 's'})!</strong> Reached <strong>${currentSyncStacks} Sync Stacks</strong> (${boostedDmg} DMG/strike)!`);
+              }
+            }
+
+            // Strike demon if in Holy Resonance, purifying a red demon-tainted letter, OR typing a Capitalized Letter!
+            if (inResonance || purifiedCountThisKey > 0 || capitalizedCountThisKey > 0) {
               const isWordEnd = completedIdx >= 0 &&
                 currentTargetText[completedIdx] !== " " &&
                 (completedIdx + 1 === currentTargetText.length || currentTargetText[completedIdx + 1] === " ");
 
-              if (isWordEnd && !syncedWordEndIndices.has(completedIdx)) {
+              if (inResonance && isWordEnd && !syncedWordEndIndices.has(completedIdx)) {
                 syncedWordEndIndices.add(completedIdx);
                 const prevTier = getSyncDamageTier(currentSyncStacks);
-                currentSyncStacks += (DEMON_SYNC_BALANCE.stacksPerWord || 1);
+                const stackGain = (DEMON_SYNC_BALANCE.stacksPerWord || 1) + (peerStatus.inSync ? 1 : 0) + (onGloriousTrailThisKey ? 1 : 0);
+                currentSyncStacks += stackGain;
                 if (DEMON_SYNC_BALANCE.maxStacks > 0 && currentSyncStacks > DEMON_SYNC_BALANCE.maxStacks) {
                   currentSyncStacks = DEMON_SYNC_BALANCE.maxStacks;
                 }
@@ -3903,7 +4534,28 @@
 
               const gPower = currentCustomizations.guardian_power || 10;
               const baseDamage = Math.max(1, Math.round(gPower / 10));
-              const totalDamage = calculateSyncStackDamage(baseDamage, currentSyncStacks);
+              let totalDamage = calculateSyncStackDamage(baseDamage, currentSyncStacks);
+              if (capitalizedCountThisKey > 0) {
+                totalDamage += capitalizedCountThisKey * 3;
+                totalDamage = Math.max(totalDamage + 2, Math.round(totalDamage * 1.5));
+              }
+              if (isGuardianInSync) {
+                totalDamage = Math.max(totalDamage + 1, Math.round(totalDamage * 1.15));
+              }
+              if (peerStatus.inSync) {
+                totalDamage = Math.max(totalDamage + 1, Math.round(totalDamage * 1.35));
+              }
+              if (purifiedCountThisKey > 0) {
+                totalDamage += purifiedCountThisKey * 2;
+              }
+              if (onGloriousTrailThisKey) {
+                totalDamage *= 2;
+              } else if (onAngelGoldenThisKey) {
+                totalDamage = Math.max(totalDamage + 1, Math.round(totalDamage * 1.2));
+              }
+              if (activeWildDemon.debuff_stacks > 0) {
+                totalDamage = Math.round(totalDamage * (1 + 0.25 * activeWildDemon.debuff_stacks));
+              }
               activeWildDemon.current_hp = Math.max(0, activeWildDemon.current_hp - totalDamage);
               updateWildDemonHPUI(activeWildDemon);
 
@@ -3912,9 +4564,27 @@
                   type: "wild_demon_strike",
                   demon_id: activeWildDemon.id,
                   damage: baseDamage,
-                  sync_stacks: currentSyncStacks
+                  sync_stacks: currentSyncStacks,
+                  guardian_in_sync: isGuardianInSync,
+                  peer_angel_in_sync: peerStatus.inSync,
+                  peer_angel_uid: peerStatus.peerUID,
+                  purified_letters: purifiedCountThisKey,
+                  golden_trail_letters: onAngelGoldenThisKey ? 1 : 0,
+                  capitalized_letters: capitalizedCountThisKey,
+                  michael_trail_active: onGloriousTrailThisKey
                 }));
               }
+            }
+
+            // Trigger Sanctified Rebuke when Righteousness reaches 100%!
+            if (currentRighteousness >= 100 && ws && ws.readyState === WebSocket.OPEN) {
+              currentRighteousness = Math.max(0, currentRighteousness - 100);
+              updateRighteousnessUI();
+              ws.send(JSON.stringify({
+                type: "wild_demon_rebuke",
+                demon_id: activeWildDemon.id,
+                michael_trail_active: onGloriousTrailThisKey
+              }));
             }
           }
 
@@ -3938,6 +4608,11 @@
               for (const idx of Array.from(syncedWordEndIndices)) {
                 if (idx >= safeIdx) {
                   syncedWordEndIndices.delete(idx);
+                }
+              }
+              for (const idx of Array.from(syncedCapitalIndices)) {
+                if (idx >= safeIdx) {
+                  syncedCapitalIndices.delete(idx);
                 }
               }
               const stackLoss = DEMON_SYNC_BALANCE.stacksLostOnBacklash !== undefined ? DEMON_SYNC_BALANCE.stacksLostOnBacklash : 2;
@@ -4075,6 +4750,7 @@
           return;
         }
 
+        const peerStatus = getPeerAngelSyncStatus();
         ws.send(JSON.stringify({
           type: "content",
           content: currentTyped,
@@ -4083,8 +4759,22 @@
           sync_stacks: currentSyncStacks,
           demon_id: activeWildDemon ? activeWildDemon.id : undefined,
           burst_damage: getAdjustedBaseBurstDamage(),
-          voice_mode: isVoiceMode
+          voice_mode: isVoiceMode,
+          guardian_synced_letters: unsentSyncedLetters,
+          guardian_synced_words: unsentSyncedWords,
+          guardian_in_sync: isGuardianInSync,
+          peer_angel_in_sync: peerStatus.inSync,
+          peer_angel_uid: peerStatus.peerUID,
+          purified_letters: unsentPurifiedLetters,
+          golden_trail_letters: unsentGoldenTrailLetters,
+          capitalized_letters: unsentCapitalizedLetters,
+          michael_trail_active: isMichaelGloriousTrailOnVerse || michaelGloriousTrailIndices.size > 0
         }));
+        unsentSyncedLetters = 0;
+        unsentSyncedWords = 0;
+        unsentPurifiedLetters = 0;
+        unsentGoldenTrailLetters = 0;
+        unsentCapitalizedLetters = 0;
       }
 
       btnSubmitPassage.onclick = handleEnterKey;
@@ -4092,8 +4782,10 @@
         currentTyped = "";
         hiddenInput.value = "";
         syncedWordEndIndices.clear();
+        syncedCapitalIndices.clear();
         demonCheckpointIndex = 0;
         demonPunctuationCount = 0;
+        if (verseReader) verseReader._renderedTarget = "";
         updateCheckpointBadge();
         resetVerseTypingTimer();
         resetVoiceVerseState();
@@ -4834,12 +5526,68 @@
             demonCheckpointIndex = 0;
             demonPunctuationCount = 0;
             syncedWordEndIndices.clear();
+            syncedCapitalIndices.clear();
+            guardianCharIndex = 0;
+            unsentSyncedLetters = 0;
+            unsentSyncedWords = 0;
+            unsentPurifiedLetters = 0;
+            unsentGoldenTrailLetters = 0;
+            unsentCapitalizedLetters = 0;
+            angelGoldenTrailIndices.clear();
+            michaelGloriousTrailIndices.clear();
+            demonTaintedIndices.clear();
+            if (verseReader) verseReader._renderedTarget = "";
+            isMichaelGloriousTrailOnVerse = !!msg.michael_trail_active;
+            peerGuardiansOnVerse.clear();
+            if (msg.angel) {
+              activeAngelCompanion = msg.angel;
+              if (angelPaceHUD) angelPaceHUD.style.display = "flex";
+              if (angelHUDName) angelHUDName.textContent = `${msg.angel.icon || '🕊️'} ${msg.angel.name} (${msg.angel.wpm} WPM)`;
+            }
+            if (Array.isArray(msg.roaming_guardians)) {
+              msg.roaming_guardians.forEach((rg) => {
+                if (rg && rg.owner_uid && rg.owner_uid !== uid) {
+                  peerGuardiansOnVerse.set(rg.owner_uid, {
+                    uid: "angel-guardian-" + rg.owner_uid,
+                    owner_uid: rg.owner_uid,
+                    owner_name: rg.owner_name,
+                    display_name: rg.name,
+                    wpm: rg.wpm,
+                    char_index: rg.char_index || 0,
+                    player_online: rg.player_online
+                  });
+                }
+              });
+            }
+            const targetMaxIdx = currentTargetText ? currentTargetText.length - 1 : -1;
+            if (isMichaelGloriousTrailOnVerse && targetMaxIdx >= 0) {
+              const mLim = msg.michael_trail_up_to > 0 ? Math.min(targetMaxIdx, msg.michael_trail_up_to) : targetMaxIdx;
+              for (let k = 0; k <= mLim; k++) michaelGloriousTrailIndices.add(k);
+            } else if (msg.michael_trail_up_to > 0 && targetMaxIdx >= 0) {
+              const mLim = Math.min(targetMaxIdx, msg.michael_trail_up_to);
+              for (let k = 0; k <= mLim; k++) michaelGloriousTrailIndices.add(k);
+            }
+            if (msg.angel_trail_up_to > 0 && targetMaxIdx >= 0) {
+              const aLim = Math.min(targetMaxIdx, msg.angel_trail_up_to);
+              for (let k = 0; k <= aLim; k++) angelGoldenTrailIndices.add(k);
+            }
+            if (msg.demon_tainted_up_to > 0 && targetMaxIdx >= 0) {
+              const dLim = Math.min(targetMaxIdx, msg.demon_tainted_up_to);
+              for (let k = 0; k <= dLim; k++) {
+                if (!michaelGloriousTrailIndices.has(k)) demonTaintedIndices.add(k);
+              }
+            }
+            updateMichaelTrailUI();
+            updateGuardianAndPeerSyncHUD();
             renderTypingStage();
             if (msg.wild_demon) {
               setWildDemon(msg.wild_demon, msg.holy_wards);
             } else {
               clearWildDemon();
             }
+            updateRighteousnessUI();
+            updateDemonDebuffBadge();
+            updateLiveWorldRibbon();
             focusTyping();
           }
 
@@ -5086,30 +5834,129 @@
             showToast("Customization Unlocked!", `${msg.new_unlock.name}: ${msg.new_unlock.requirement}`, "🎨");
           }
 
-          // Heavenly Angel Typist Bots
+          // Heavenly Angel Typist Bots & Guardian Sync
           if (msg.type === "angels_list" || msg.type === "angel_templates") {
             if (msg.angels) angelsList = msg.angels;
             if (msg.angel) {
               globalAngelStatus = msg.angel;
               updateGlobalAngelUI();
             }
+            if (Array.isArray(msg.roaming_guardians)) {
+              roamingGuardians = msg.roaming_guardians;
+            }
+            if (msg.sanctuary) {
+              applyCustomizations(msg.sanctuary);
+              currentCustomizations = msg.sanctuary;
+            }
+            if (msg.summon_tokens !== undefined && currentCustomizations) {
+              currentCustomizations.summon_tokens = msg.summon_tokens;
+            }
             renderAngels();
+            updateLiveWorldRibbon();
+          }
+
+          if (msg.type === "guardian_offline_report" && msg.offline_report) {
+            const rep = msg.offline_report;
+            const vInscribed = rep.verses_inscribed || rep.verses_typed || 0;
+            const summary = msg.content || `While you were away, ${rep.guardian_name || "your Guardian Angel"} inscribed ${vInscribed} passages${rep.demons_weakened ? `, weakened ${rep.demons_weakened} wild demon(s)` : ""}${rep.blessings_received ? `, and received ${rep.blessings_received} fellowship blessing(s)` : ""}!`;
+            showToast("🕊️ Autonomous Guardian Report", summary, "📜");
+            appendMessage(`🕊️ ${summary}`, "badge-notice");
           }
 
           if (msg.type === "angel_summoned" && msg.angel) {
             activeAngelCompanion = msg.angel;
+            if (msg.sanctuary) {
+              applyCustomizations(msg.sanctuary);
+              currentCustomizations = msg.sanctuary;
+            }
+            if (msg.summon_tokens !== undefined && currentCustomizations) {
+              currentCustomizations.summon_tokens = msg.summon_tokens;
+            }
+            if (msg.angel.rank === "michael") {
+              isMichaelGloriousTrailOnVerse = true;
+              updateMichaelTrailUI();
+            }
             if (angelPaceHUD) angelPaceHUD.style.display = "flex";
             if (angelHUDName) angelHUDName.textContent = `${msg.angel.icon || '👼'} ${msg.angel.name} (${msg.angel.wpm} WPM)`;
             if (angelProgressBar) angelProgressBar.style.width = "0%";
+            updateGuardianAndPeerSyncHUD();
             renderAngels();
+            updateLiveWorldRibbon();
             showToast("Angel Companion", `${msg.angel.name} joined your verse!`, msg.angel.icon || "👼");
           }
 
-          if (msg.type === "angel_dismissed") {
-            activeAngelCompanion = null;
-            if (angelPaceHUD) angelPaceHUD.style.display = "none";
+          if (msg.type === "angel_summon_denied") {
+            if (msg.sanctuary) {
+              applyCustomizations(msg.sanctuary);
+              currentCustomizations = msg.sanctuary;
+            }
             renderAngels();
-            showToast("Angel Dismissed", "Companion returned to the heavens", "🕊️");
+            showToast("Summon Token Required", msg.content || "Complete a Book Review to earn a Summon Token for Big Mike!", "🪙");
+          }
+
+          if (msg.type === "guardian_sync_update") {
+            if (msg.sanctuary) {
+              applyCustomizations(msg.sanctuary);
+              currentCustomizations = msg.sanctuary;
+            }
+            if (msg.angel) {
+              activeAngelCompanion = msg.angel;
+            }
+            updateGuardianAndPeerSyncHUD();
+            renderAngels();
+            if (msg.guardian_leveled_up && msg.sanctuary) {
+              fireCelebrationFX("gold");
+              showToast("⭐ Guardian Angel Leveled Up!", `${currentCustomizations.guardian_name || "Your Guardian Angel"} reached Level ${msg.sanctuary.guardian_level}! (+Power & Holy Wards)`, "🕊️");
+              appendMessage(`⭐ Guardian Angel reached Level ${msg.sanctuary.guardian_level}!`, "badge-notice");
+            } else if (msg.content) {
+              showToast("Fellowship Harmony", msg.content, "🕊️");
+            }
+          }
+
+          if (msg.type === "angel_interaction_buff") {
+            if (msg.sanctuary) {
+              applyCustomizations(msg.sanctuary);
+              currentCustomizations = msg.sanctuary;
+            }
+            if (msg.angel_buff) {
+              activePeerAngelBuff = msg.angel_buff;
+            }
+            if (msg.holy_wards) {
+              currentHolyWards += msg.holy_wards;
+              updateHolyWardsBadge();
+            }
+            updateGuardianAndPeerSyncHUD();
+            renderAngels();
+            showToast("🙌 Angelic Harmony Blessing!", msg.content || "Received +1 Angelic Aegis Ward & Fellowship Sync Buff!", "✨");
+            appendMessage(msg.content || "🙌 Harmonized with a Fellowship Guardian Angel!", "badge-notice");
+          }
+
+          if (msg.type === "summon_token_earned") {
+            if (msg.sanctuary) {
+              applyCustomizations(msg.sanctuary);
+              currentCustomizations = msg.sanctuary;
+            }
+            if (msg.summon_tokens !== undefined && currentCustomizations) {
+              currentCustomizations.summon_tokens = msg.summon_tokens;
+            }
+            renderAngels();
+            showToast("🪙 Summon Token Earned!", msg.content || "Earned +1 Archangel Summon Token!", "🪙");
+            appendMessage(msg.content || "🪙 Earned +1 Archangel Summon Token!", "badge-notice");
+          }
+
+          if (msg.type === "angel_dismissed") {
+            if (msg.angel) {
+              activeAngelCompanion = msg.angel;
+              if (angelPaceHUD) angelPaceHUD.style.display = "flex";
+              if (angelHUDName) angelHUDName.textContent = `${msg.angel.icon || '🕊️'} ${msg.angel.name} (${msg.angel.wpm} WPM)`;
+              renderAngels();
+              showToast("Returned to Guardian", `${msg.angel.name} is active alongside you.`, "🕊️");
+            } else {
+              activeAngelCompanion = null;
+              if (angelPaceHUD) angelPaceHUD.style.display = "none";
+              renderAngels();
+              showToast("Angel Dismissed", "Companion returned to the heavens", "🕊️");
+            }
           }
 
           if (msg.type === "angel_complete") {
@@ -5182,13 +6029,32 @@
           if (msg.type === "wild_demon_present" && msg.wild_demon) {
             const wasAlreadyFighting = activeWildDemon && activeWildDemon.id === msg.wild_demon.id;
             setWildDemon(msg.wild_demon, msg.holy_wards);
+            if (msg.demon_tainted_up_to !== undefined && msg.demon_tainted_up_to >= 0) {
+              markDemonTaintedRange(msg.demon_tainted_up_to);
+            }
+            updateLiveWorldRibbon();
             if (!wasAlreadyFighting) {
               if (msg.is_ambush) {
                 showToast("⚠️ Demonic Ambush!", `${msg.wild_demon.name} (Lv. ${msg.wild_demon.level || 1}) ambushed you! (Encounter chance: ${msg.encounter_chance || 0}% due to progress in ${selectedBook})`, "😈");
               } else {
-                showToast("Wild Adversary Encounter!", `${msg.wild_demon.name} (Lv. ${msg.wild_demon.level || 1}) lurks on this verse! Match its slow pace to defeat it!`, "😈");
+                showToast("Wild Adversary Encounter!", `${msg.wild_demon.name} (Lv. ${msg.wild_demon.level || 1}) lurks on this verse! Match its slow pace or purify its red tainted letters to defeat it!`, "😈");
               }
             }
+          }
+
+          if (msg.type === "wild_demon_rebuked" && msg.wild_demon) {
+            if (activeWildDemon && activeWildDemon.id === msg.wild_demon.id) {
+              activeWildDemon.current_hp = msg.wild_demon.current_hp;
+              activeWildDemon.max_hp = msg.wild_demon.max_hp;
+              activeWildDemon.wpm = msg.wild_demon.wpm;
+              activeWildDemon.debuffed = msg.wild_demon.debuffed;
+              activeWildDemon.debuff_stacks = msg.wild_demon.debuff_stacks;
+              updateWildDemonHPUI(activeWildDemon);
+              updateDemonDebuffBadge();
+            }
+            fireCelebrationFX("gold");
+            showToast("⚡ Sanctified Rebuke!", msg.content || `Your Righteousness debuffed ${msg.wild_demon.name}! (-20% WPM & +25% Vulnerability)`, "✨");
+            appendMessage(`⚡ ${msg.content || `Sanctified Rebuke debuffed ${msg.wild_demon.name}!`}`, "badge-notice");
           }
 
           if (msg.type === "wild_demon_burst" && msg.wild_demon) {
@@ -5209,7 +6075,10 @@
               activeWildDemon.current_hp = msg.wild_demon.current_hp;
               activeWildDemon.max_hp = msg.wild_demon.max_hp;
               activeWildDemon.wpm = msg.wild_demon.wpm;
+              activeWildDemon.debuffed = msg.wild_demon.debuffed;
+              activeWildDemon.debuff_stacks = msg.wild_demon.debuff_stacks;
               updateWildDemonHPUI(activeWildDemon);
+              updateDemonDebuffBadge();
             }
           }
 
@@ -5219,6 +6088,7 @@
 
           if (msg.type === "wild_demon_defeated") {
             onWildDemonDefeated(msg.wild_demon, msg.sanctuary, msg.content);
+            updateLiveWorldRibbon();
           }
 
           if (msg.type === "balance_config_update" && msg.balance_config) {
@@ -5260,6 +6130,7 @@
             if (msg.sanctification !== undefined) globalSanctification = msg.sanctification;
             updateTrackerButtonBadge();
             renderDemonTracker(wildDemonsCache, trackerUnlocked, demonsDefeatedCount);
+            updateLiveWorldRibbon();
           }
 
           if (msg.type === "wild_demons_list_update") {
@@ -5269,6 +6140,7 @@
             if (msg.sanctification !== undefined) globalSanctification = msg.sanctification;
             updateTrackerButtonBadge();
             renderDemonTracker(wildDemonsCache, trackerUnlocked, demonsDefeatedCount);
+            updateLiveWorldRibbon();
           }
 
           if (msg.type === "swarm_event") {
@@ -5279,6 +6151,7 @@
             appendMessage(msg.swarm_event, "badge-notice");
             updateTrackerButtonBadge();
             renderDemonTracker(wildDemonsCache, trackerUnlocked, demonsDefeatedCount);
+            updateLiveWorldRibbon();
           }
 
           if (msg.type === "wild_demon_escaped" && msg.wild_demon) {
@@ -5295,6 +6168,7 @@
               showToast("Adversary Prowled Onward!", msg.content || `${msg.wild_demon.name} completed this verse and moved to the next passage! Finish this verse to pursue!`, "🏃😈");
               appendMessage(`⚠️ ${msg.content}`, "error-notice");
             }
+            updateLiveWorldRibbon();
           }
 
           if (msg.type === "michael_slay" && msg.wild_demon) {
@@ -5302,8 +6176,14 @@
               clearWildDemon();
               fireCelebrationFX("gold");
             }
-            showToast("Big Mike Smote Adversary!", msg.content || `Big Mike slew ${msg.wild_demon.name}!`, "⚔️");
+            isMichaelGloriousTrailOnVerse = true;
+            updateMichaelTrailUI();
+            if (currentTargetText) {
+              markAngelTrailRange(currentTargetText.length - 1, true);
+            }
+            showToast("Big Mike Smote Adversary!", msg.content || `Big Mike slew ${msg.wild_demon.name} and left his Glorious Golden Trail!`, "⚔️");
             appendMessage(`⚔️ ${msg.content}`, "badge-notice");
+            updateLiveWorldRibbon();
           }
 
           // Celestial & Demonic Boss Raid
@@ -5411,9 +6291,10 @@
       function clearDemonEffects() {
         demonShroudedIndices.clear();
         demonCorruptedIndices.clear();
+        demonTaintedIndices.clear();
         if (verseReader) {
-          verseReader.querySelectorAll(".demon-shrouded, .demon-corrupted").forEach((el) => {
-            el.classList.remove("demon-shrouded", "demon-corrupted");
+          verseReader.querySelectorAll(".demon-shrouded, .demon-corrupted, .demon-tainted").forEach((el) => {
+            el.classList.remove("demon-shrouded", "demon-corrupted", "demon-tainted");
           });
         }
       }
@@ -5437,7 +6318,13 @@
 
         if (ghost.is_demon) {
           gEl.classList.add("is-demon");
-          gEl.classList.remove("is-angel");
+          gEl.classList.remove("is-angel", "is-glorious-michael");
+
+          // Wild demons & demon adversaries taint the letters they pass, turning them red!
+          const taintIdx = ghost.trail_up_to !== undefined ? ghost.trail_up_to : ghost.char_index;
+          if (taintIdx !== undefined && taintIdx >= 0) {
+            markDemonTaintedRange(taintIdx);
+          }
 
           if (activeWildDemon && activeWildDemon.id === ghost.uid) {
             activeWildDemon.char_index = ghost.char_index;
@@ -5493,24 +6380,61 @@
         } else if (ghost.is_angel) {
           gEl.classList.add("is-angel");
           gEl.classList.remove("is-demon");
-          if (angelPaceHUD) angelPaceHUD.style.display = "flex";
-          if (angelHUDName) angelHUDName.textContent = `${ghost.display_name} (${ghost.wpm} WPM)`;
-          const tgtLen = currentTargetText ? currentTargetText.length : 1;
-          const pct = Math.min(100, Math.round((ghost.char_index / tgtLen) * 100));
-          if (angelProgressBar) angelProgressBar.style.width = `${pct}%`;
-          if (angelHUDComparison) {
-            const userChars = currentTyped ? currentTyped.length : 0;
-            const diff = userChars - ghost.char_index;
-            if (diff > 0) {
-              angelHUDComparison.innerHTML = `<span style="color:var(--success); font-weight:700;">▲ You're +${diff} char${diff === 1 ? '' : 's'} ahead</span>`;
-            } else if (diff < 0) {
-              angelHUDComparison.innerHTML = `<span style="color:#f59e0b; font-weight:700;">▼ Angel is +${Math.abs(diff)} ahead</span>`;
-            } else {
-              angelHUDComparison.innerHTML = `<span style="color:var(--accent); font-weight:700;">◈ Tied pace!</span>`;
+          const isGloriousMichael = !!(ghost.is_glorious_trail || ghost.angel_rank === "michael" || ghost.uid === "angel-global-michael");
+          gEl.classList.toggle("is-glorious-michael", isGloriousMichael);
+
+          // Angels leave a Golden Trail; Big Mike leaves a Glorious Golden Glowing Trail!
+          const trailIdx = ghost.trail_up_to !== undefined ? ghost.trail_up_to : ghost.char_index;
+          if (trailIdx !== undefined && trailIdx >= 0) {
+            markAngelTrailRange(trailIdx, isGloriousMichael);
+          }
+
+          const isOwnGuardian = (ghost.owner_uid && ghost.owner_uid === uid) || ghost.uid === ("angel-guardian-" + uid) || ghost.uid === "angel-companion";
+          const isPeerGuardian = ghost.owner_uid && ghost.owner_uid !== uid;
+
+          if (isPeerGuardian) {
+            peerGuardiansOnVerse.set(ghost.owner_uid, ghost);
+            const tagEl = gEl.querySelector(".ghost-tag");
+            if (tagEl) {
+              const statusDot = ghost.player_online ? "🟢" : "👻";
+              tagEl.innerHTML = `${statusDot} ${escapeHtml(ghost.display_name)} (${ghost.wpm}wpm) · 🙌 Bless`;
+              tagEl.style.cursor = "pointer";
+              tagEl.title = "Click to harmonize & bless this player's Guardian Angel for +1 Holy Ward & Sync Buff!";
+              tagEl.onclick = (ev) => {
+                ev.stopPropagation();
+                interactWithPeerAngel(ghost.owner_uid);
+              };
+            }
+          } else if (isGloriousMichael) {
+            const tagEl = gEl.querySelector(".ghost-tag");
+            if (tagEl) {
+              tagEl.innerHTML = `👑⚔️ ${escapeHtml(ghost.display_name)} (${ghost.wpm}wpm) · ✨ Glorious Trail`;
             }
           }
+
+          if (isOwnGuardian || (!isPeerGuardian && !isGloriousMichael)) {
+            guardianCharIndex = ghost.char_index || 0;
+            if (angelPaceHUD) angelPaceHUD.style.display = "flex";
+            if (angelHUDName) angelHUDName.textContent = `${ghost.display_name} (${ghost.wpm} WPM)`;
+            const tgtLen = currentTargetText ? currentTargetText.length : 1;
+            const pct = Math.min(100, Math.round((ghost.char_index / tgtLen) * 100));
+            if (angelProgressBar) angelProgressBar.style.width = `${pct}%`;
+            if (angelHUDComparison) {
+              const userChars = currentTyped ? currentTyped.length : 0;
+              const diff = userChars - ghost.char_index;
+              if (diff > 0) {
+                angelHUDComparison.innerHTML = `<span style="color:var(--success); font-weight:700;">▲ You're +${diff} char${diff === 1 ? '' : 's'} ahead</span>`;
+              } else if (diff < 0) {
+                angelHUDComparison.innerHTML = `<span style="color:#f59e0b; font-weight:700;">▼ Angel is +${Math.abs(diff)} ahead</span>`;
+              } else {
+                angelHUDComparison.innerHTML = `<span style="color:var(--accent); font-weight:700;">◈ Tied pace!</span>`;
+              }
+            }
+          }
+          updateGuardianAndPeerSyncHUD();
+          updateLiveWorldRibbon();
         } else {
-          gEl.classList.remove("is-angel", "is-demon");
+          gEl.classList.remove("is-angel", "is-demon", "is-glorious-michael");
         }
 
         if (charEl) {
@@ -6226,16 +7150,78 @@
       }
 
       // ---- Heavenly Angel Typist Bots (Section 13) ----
+      function renderRoamingGuardians() {
+        const cont = document.getElementById("roamingGuardiansContainer");
+        if (!cont) return;
+        const list = Array.isArray(roamingGuardians) ? roamingGuardians : [];
+        if (list.length === 0) {
+          cont.innerHTML = `<p style="margin:0; font-size:0.78rem; color:var(--muted);">Your Guardian Angel is active alongside you. As more players join, their Guardian Ghosts will appear here!</p>`;
+          return;
+        }
+        cont.innerHTML = "";
+        list.forEach((rg) => {
+          const isSelf = rg.owner_uid === uid;
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; padding:0.45rem 0.65rem; background:rgba(0,0,0,0.3); border:1px solid rgba(168,85,247,0.28); border-radius:8px; font-size:0.78rem;";
+          const statusBadge = rg.player_online
+            ? `<span style="font-size:0.66rem; background:rgba(16,185,129,0.2); color:#6ee7b7; padding:1px 6px; border-radius:999px; font-weight:800;">🟢 Active Sync</span>`
+            : `<span style="font-size:0.66rem; background:rgba(168,85,247,0.22); color:#e9d5ff; padding:1px 6px; border-radius:999px; font-weight:800;">👻 Autonomous Ghost</span>`;
+          const locText = rg.book_name ? `${escapeHtml(rg.book_name)} ${rg.chapter || 1}:${rg.verse || 1}` : "Genesis 1:1";
+          row.innerHTML = `
+            <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+              <span style="font-size:1.05rem;">🕊️</span>
+              <span style="font-weight:800; color:${escapeHtml(rg.owner_color || '#c084fc')};">${escapeHtml(rg.name || ((rg.owner_name || 'Scribe') + "'s Guardian"))}</span>
+              ${isSelf ? '<span style="font-size:0.66rem; color:#f59e0b; font-weight:800;">(YOU)</span>' : ''}
+              <span style="font-size:0.7rem; color:var(--muted);">Lv. ${rg.level || 1} · ${rg.wpm || 40} WPM</span>
+              ${statusBadge}
+              <span style="font-size:0.74rem; font-weight:700; color:#7dd3fc;">📍 ${locText}</span>
+            </div>
+            <div style="display:flex; gap:0.35rem; align-items:center;">
+              ${!isSelf ? `<button type="button" class="presence-btn btn-bless-rg" style="font-size:0.7rem; padding:2px 7px; border-color:#38bdf8; color:#7dd3fc; cursor:pointer;">🙌 Bless (+Ward)</button>` : ''}
+              <button type="button" class="presence-btn btn-jump-rg" style="font-size:0.7rem; padding:2px 8px; border-color:#a855f7; color:#d8b4fe; cursor:pointer;">${isSelf ? '📍 On Verse' : '⚡ Join & Sync'}</button>
+            </div>
+          `;
+          const btnBless = row.querySelector(".btn-bless-rg");
+          if (btnBless) {
+            btnBless.onclick = () => {
+              interactWithPeerAngel(rg.owner_uid);
+            };
+          }
+          const btnJump = row.querySelector(".btn-jump-rg");
+          if (btnJump) {
+            btnJump.onclick = () => {
+              if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: "jump_to_guardian",
+                  peer_angel_uid: rg.owner_uid,
+                  book: rg.book_name,
+                  verse: { chapter: rg.chapter || 1, verse: rg.verse || 1 }
+                }));
+              }
+              closeModal(angelModal);
+            };
+          }
+          cont.appendChild(row);
+        });
+      }
+
       function renderAngels() {
         if (!angelCardsContainer) return;
         angelCardsContainer.innerHTML = "";
 
+        const summonTokens = (currentCustomizations && currentCustomizations.summon_tokens) || 0;
+        const tokenHeaderEl = document.getElementById("summonTokensHeaderBadge");
+        if (tokenHeaderEl) {
+          tokenHeaderEl.textContent = `🪙 ${summonTokens} Summon Token${summonTokens === 1 ? '' : 's'}`;
+        }
+        renderRoamingGuardians();
+
         const list = angelsList.length > 0 ? angelsList : [
-          { rank: "guardian", name: currentCustomizations.guardian_name || "Guardian Angel", title: "Personal Lifelong Companion", wpm: 40, color: "#a855f7", icon: "🕊️", description: "Your lifelong guardian angel. Dynamically adapts within ±10% of your personal speed.", is_guardian: true, pace_offset: currentCustomizations.guardian_pace || 0 },
+          { rank: "guardian", name: currentCustomizations.guardian_name || "Guardian Angel", title: "Personal Lifelong Companion & Persistent Ghost", wpm: 40, color: "#a855f7", icon: "🕊️", description: "Works through the same verse as you while you are active, and continues mashing out verses linearly as your ghost when you stop or leave (without granting book progress).", is_guardian: true, pace_offset: currentCustomizations.guardian_pace || 0 },
           { rank: "cherub", name: "Guardian Cherub", title: "Gentle Guardian", wpm: 20, color: "#60a5fa", icon: "🕊️", description: "Steady, comforting pace for beginners and contemplation." },
           { rank: "seraph", name: "Seraph Herald", title: "Faithful Messenger", wpm: 60, color: "#fbbf24", icon: "📯", description: "Faithful messenger typing with disciplined devotion." },
           { rank: "gabriel", name: "Archangel Gabriel", title: "Divine Announcer", wpm: 100, color: "#22d3ee", icon: "🎺", description: "Swift, unerring herald of sacred revelations." },
-          { rank: "michael", name: "Big Mike", title: "Leader of the Heavenly Hosts", wpm: 160, color: "#f97316", icon: "⚔️", description: "Armed with the sword of holy truth! Inscribes sacred verses BLAZINGLY FAST!" },
+          { rank: "michael", name: "Big Mike", title: "Leader of the Heavenly Hosts", wpm: 160, color: "#f97316", icon: "⚔️", description: "Grinds linearly across Scripture until summoned! Summoning requires a Book Summon Token.", summon_cost: 1, currency_type: "book_tokens" },
         ];
 
         list.forEach((ang) => {
@@ -6252,22 +7238,26 @@
             const gWards = currentCustomizations.guardian_wards !== undefined ? currentCustomizations.guardian_wards : Math.floor((gLevel - 1) / 3);
             const gPower = currentCustomizations.guardian_power || (10 + (gLevel - 1) * 2);
             const defDemons = currentCustomizations.demons_defeated || 0;
+            const sLetters = currentCustomizations.synced_letters || 0;
+            const sWords = currentCustomizations.synced_words || 0;
+            const sVerses = currentCustomizations.synced_verses || 0;
+            const sBooks = currentCustomizations.synced_books || 0;
             const xpPercent = Math.min(100, Math.round((gXP / reqXP) * 100));
 
             card.innerHTML = `
               <div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <span style="font-size:1.8rem; filter: drop-shadow(0 0 10px rgba(168,85,247,0.5));">${ang.icon}</span>
-                  <div style="display:flex; gap:0.4rem; align-items:center;">
-                    <span style="font-size:0.7rem; font-weight:800; background:rgba(168,85,247,0.25); border:1px solid rgba(168,85,247,0.4); padding:0.15rem 0.5rem; border-radius:999px; color:#d8b4fe;">LIFELONG COMPANION</span>
+                  <div style="display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap;">
+                    <span style="font-size:0.68rem; font-weight:800; background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.4); padding:0.15rem 0.5rem; border-radius:999px; color:#6ee7b7;">👻 PERSISTENT GHOST</span>
                     <span style="font-size:0.75rem; font-weight:800; background:rgba(255,255,255,0.08); padding:0.2rem 0.5rem; border-radius:999px; color:${ang.color};">${ang.wpm} WPM</span>
                   </div>
                 </div>
                 <h4 style="margin:0.4rem 0 0.15rem; font-size:1.1rem; color:var(--text);">${escapeHtml(ang.name)}</h4>
                 <span style="font-size:0.78rem; color:${ang.color}; font-weight:700;">${ang.title}</span>
-                <p style="margin:0.4rem 0; font-size:0.8rem; color:var(--muted); line-height:1.4;">${ang.description}</p>
+                <p style="margin:0.4rem 0; font-size:0.78rem; color:var(--muted); line-height:1.4;">${ang.description}</p>
 
-                <!-- Guardian RPG Stats & Leveling -->
+                <!-- Guardian RPG Stats & Sync Leveling -->
                 <div style="margin: 0.6rem 0; padding: 0.6rem; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(168,85,247,0.35);">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.3rem;">
                     <div>
@@ -6277,10 +7267,29 @@
                     <span style="font-size:0.75rem; font-weight:800; color:#38bdf8; text-shadow:0 0 6px #38bdf8;">🛡️ ${gWards} Holy Ward${gWards === 1 ? '' : 's'}</span>
                   </div>
                   <!-- XP Bar -->
-                  <div class="angel-progress-track" style="height:5px; background:rgba(255,255,255,0.08); border-radius:999px; margin-bottom:0.5rem;">
+                  <div class="angel-progress-track" style="height:5px; background:rgba(255,255,255,0.08); border-radius:999px; margin-bottom:0.45rem;">
                     <div class="angel-progress-fill" style="width:${xpPercent}%; background:linear-gradient(90deg, #a855f7, #38bdf8);"></div>
                   </div>
-                  <!-- Stat Badges -->
+                  <!-- Synced Letters, Words, Verses, Books Counters -->
+                  <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:0.3rem; font-size:0.68rem; text-align:center; margin-bottom:0.4rem;">
+                    <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                      <div style="color:var(--muted); font-size:0.62rem;">Letters Sync</div>
+                      <div style="font-weight:800; color:#e9d5ff;">🔤 ${sLetters.toLocaleString()}</div>
+                    </div>
+                    <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                      <div style="color:var(--muted); font-size:0.62rem;">Words Sync</div>
+                      <div style="font-weight:800; color:#e9d5ff;">📖 ${sWords.toLocaleString()}</div>
+                    </div>
+                    <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                      <div style="color:var(--muted); font-size:0.62rem;">Verses Sync</div>
+                      <div style="font-weight:800; color:#e9d5ff;">📜 ${sVerses.toLocaleString()}</div>
+                    </div>
+                    <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                      <div style="color:var(--muted); font-size:0.62rem;">Books Sync</div>
+                      <div style="font-weight:800; color:#fde68a;">🏆 ${sBooks.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <!-- Combat Stat Badges -->
                   <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0.35rem; font-size:0.72rem; text-align:center;">
                     <div style="background:rgba(255,255,255,0.04); padding:0.25rem; border-radius:6px; border:1px solid var(--border);">
                       <div style="color:var(--muted); font-size:0.68rem;">Mistake Wards</div>
@@ -6317,8 +7326,8 @@
               </div>
               <div style="margin-top:0.4rem;">
                 ${isCurrentActive
-                  ? `<button class="form-btn btn-dismiss-card" style="width:100%; font-size:0.82rem; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); cursor:pointer;">Dismiss Guardian</button>`
-                  : `<button class="form-btn btn-summon-card" style="width:100%; font-size:0.82rem; background:linear-gradient(135deg, #a855f7, #6366f1); color:#fff; font-weight:700; cursor:pointer;">Summon Guardian to Verse</button>`
+                  ? `<button class="form-btn btn-summon-card" style="width:100%; font-size:0.82rem; background:rgba(16,185,129,0.2); color:#6ee7b7; border:1px solid rgba(16,185,129,0.4); font-weight:700; cursor:pointer;">✓ Active Alongside You (Re-sync to Verse Start)</button>`
+                  : `<button class="form-btn btn-summon-card" style="width:100%; font-size:0.82rem; background:linear-gradient(135deg, #a855f7, #6366f1); color:#fff; font-weight:700; cursor:pointer;">Return to Your Guardian Angel</button>`
                 }
               </div>
             `;
@@ -6355,15 +7364,30 @@
               };
             }
           } else {
-            // Standard Angel Card with Level Stepper
+            // Standard Angel Card with Level Stepper (and Summon Token Cost for Big Mike!)
             const curLvl = selectedAngelLevels[ang.rank] || ang.level || 1;
             const maxLvl = ang.max_level || 5;
+            const isMichael = ang.rank === "michael";
+            const summonCost = isMichael ? (ang.summon_cost !== undefined ? ang.summon_cost : 1) : 0;
+            const currencyType = ang.currency_type || "book_tokens";
 
             let displayWpm = ang.wpm;
             if (ang.rank === "cherub") displayWpm = 20 + (curLvl - 1) * 5;
             else if (ang.rank === "seraph") displayWpm = 50 + (curLvl - 1) * 10;
             else if (ang.rank === "gabriel") displayWpm = 85 + (curLvl - 1) * 15;
             else if (ang.rank === "michael") displayWpm = 140 + (curLvl - 1) * 20;
+
+            let costBadgeHtml = "";
+            if (isMichael && summonCost > 0 && currencyType !== "free") {
+              const currencyLabel = currencyType === "verses_completed" ? "Verses" : (currencyType === "demons_defeated" ? "Demons" : "Book Token");
+              const hasEnough = currencyType === "book_tokens" ? (summonTokens >= summonCost) : true;
+              costBadgeHtml = `
+                <div style="margin:0.35rem 0; padding:0.35rem 0.5rem; border-radius:6px; background:${hasEnough ? 'rgba(16,185,129,0.14)' : 'rgba(245,158,11,0.14)'}; border:1px solid ${hasEnough ? 'rgba(16,185,129,0.35)' : 'rgba(245,158,11,0.35)'}; font-size:0.72rem; display:flex; justify-content:space-between; align-items:center;">
+                  <span style="color:var(--text-sub); font-weight:700;">🪙 Summon Cost: <b>${summonCost} ${currencyLabel}${summonCost === 1 ? '' : 's'}</b></span>
+                  <span style="font-weight:800; color:${hasEnough ? '#6ee7b7' : '#fbbf24'};">You have: ${summonTokens} 🪙</span>
+                </div>
+              `;
+            }
 
             card.innerHTML = `
               <div>
@@ -6374,6 +7398,7 @@
                 <h4 style="margin:0.4rem 0 0.15rem; font-size:1rem; color:var(--text);">${escapeHtml(ang.name)}</h4>
                 <span style="font-size:0.75rem; color:${ang.color}; font-weight:600;">${ang.title}</span>
                 <p style="margin:0.4rem 0 0.5rem; font-size:0.78rem; color:var(--muted); line-height:1.35;">${ang.description}</p>
+                ${costBadgeHtml}
 
                 <!-- Level Stepper -->
                 <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.25); padding:0.35rem 0.5rem; border-radius:8px; border:1px solid var(--border); margin:0.4rem 0;">
@@ -6384,8 +7409,8 @@
               </div>
               <div style="margin-top:0.4rem;">
                 ${isCurrentActive
-                  ? `<button class="form-btn btn-dismiss-card" style="width:100%; font-size:0.8rem; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); cursor:pointer;">Dismiss</button>`
-                  : `<button class="form-btn btn-summon-card" style="width:100%; font-size:0.8rem; background:var(--accent); color:#fff; cursor:pointer;">Summon (Lv. ${curLvl})</button>`
+                  ? `<button class="form-btn btn-dismiss-card" style="width:100%; font-size:0.8rem; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); cursor:pointer;">Dismiss (Return to Guardian)</button>`
+                  : `<button class="form-btn btn-summon-card" style="width:100%; font-size:0.8rem; background:${isMichael ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'var(--accent)'}; color:#fff; font-weight:700; cursor:pointer;">${isMichael && summonCost > 0 && currencyType !== 'free' ? `🪙 Summon Big Mike (${summonCost} Token)` : `Summon (Lv. ${curLvl})`}</button>`
                 }
               </div>
             `;

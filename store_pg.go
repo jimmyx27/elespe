@@ -201,6 +201,15 @@ func (s *postgresStore) initDB(ctx context.Context) error {
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS preferred_demon_levels JSONB DEFAULT '{}';
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS demons_defeated INT DEFAULT 0;
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS passage_burst_damage INT DEFAULT 30;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS summon_tokens INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS tokens_spent INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS synced_letters INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS synced_words INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS synced_verses INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS synced_books INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_book_name TEXT DEFAULT '';
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_chapter INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_verse INT DEFAULT 0;
 
 	CREATE TABLE IF NOT EXISTS boss_raids (
 		id TEXT PRIMARY KEY,
@@ -723,18 +732,26 @@ func (s *postgresStore) MergeUserProgress(ctx context.Context, targetUID, source
 		INSERT INTO sanctuary_settings (
 			uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
 			guardian_name, guardian_pace, guardian_level, guardian_xp,
-			preferred_angel_levels, preferred_demon_levels, demons_defeated, passage_burst_damage
+			preferred_angel_levels, preferred_demon_levels, demons_defeated, passage_burst_damage,
+			summon_tokens, tokens_spent, synced_letters, synced_words, synced_verses, synced_books
 		)
 		SELECT
 			$1, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
 			guardian_name, guardian_pace, guardian_level, guardian_xp,
-			preferred_angel_levels, preferred_demon_levels, demons_defeated, passage_burst_damage
+			preferred_angel_levels, preferred_demon_levels, demons_defeated, passage_burst_damage,
+			summon_tokens, tokens_spent, synced_letters, synced_words, synced_verses, synced_books
 		FROM sanctuary_settings
 		WHERE uid = $2
 		ON CONFLICT (uid) DO UPDATE SET
 			guardian_level = GREATEST(sanctuary_settings.guardian_level, EXCLUDED.guardian_level),
 			guardian_xp = GREATEST(sanctuary_settings.guardian_xp, EXCLUDED.guardian_xp),
-			demons_defeated = sanctuary_settings.demons_defeated + EXCLUDED.demons_defeated
+			demons_defeated = sanctuary_settings.demons_defeated + EXCLUDED.demons_defeated,
+			summon_tokens = sanctuary_settings.summon_tokens + EXCLUDED.summon_tokens,
+			tokens_spent = sanctuary_settings.tokens_spent + EXCLUDED.tokens_spent,
+			synced_letters = sanctuary_settings.synced_letters + EXCLUDED.synced_letters,
+			synced_words = sanctuary_settings.synced_words + EXCLUDED.synced_words,
+			synced_verses = sanctuary_settings.synced_verses + EXCLUDED.synced_verses,
+			synced_books = sanctuary_settings.synced_books + EXCLUDED.synced_books
 	`, targetUID, sourceUID)
 
 	return tx.Commit(ctx)
@@ -1119,13 +1136,25 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 		SELECT text_color, font_family, caret_aura, audio_profile, celebrate_fx,
 		       guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated,
 		       COALESCE(passage_burst_damage, 30),
+		       COALESCE(summon_tokens, 0),
+		       COALESCE(tokens_spent, 0),
+		       COALESCE(synced_letters, 0),
+		       COALESCE(synced_words, 0),
+		       COALESCE(synced_verses, 0),
+		       COALESCE(synced_books, 0),
+		       COALESCE(guardian_book_name, ''),
+		       COALESCE(guardian_chapter, 0),
+		       COALESCE(guardian_verse, 0),
 		       COALESCE(preferred_angel_levels, '{}'::jsonb),
 		       COALESCE(preferred_demon_levels, '{}'::jsonb)
 		FROM sanctuary_settings WHERE uid = $1
 	`, uid).Scan(
 		&set.TextColor, &set.FontFamily, &set.CaretAura, &set.AudioProfile, &set.CelebrateFx,
 		&set.GuardianName, &set.GuardianPace, &set.GuardianLevel, &set.GuardianXP, &set.DemonsDefeated,
-		&set.PassageBurstDamage, &angelLvlsJSON, &demonLvlsJSON,
+		&set.PassageBurstDamage, &set.SummonTokens, &set.TokensSpent,
+		&set.SyncedLetters, &set.SyncedWords, &set.SyncedVerses, &set.SyncedBooks,
+		&set.GuardianBookName, &set.GuardianChapter, &set.GuardianVerse,
+		&angelLvlsJSON, &demonLvlsJSON,
 	)
 	if err != nil {
 		return &SanctuarySettings{
@@ -1184,9 +1213,12 @@ func (s *postgresStore) SaveCustomizations(ctx context.Context, uid string, sett
 		INSERT INTO sanctuary_settings (
 			uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
 			guardian_name, guardian_pace, guardian_level, guardian_xp,
-			demons_defeated, passage_burst_damage, preferred_angel_levels, preferred_demon_levels, updated_at
+			demons_defeated, passage_burst_damage, summon_tokens, tokens_spent,
+			synced_letters, synced_words, synced_verses, synced_books,
+			guardian_book_name, guardian_chapter, guardian_verse,
+			preferred_angel_levels, preferred_demon_levels, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, CURRENT_TIMESTAMP)
 		ON CONFLICT (uid) DO UPDATE SET
 			text_color = EXCLUDED.text_color,
 			font_family = EXCLUDED.font_family,
@@ -1199,12 +1231,24 @@ func (s *postgresStore) SaveCustomizations(ctx context.Context, uid string, sett
 			guardian_xp = EXCLUDED.guardian_xp,
 			demons_defeated = EXCLUDED.demons_defeated,
 			passage_burst_damage = EXCLUDED.passage_burst_damage,
+			summon_tokens = EXCLUDED.summon_tokens,
+			tokens_spent = EXCLUDED.tokens_spent,
+			synced_letters = EXCLUDED.synced_letters,
+			synced_words = EXCLUDED.synced_words,
+			synced_verses = EXCLUDED.synced_verses,
+			synced_books = EXCLUDED.synced_books,
+			guardian_book_name = EXCLUDED.guardian_book_name,
+			guardian_chapter = EXCLUDED.guardian_chapter,
+			guardian_verse = EXCLUDED.guardian_verse,
 			preferred_angel_levels = EXCLUDED.preferred_angel_levels,
 			preferred_demon_levels = EXCLUDED.preferred_demon_levels,
 			updated_at = CURRENT_TIMESTAMP
 	`, uid, settings.TextColor, settings.FontFamily, settings.CaretAura, settings.AudioProfile, settings.CelebrateFx,
 		settings.GuardianName, settings.GuardianPace, settings.GuardianLevel, settings.GuardianXP,
-		settings.DemonsDefeated, settings.PassageBurstDamage, angelLvlsJSON, demonLvlsJSON)
+		settings.DemonsDefeated, settings.PassageBurstDamage, settings.SummonTokens, settings.TokensSpent,
+		settings.SyncedLetters, settings.SyncedWords, settings.SyncedVerses, settings.SyncedBooks,
+		settings.GuardianBookName, settings.GuardianChapter, settings.GuardianVerse,
+		angelLvlsJSON, demonLvlsJSON)
 	return err
 }
 
@@ -1215,6 +1259,11 @@ func (s *postgresStore) RecordWildDemonDefeat(ctx context.Context, uid string, d
 	}
 
 	cfg.DemonsDefeated++
+	if adm := getGlobalAdmin(); adm != nil {
+		if tpd := adm.GetOptions().TokensPerDemonDefeated; tpd > 0 {
+			cfg.SummonTokens += tpd
+		}
+	}
 	if demonLevel < 1 {
 		demonLevel = 1
 	}
@@ -1223,7 +1272,7 @@ func (s *postgresStore) RecordWildDemonDefeat(ctx context.Context, uid string, d
 
 	leveledUp := false
 	neededXP := cfg.GuardianLevel * 100
-	for cfg.GuardianXP >= neededXP {
+	for cfg.GuardianXP >= neededXP && cfg.GuardianLevel < 777 {
 		cfg.GuardianXP -= neededXP
 		cfg.GuardianLevel++
 		leveledUp = true
@@ -1239,6 +1288,53 @@ func (s *postgresStore) RecordWildDemonDefeat(ctx context.Context, uid string, d
 		return nil, false, err
 	}
 	return cfg, leveledUp, nil
+}
+
+func (s *postgresStore) RecordGuardianSyncProgress(ctx context.Context, uid string, syncedLetters, syncedWords, versesCompleted, booksCompleted, bonusXP, tokensEarned int) (*SanctuarySettings, int, bool, error) {
+	cfg, err := s.GetCustomizations(ctx, uid)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	if cfg.GuardianLevel < 1 {
+		cfg.GuardianLevel = 1
+	}
+	if syncedLetters > 0 {
+		cfg.SyncedLetters += syncedLetters
+	}
+	if syncedWords > 0 {
+		cfg.SyncedWords += syncedWords
+	}
+	if versesCompleted > 0 {
+		cfg.SyncedVerses += versesCompleted
+	}
+	if booksCompleted > 0 {
+		cfg.SyncedBooks += booksCompleted
+	}
+	if tokensEarned > 0 {
+		cfg.SummonTokens += tokensEarned
+	}
+
+	xpGained := computeGuardianSyncXPGained(syncedLetters, syncedWords, versesCompleted, booksCompleted, bonusXP)
+	cfg.GuardianXP += xpGained
+
+	leveledUp := false
+	neededXP := cfg.GuardianLevel * 100
+	for cfg.GuardianXP >= neededXP && cfg.GuardianLevel < 777 {
+		cfg.GuardianXP -= neededXP
+		cfg.GuardianLevel++
+		leveledUp = true
+		neededXP = cfg.GuardianLevel * 100
+	}
+
+	cfg.GuardianWards = (cfg.GuardianLevel - 1) / 3
+	cfg.GuardianPower = 10 + (cfg.GuardianLevel-1)*2
+	cfg.GuardianRadiance = 100 + (cfg.GuardianLevel-1)*5
+	cfg.TrackerUnlocked = cfg.DemonsDefeated >= 6
+
+	if err := s.SaveCustomizations(ctx, uid, *cfg); err != nil {
+		return nil, 0, false, err
+	}
+	return cfg, xpGained, leveledUp, nil
 }
 
 func (s *postgresStore) GetBossRaid(ctx context.Context) (*BossRaid, error) {
@@ -1375,5 +1471,34 @@ func (s *postgresStore) ResetBossRaid(ctx context.Context, raid BossRaid) error 
 	`, raid.ID, raid.BossName, raid.BossTitle, raid.BossRank, raid.BossWPM, raid.Level, raid.MaxLevel, raid.IsDemonBoss,
 		raid.MaxHP, raid.CurrentHP, raid.RequiredWPM, raid.Translation, raid.BookName, raid.Chapter, raid.Verse, raid.Text, raid.Conquered, raw)
 	return err
+}
+
+func (s *postgresStore) ListGuardianSeedEntries(ctx context.Context) ([]GuardianSeedEntry, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT COALESCE(ua.uid, us.uid) AS uid,
+		       COALESCE(ua.display_name, 'Scribe'),
+		       COALESCE(ua.avatar_color, '#a855f7'),
+		       COALESCE(NULLIF(us.guardian_book_name, ''), 'Genesis'),
+		       CASE WHEN COALESCE(us.guardian_chapter, 0) > 0 THEN us.guardian_chapter ELSE 1 END,
+		       CASE WHEN COALESCE(us.guardian_verse, 0) > 0 THEN us.guardian_verse ELSE 1 END
+		FROM user_accounts ua
+		FULL OUTER JOIN user_sanctuary us ON ua.uid = us.uid
+		WHERE COALESCE(ua.uid, us.uid) NOT LIKE 'angel-%'
+		  AND COALESCE(ua.uid, us.uid) NOT LIKE 'demon-%'
+		LIMIT 32
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	entries := make([]GuardianSeedEntry, 0, 32)
+	for rows.Next() {
+		var e GuardianSeedEntry
+		if err := rows.Scan(&e.UID, &e.Name, &e.Color, &e.BookName, &e.Chapter, &e.Verse); err == nil && e.UID != "" {
+			entries = append(entries, e)
+		}
+	}
+	return entries, nil
 }
 

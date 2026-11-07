@@ -228,6 +228,16 @@ func matchesSpokenPassage(userInput, targetText string) bool {
 	return uNorm != "" && uNorm == tNorm
 }
 
+func countUppercaseRunes(s string) int {
+	cnt := 0
+	for _, r := range s {
+		if unicode.IsUpper(r) {
+			cnt++
+		}
+	}
+	return cnt
+}
+
 func runeLen(s string) int {
 	return utf8.RuneCountInString(s)
 }
@@ -670,7 +680,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			activeHub.Unregister(client)
 			if activeAngelMgr != nil {
-				activeAngelMgr.DismissCompanion(uid)
+				activeAngelMgr.OnUserDisconnect(uid)
 			}
 			if activeDemonMgr != nil {
 				activeDemonMgr.DismissDemon(uid)
@@ -751,11 +761,24 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				booksDone++
 			}
 		}
+		if customs != nil && booksDone > 0 && customs.SummonTokens == 0 && customs.TokensSpent == 0 {
+			tokensPerBook := 1
+			if adm := getGlobalAdmin(); adm != nil && adm.GetOptions().TokensPerBookCompleted > 0 {
+				tokensPerBook = adm.GetOptions().TokensPerBookCompleted
+			}
+			customs.SummonTokens = booksDone * tokensPerBook
+			_ = activeStore.SaveCustomizations(ctx, uid, *customs)
+		}
 		unlocks := GetAllCustomizationUnlocks(topWPM, totVerses, longStreak, booksDone)
+		tokens := 0
+		if customs != nil {
+			tokens = customs.SummonTokens
+		}
 		_ = conn.WriteJSON(Message{
-			Type:      "sanctuary_state",
-			Sanctuary: customs,
-			Unlocks:   unlocks,
+			Type:         "sanctuary_state",
+			Sanctuary:    customs,
+			Unlocks:      unlocks,
+			SummonTokens: tokens,
 		})
 	}
 
@@ -765,10 +788,21 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Send Angel Bot Status & Templates
 	if activeAngelMgr != nil {
 		_ = conn.WriteJSON(Message{
-			Type:   "angels_list",
-			Angels: activeAngelMgr.GetAngelTemplatesForUser(uid),
-			Angel:  activeAngelMgr.GetGlobalAngelStatus(),
+			Type:             "angels_list",
+			Angels:           activeAngelMgr.GetAngelTemplatesForUser(uid),
+			Angel:            activeAngelMgr.GetGlobalAngelStatus(),
+			RoamingGuardians: activeAngelMgr.GetRoamingGuardians(),
 		})
+		if rep := activeAngelMgr.ConsumeOfflineReport(uid); rep != nil {
+			_ = conn.WriteJSON(Message{
+				Type:          "guardian_offline_report",
+				OfflineReport: rep,
+				Content: fmt.Sprintf(
+					"👼 While you were away, %s (Lv. %d) inscribed %d verse(s) (%s → %s), weakened %d demon(s), and received %d fellowship blessing(s)!",
+					rep.GuardianName, rep.GuardianLevel, rep.VersesInscribed, rep.StartLocation, rep.EndLocation, rep.DemonsWeakened, rep.BlessingsReceived,
+				),
+			})
+		}
 	}
 
 	// Send 24/7 Devil Status and Demon Templates
@@ -915,11 +949,43 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			v := bookVerses[activeVerseIdx]
 			isFav, _ := activeStore.IsFavorite(ctx, uid, currentTransID, v.BookName, v.Chapter, v.Verse)
 			uComps, gComps, _ := activeStore.GetVerseCompletions(ctx, uid, currentTransID, v.BookName, v.Chapter, v.Verse)
+			var activeComp *AngelInfo
+			var guardiansOnVerse []AngelInfo
+			var michaelTrail bool
+			var michaelTrailUpTo int
+			var angelTrailUpTo int
 			if activeAngelMgr != nil {
+				activeAngelMgr.EnsurePlayerGuardian(uid, client.DisplayName, client.AvatarColor, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
 				activeAngelMgr.UpdateCompanionLocation(uid, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
+				activeComp = activeAngelMgr.GetActiveCompanion(uid)
+				guardiansOnVerse = activeAngelMgr.GetGuardiansOnVerse(currentTransID, v.BookName, v.Chapter, v.Verse)
+				michaelTrail = activeAngelMgr.IsVerseOnMichaelTrail(currentTransID, v.BookName, v.Chapter, v.Verse)
+				if activeComp != nil && activeComp.CharIndex > angelTrailUpTo {
+					angelTrailUpTo = activeComp.CharIndex
+				}
+				for _, g := range guardiansOnVerse {
+					if g.CharIndex > angelTrailUpTo {
+						angelTrailUpTo = g.CharIndex
+					}
+				}
+				if michaelTrail {
+					if gl := activeAngelMgr.GetGlobalAngelStatus(); gl != nil && gl.BookName == v.BookName && gl.Chapter == v.Chapter && gl.Verse == v.Verse {
+						michaelTrailUpTo = max(1, gl.CharIndex)
+					} else {
+						michaelTrailUpTo = runeLen(v.Text)
+					}
+				}
 			}
 			if activeDemonMgr != nil {
 				activeDemonMgr.UpdateDemonLocation(uid, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
+			}
+			if sanctuary, _ := activeStore.GetCustomizations(ctx, uid); sanctuary != nil {
+				if sanctuary.GuardianBookName != v.BookName || sanctuary.GuardianChapter != v.Chapter || sanctuary.GuardianVerse != v.Verse {
+					sanctuary.GuardianBookName = v.BookName
+					sanctuary.GuardianChapter = v.Chapter
+					sanctuary.GuardianVerse = v.Verse
+					_ = activeStore.SaveCustomizations(ctx, uid, *sanctuary)
+				}
 			}
 			runtimeStats.VerseStartTime = time.Now()
 			client.VerseStartTime = runtimeStats.VerseStartTime
@@ -930,6 +996,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			var encounterChance float64
 			var isAmbush bool
 			var wards int
+			var demonTaintedUpTo int
 			if activeDemonMgr != nil {
 				wildD, encounterChance, isAmbush = activeDemonMgr.CheckOrSpawnWildDemonForUser(
 					currentTransID,
@@ -939,37 +1006,48 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				)
 			}
 			if wildD != nil {
+				demonTaintedUpTo = max(wildD.TaintedUpTo, wildD.CharIndex)
 				if sanctuary, _ := activeStore.GetCustomizations(ctx, uid); sanctuary != nil {
 					wards = sanctuary.GuardianWards
 				}
+				if wildD.AngelicBeacon {
+					wards++
+				}
 			}
 			_ = conn.WriteJSON(Message{
-				Type:              "verse",
-				Mode:              "verse",
-				Content:           v.Text,
-				Verse:             &v,
-				Guide:             &guide,
-				Number:            activeVerseIdx + 1,
-				Total:             len(bookVerses),
-				Stats:             stats,
-				IsFavorite:        isFav,
-				Translation:       currentTransID,
-				Category:          guide.Category,
-				ReviewLocked:      bookProgress.CurrentVerse < len(bookVerses),
-				UserCompletions:   uComps,
-				GlobalCompletions: gComps,
-				WildDemon:         wildD,
-				HolyWards:         wards,
-				EncounterChance:   int(encounterChance * 100),
-				IsAmbush:          isAmbush,
+				Type:               "verse",
+				Mode:               "verse",
+				Content:            v.Text,
+				Verse:              &v,
+				Guide:              &guide,
+				Number:             activeVerseIdx + 1,
+				Total:              len(bookVerses),
+				Stats:              stats,
+				IsFavorite:         isFav,
+				Translation:        currentTransID,
+				Category:           guide.Category,
+				ReviewLocked:       bookProgress.CurrentVerse < len(bookVerses),
+				UserCompletions:    uComps,
+				GlobalCompletions:  gComps,
+				WildDemon:          wildD,
+				HolyWards:          wards,
+				EncounterChance:    int(encounterChance * 100),
+				IsAmbush:           isAmbush,
+				Angel:              activeComp,
+				RoamingGuardians:   guardiansOnVerse,
+				MichaelTrailActive: michaelTrail,
+				MichaelTrailUpTo:   michaelTrailUpTo,
+				AngelTrailUpTo:     angelTrailUpTo,
+				DemonTaintedUpTo:   demonTaintedUpTo,
 			})
 			if wildD != nil {
 				_ = conn.WriteJSON(Message{
-					Type:            "wild_demon_present",
-					WildDemon:       wildD,
-					HolyWards:       wards,
-					EncounterChance: int(encounterChance * 100),
-					IsAmbush:        isAmbush,
+					Type:             "wild_demon_present",
+					WildDemon:        wildD,
+					HolyWards:        wards,
+					EncounterChance:  int(encounterChance * 100),
+					IsAmbush:         isAmbush,
+					DemonTaintedUpTo: demonTaintedUpTo,
 				})
 			}
 			return
@@ -1288,10 +1366,18 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		// ---- Heavenly Angel Bot Messages ----
 		case "get_angels":
 			if activeAngelMgr != nil {
+				customs, _ := activeStore.GetCustomizations(ctx, uid)
+				tokens := 0
+				if customs != nil {
+					tokens = customs.SummonTokens
+				}
 				_ = conn.WriteJSON(Message{
-					Type:   "angels_list",
-					Angels: activeAngelMgr.GetAngelTemplatesForUser(uid),
-					Angel:  activeAngelMgr.GetGlobalAngelStatus(),
+					Type:             "angels_list",
+					Angels:           activeAngelMgr.GetAngelTemplatesForUser(uid),
+					Angel:            activeAngelMgr.GetGlobalAngelStatus(),
+					RoamingGuardians: activeAngelMgr.GetRoamingGuardians(),
+					Sanctuary:        customs,
+					SummonTokens:     tokens,
 				})
 			}
 
@@ -1305,11 +1391,86 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if activeAngelMgr != nil {
 				bName, chNum, vNum, targetText := resolveCurrentTargetPassage()
+				if bName == "" || targetText == "" {
+					bName = "Genesis"
+					chNum = 1
+					vNum = 1
+					targetText = "In the beginning God created the heaven and the earth."
+				}
 				if bName != "" && targetText != "" {
+					customs, _ := activeStore.GetCustomizations(ctx, uid)
+					if rank == "michael" {
+						currencyType := "book_tokens"
+						cost := 1
+						if adm := getGlobalAdmin(); adm != nil {
+							opts := adm.GetOptions()
+							if opts.MichaelSummonCurrencyType != "" {
+								currencyType = opts.MichaelSummonCurrencyType
+							}
+							if opts.MichaelSummonCost >= 0 {
+								cost = opts.MichaelSummonCost
+							}
+						}
+						if cost > 0 && currencyType != "free" {
+							if customs == nil {
+								customs = &SanctuarySettings{GuardianLevel: 1, GuardianPower: 10, PassageBurstDamage: 6}
+							}
+							canAfford := false
+							denyReason := ""
+							switch currencyType {
+							case "verses_completed":
+								totalV := 0
+								if streak != nil {
+									totalV = streak.TotalVersesTyped
+								}
+								avail := totalV - customs.TokensSpent
+								if avail >= cost {
+									canAfford = true
+									customs.TokensSpent += cost
+								} else {
+									denyReason = fmt.Sprintf("Summoning Big Mike requires %d Verses Completed currency (you have %d available).", cost, max(0, avail))
+								}
+							case "demons_defeated":
+								avail := customs.DemonsDefeated - customs.TokensSpent
+								if avail >= cost {
+									canAfford = true
+									customs.TokensSpent += cost
+								} else {
+									denyReason = fmt.Sprintf("Summoning Big Mike requires %d Demons Exorcised currency (you have %d available).", cost, max(0, avail))
+								}
+							default: // "book_tokens"
+								if customs.SummonTokens >= cost {
+									canAfford = true
+									customs.SummonTokens -= cost
+									customs.TokensSpent += cost
+								} else {
+									denyReason = fmt.Sprintf("Summoning Archangel Michael (Big Mike) requires %d Book Summon Token(s)! Complete a Book Review to earn tokens (You have: %d 🪙).", cost, customs.SummonTokens)
+								}
+							}
+							if !canAfford {
+								_ = conn.WriteJSON(Message{
+									Type:         "angel_summon_denied",
+									Content:      denyReason,
+									Sanctuary:    customs,
+									SummonTokens: customs.SummonTokens,
+								})
+								continue
+							}
+							_ = activeStore.SaveCustomizations(ctx, uid, *customs)
+						}
+						// Also redirect the global Big Mike bot to this verse so he grinds alongside from here!
+						activeAngelMgr.SummonGlobalMichaelToVerse(currentTransID, bName, chNum, vNum, targetText)
+					}
 					ang := activeAngelMgr.SummonCompanionWithLevel(uid, rank, msg.AngelLevel, currentTransID, bName, chNum, vNum, targetText)
+					tokens := 0
+					if customs != nil {
+						tokens = customs.SummonTokens
+					}
 					_ = conn.WriteJSON(Message{
-						Type:  "angel_summoned",
-						Angel: ang,
+						Type:         "angel_summoned",
+						Angel:        ang,
+						Sanctuary:    customs,
+						SummonTokens: tokens,
 					})
 				}
 			}
@@ -1317,9 +1478,176 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case "dismiss_angel":
 			if activeAngelMgr != nil {
 				activeAngelMgr.DismissCompanion(uid)
+				// Player's persistent Guardian Angel remains active alongside them
+				guard := activeAngelMgr.GetActiveCompanion(uid)
 				_ = conn.WriteJSON(Message{
-					Type: "angel_dismissed",
+					Type:  "angel_dismissed",
+					Angel: guard,
 				})
+			}
+
+		case "guardian_sync_tick":
+			letters := clampInt(msg.GuardianSyncedLetters, 0, 500)
+			words := clampInt(msg.GuardianSyncedWords, 0, 120)
+			goldenLetters := clampInt(msg.GoldenTrailLetters, 0, 500)
+			purifiedLetters := clampInt(msg.PurifiedLetters, 0, 500)
+			capitalLetters := clampInt(msg.CapitalizedLetters, 0, 500)
+			if letters > 0 || words > 0 || goldenLetters > 0 || purifiedLetters > 0 || capitalLetters > 0 {
+				bonusXP := 0
+				if goldenLetters > 0 {
+					trailBonus := max(1, (goldenLetters+1)/2)
+					if msg.MichaelTrailActive {
+						trailBonus *= 2
+					}
+					bonusXP += trailBonus
+				}
+				if purifiedLetters > 0 {
+					bonusXP += purifiedLetters
+				}
+				if capitalLetters > 0 {
+					capBonus := capitalLetters * 2
+					if msg.MichaelTrailActive {
+						capBonus *= 2
+					}
+					bonusXP += capBonus
+				}
+				if msg.PeerAngelInSync {
+					peerBonusPct := 50
+					xpPerLetter := 1
+					xpPerWord := 5
+					if adm := getGlobalAdmin(); adm != nil {
+						opts := adm.GetOptions()
+						if opts.PeerAngelSyncXPBonusPct > 0 {
+							peerBonusPct = opts.PeerAngelSyncXPBonusPct
+						}
+						if opts.GuardianXPPerLetter > 0 {
+							xpPerLetter = opts.GuardianXPPerLetter
+						}
+						if opts.GuardianXPPerWord > 0 {
+							xpPerWord = opts.GuardianXPPerWord
+						}
+					}
+					baseTickXP := letters*xpPerLetter + words*xpPerWord
+					peerBonus := (baseTickXP * peerBonusPct) / 100
+					if peerBonus < 1 {
+						peerBonus = 1
+					}
+					bonusXP += peerBonus
+				}
+				updatedSanctuary, xpGained, leveledUp, err := activeStore.RecordGuardianSyncProgress(ctx, uid, letters, words, 0, 0, bonusXP, 0)
+				if err == nil && updatedSanctuary != nil {
+					if leveledUp && activeAngelMgr != nil {
+						activeAngelMgr.UpdateCompanionWPM(uid)
+					}
+					peerUID := strings.TrimPrefix(strings.TrimSpace(msg.PeerAngelUID), "angel-guardian-")
+					if msg.PeerAngelInSync && peerUID != "" && peerUID != uid {
+						_, _, peerLeveled, _ := activeStore.RecordGuardianSyncProgress(ctx, peerUID, max(1, letters/2), max(0, words/2), 0, 0, 0, 0)
+						if peerLeveled && activeAngelMgr != nil {
+							activeAngelMgr.UpdateCompanionWPM(peerUID)
+						}
+					}
+					var activeComp *AngelInfo
+					if activeAngelMgr != nil {
+						activeComp = activeAngelMgr.GetActiveCompanion(uid)
+					}
+					_ = conn.WriteJSON(Message{
+						Type:              "guardian_sync_update",
+						Sanctuary:         updatedSanctuary,
+						GuardianXPGained:  xpGained,
+						GuardianLeveledUp: leveledUp,
+						Angel:             activeComp,
+						SummonTokens:      updatedSanctuary.SummonTokens,
+					})
+				}
+			}
+
+		case "interact_angel":
+			peerUID := strings.TrimPrefix(strings.TrimSpace(msg.PeerAngelUID), "angel-guardian-")
+			peerName := "a Fellowship Guardian Angel"
+			var peerAngelInfo *AngelInfo
+			if activeAngelMgr != nil && peerUID != "" {
+				peerAngelInfo = activeAngelMgr.GetPlayerGuardian(peerUID)
+				if peerAngelInfo != nil && peerAngelInfo.OwnerName != "" {
+					peerName = peerAngelInfo.OwnerName + "'s Guardian Angel"
+				}
+			}
+			dmgBonusPct := 35
+			xpBonusPct := 50
+			if adm := getGlobalAdmin(); adm != nil {
+				opts := adm.GetOptions()
+				if opts.PeerAngelSyncDamageBonusPct > 0 {
+					dmgBonusPct = opts.PeerAngelSyncDamageBonusPct
+				}
+				if opts.PeerAngelSyncXPBonusPct > 0 {
+					xpBonusPct = opts.PeerAngelSyncXPBonusPct
+				}
+			}
+			updatedSanctuary, xpGained, leveledUp, _ := activeStore.RecordGuardianSyncProgress(ctx, uid, 0, 0, 0, 0, 15, 0)
+			if leveledUp && activeAngelMgr != nil {
+				activeAngelMgr.UpdateCompanionWPM(uid)
+			}
+			if peerUID != "" && peerUID != uid {
+				peerSanct, _, peerLeveled, _ := activeStore.RecordGuardianSyncProgress(ctx, peerUID, 0, 0, 0, 0, 10, 0)
+				if peerLeveled && activeAngelMgr != nil {
+					activeAngelMgr.UpdateCompanionWPM(peerUID)
+				}
+				if activeAngelMgr != nil {
+					activeAngelMgr.RecordOfflineGuardianBlessing(peerUID, 10)
+				}
+				if activeHub != nil {
+					activeHub.SendToUID(peerUID, Message{
+						Type:             "guardian_sync_update",
+						Content:          fmt.Sprintf("🕊️ %s harmonized with your Guardian Angel! (+10 Guardian XP)", client.DisplayName),
+						Sanctuary:        peerSanct,
+						GuardianXPGained: 10,
+					})
+				}
+			}
+			buff := &AngelSyncBuff{
+				Active:         true,
+				SourceUID:      peerUID,
+				SourceName:     peerName,
+				DamageBonusPct: dmgBonusPct,
+				XPBonusPct:     xpBonusPct,
+				BonusWards:     1,
+			}
+			_ = conn.WriteJSON(Message{
+				Type:              "angel_interaction_buff",
+				Content:           fmt.Sprintf("🙌 Harmonized with %s! Granted +1 Angelic Aegis Ward, +%d%% Holy Smite Damage, +%d%% Sync XP, and +%d Guardian XP!", peerName, dmgBonusPct, xpBonusPct, xpGained),
+				Sanctuary:         updatedSanctuary,
+				GuardianXPGained:  xpGained,
+				GuardianLeveledUp: leveledUp,
+				HolyWards:         1,
+				AngelBuff:         buff,
+			})
+
+		case "jump_to_guardian":
+			peerUID := strings.TrimPrefix(strings.TrimSpace(msg.PeerAngelUID), "angel-guardian-")
+			targetBook := strings.TrimSpace(msg.Book)
+			targetCh := 0
+			targetV := 0
+			if msg.Verse != nil {
+				targetCh = msg.Verse.Chapter
+				targetV = msg.Verse.Verse
+			}
+			if activeAngelMgr != nil && peerUID != "" {
+				if gInfo := activeAngelMgr.GetPlayerGuardian(peerUID); gInfo != nil {
+					targetBook = gInfo.BookName
+					targetCh = gInfo.Chapter
+					targetV = gInfo.Verse
+				}
+			}
+			if targetBook != "" && ensureBookLoaded(targetBook) {
+				foundIdx := 0
+				for i, v := range bookVerses {
+					if v.Chapter == targetCh && v.Verse == targetV {
+						foundIdx = i
+						break
+					}
+				}
+				activeVerseIdx = foundIdx
+				currentMode = "verse"
+				sendCurrentVerse()
 			}
 
 		// ---- Demonic Adversary Messages ----
@@ -1443,8 +1771,34 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if damage <= 0 {
 				damage = 1
 			}
+			if msg.CapitalizedLetters > 0 {
+				capCount := clampInt(msg.CapitalizedLetters, 1, 20)
+				damage += capCount * 3
+				damage = max(damage+2, int(float64(damage)*1.50))
+			}
+			if msg.PurifiedLetters > 0 {
+				damage += max(1, (msg.PurifiedLetters+1)/2)
+			}
+			if msg.GoldenTrailLetters > 0 {
+				damage = max(damage+1, int(float64(damage)*1.20))
+			}
 			if msg.SyncStacks > 0 {
 				damage = CalculateSyncStackDamage(damage, msg.SyncStacks)
+			}
+			if msg.GuardianInSync {
+				damage = max(damage+1, int(float64(damage)*1.15))
+			}
+			if msg.PeerAngelInSync {
+				peerDmgPct := 35
+				if adm := getGlobalAdmin(); adm != nil {
+					if opts := adm.GetOptions(); opts.PeerAngelSyncDamageBonusPct > 0 {
+						peerDmgPct = opts.PeerAngelSyncDamageBonusPct
+					}
+				}
+				damage = max(damage+1, damage+(damage*peerDmgPct)/100)
+			}
+			if msg.MichaelTrailActive {
+				damage *= 2
 			}
 			updated, defeated := activeDemonMgr.ApplyWildDemonDamage(demonID, damage)
 			if updated != nil {
@@ -1474,6 +1828,66 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						WildDemon:  updated,
 						Damage:     damage,
 						SyncStacks: msg.SyncStacks,
+					})
+				}
+			}
+
+		case "wild_demon_rebuke":
+			if activeDemonMgr == nil {
+				continue
+			}
+			demonID := msg.DemonID
+			rebukeDmg := msg.Damage
+			if rebukeDmg <= 0 {
+				gPower := 10
+				if customs, _ := activeStore.GetCustomizations(ctx, uid); customs != nil && customs.GuardianPower > 0 {
+					gPower = customs.GuardianPower
+				}
+				rebukeDmg = max(12, gPower+8)
+			}
+			if msg.MichaelTrailActive {
+				rebukeDmg *= 2
+			}
+			updated, defeated := activeDemonMgr.DebuffWildDemonByRighteousness(demonID, rebukeDmg)
+			if updated != nil {
+				updatedSanct, xpGained, leveledUp, _ := activeStore.RecordGuardianSyncProgress(ctx, uid, 0, 0, 0, 0, 20, 0)
+				if leveledUp && activeAngelMgr != nil {
+					activeAngelMgr.UpdateCompanionWPM(uid)
+				}
+				if defeated {
+					newSettings, defLeveled, _ := activeStore.RecordWildDemonDefeat(ctx, uid, updated.Rank, updated.Level)
+					if activeHub != nil {
+						activeHub.BroadcastWildDemonsList(activeDemonMgr.GetWildDemons())
+					}
+					content := fmt.Sprintf("⚖️ SANCTIFIED REBUKE (-%d HP)! Purified tainted letters and exorcised %s (Lv. %d)!", rebukeDmg, updated.Name, updated.Level)
+					if defLeveled || leveledUp {
+						content = fmt.Sprintf("⚖️ SANCTIFIED REBUKE (-%d HP)! Exorcised %s! Your Guardian Angel reached Level %d!", rebukeDmg, updated.Name, newSettings.GuardianLevel)
+					}
+					_ = conn.WriteJSON(Message{
+						Type:            "wild_demon_defeated",
+						WildDemon:       updated,
+						Sanctuary:       newSettings,
+						TrackerUnlocked: newSettings.TrackerUnlocked,
+						DemonsDefeated:  newSettings.DemonsDefeated,
+						DemonDefeated:   true,
+						Damage:          rebukeDmg,
+						Content:         content,
+					})
+				} else {
+					if activeHub != nil {
+						activeHub.BroadcastWildDemonsList(activeDemonMgr.GetWildDemons())
+					}
+					_ = conn.WriteJSON(Message{
+						Type:              "wild_demon_rebuked",
+						WildDemon:         updated,
+						Damage:            rebukeDmg,
+						Sanctuary:         updatedSanct,
+						GuardianXPGained:  xpGained,
+						GuardianLeveledUp: leveledUp,
+						Content: fmt.Sprintf(
+							"⚖️ SANCTIFIED REBUKE! Righteousness debuffed %s (-%d HP, -20%% WPM, +%d%% Vulnerability [Stack %d])!",
+							updated.Name, rebukeDmg, updated.DebuffStacks*25, updated.DebuffStacks,
+						),
 					})
 				}
 			}
@@ -1974,6 +2388,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						critMultiplier = 1.5 // Critical Strike
 					}
 					damage = int(float64(damage) * critMultiplier)
+					if capCnt := countUppercaseRunes(targetText); capCnt > 0 {
+						damage += min(50, capCnt*2)
+					}
 					if activeBossRaid.IsDemonBoss && msg.SyncStacks > 0 {
 						damage = CalculateSyncStackDamage(damage, msg.SyncStacks)
 					}
@@ -2153,6 +2570,31 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						charsAhead = 0
 					}
 					burstDamage := CalculatePassageFinishBurstDamage(baseStrikeDamage, msg.SyncStacks, charsAhead, customBaseBurst)
+					capLettersBurst := msg.CapitalizedLetters
+					if capLettersBurst <= 0 {
+						capLettersBurst = countUppercaseRunes(targetText)
+					}
+					if capLettersBurst > 0 {
+						burstDamage += min(30, capLettersBurst*2)
+					}
+					if msg.PurifiedLetters > 0 {
+						burstDamage += max(1, (msg.PurifiedLetters+1)/2)
+					}
+					if msg.GoldenTrailLetters > 0 {
+						burstDamage = max(burstDamage+1, int(float64(burstDamage)*1.20))
+					}
+					if msg.PeerAngelInSync {
+						peerDmgPct := 35
+						if adm := getGlobalAdmin(); adm != nil {
+							if opts := adm.GetOptions(); opts.PeerAngelSyncDamageBonusPct > 0 {
+								peerDmgPct = opts.PeerAngelSyncDamageBonusPct
+							}
+						}
+						burstDamage = max(burstDamage+1, burstDamage+(burstDamage*peerDmgPct)/100)
+					}
+					if msg.MichaelTrailActive {
+						burstDamage = max(burstDamage+2, int(float64(burstDamage)*1.50))
+					}
 					updatedDemon, defeated := activeDemonMgr.ApplyWildDemonDamage(activeWildDemonBeforeAdvance.ID, burstDamage)
 					if updatedDemon != nil {
 						if defeated {
@@ -2194,6 +2636,115 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 								SyncStacks:  msg.SyncStacks,
 								Verse:       &destV,
 								Content:     fmt.Sprintf("⚡ PASSAGE BURST! Dealt %d Holy Burst Damage to %s (%d/%d HP)! Pursuing to %s %d:%d!", burstDamage, advDemon.Name, advDemon.CurrentHP, advDemon.MaxHP, destV.BookName, destV.Chapter, destV.Verse),
+							})
+						}
+					}
+				}
+
+				// Record Guardian Angel Sync Progress (letters, words, verses, books) & Summon Tokens
+				syncedLetters := clampInt(msg.GuardianSyncedLetters, 0, inputLen)
+				syncedWords := clampInt(msg.GuardianSyncedWords, 0, 200)
+				if msg.GuardianInSync && syncedLetters == 0 {
+					syncedLetters = inputLen
+					syncedWords = len(strings.Fields(targetText))
+				}
+				versesCompletedForGuardian := 0
+				booksCompletedForGuardian := 0
+				tokensEarned := 0
+				tokensPerBook := 1
+				tokensPerMilestone := 0
+				peerXPBonusPct := 50
+				xpPerVerse := 25
+				xpPerBook := 250
+				if adm := getGlobalAdmin(); adm != nil {
+					opts := adm.GetOptions()
+					if opts.TokensPerBookCompleted >= 0 {
+						tokensPerBook = opts.TokensPerBookCompleted
+					}
+					if opts.TokensPerVersesMilestone > 0 {
+						tokensPerMilestone = opts.TokensPerVersesMilestone
+					}
+					if opts.PeerAngelSyncXPBonusPct > 0 {
+						peerXPBonusPct = opts.PeerAngelSyncXPBonusPct
+					}
+					if opts.GuardianXPPerVerse > 0 {
+						xpPerVerse = opts.GuardianXPPerVerse
+					}
+					if opts.GuardianXPPerBook > 0 {
+						xpPerBook = opts.GuardianXPPerBook
+					}
+				}
+				if currentMode == "verse" || currentMode == "favorite" {
+					versesCompletedForGuardian = 1
+				} else if currentMode == "review" {
+					booksCompletedForGuardian = 1
+					if tokensPerBook > 0 {
+						lengthScaled := len(bookVerses) / 250
+						tokensEarned += max(tokensPerBook, lengthScaled)
+					}
+				}
+				if tokensPerMilestone > 0 && streak != nil && streak.TotalVersesTyped > 0 && streak.TotalVersesTyped%tokensPerMilestone == 0 && prevVerses != streak.TotalVersesTyped {
+					tokensEarned += 1
+				}
+				bonusGuardianXP := 0
+				capLettersSync := clampInt(msg.CapitalizedLetters, 0, inputLen)
+				if capLettersSync <= 0 && (msg.GuardianInSync || msg.PeerAngelInSync) {
+					capLettersSync = countUppercaseRunes(targetText)
+				}
+				if capLettersSync > 0 {
+					capXP := capLettersSync * 2
+					if msg.MichaelTrailActive {
+						capXP *= 2
+					}
+					bonusGuardianXP += capXP
+				}
+				if msg.PurifiedLetters > 0 {
+					bonusGuardianXP += clampInt(msg.PurifiedLetters, 0, inputLen)
+				}
+				if msg.GoldenTrailLetters > 0 {
+					trailXP := max(1, (clampInt(msg.GoldenTrailLetters, 0, inputLen)+1)/2)
+					if msg.MichaelTrailActive {
+						trailXP *= 2
+					}
+					bonusGuardianXP += trailXP
+				}
+				if msg.PeerAngelInSync {
+					basePassageXP := versesCompletedForGuardian*xpPerVerse + booksCompletedForGuardian*xpPerBook
+					bonusGuardianXP += max(5, (basePassageXP*peerXPBonusPct)/100)
+				}
+				if syncedLetters > 0 || syncedWords > 0 || versesCompletedForGuardian > 0 || booksCompletedForGuardian > 0 || bonusGuardianXP > 0 || tokensEarned > 0 {
+					updatedSanct, gXPGained, gLeveledUp, _ := activeStore.RecordGuardianSyncProgress(
+						ctx, uid, syncedLetters, syncedWords, versesCompletedForGuardian, booksCompletedForGuardian, bonusGuardianXP, tokensEarned,
+					)
+					if updatedSanct != nil {
+						if gLeveledUp && activeAngelMgr != nil {
+							activeAngelMgr.UpdateCompanionWPM(uid)
+						}
+						peerUID := strings.TrimPrefix(strings.TrimSpace(msg.PeerAngelUID), "angel-guardian-")
+						if msg.PeerAngelInSync && peerUID != "" && peerUID != uid {
+							_, _, peerLeveled, _ := activeStore.RecordGuardianSyncProgress(ctx, peerUID, 0, 0, versesCompletedForGuardian, 0, 10, 0)
+							if peerLeveled && activeAngelMgr != nil {
+								activeAngelMgr.UpdateCompanionWPM(peerUID)
+							}
+						}
+						var activeComp *AngelInfo
+						if activeAngelMgr != nil {
+							activeComp = activeAngelMgr.GetActiveCompanion(uid)
+						}
+						_ = conn.WriteJSON(Message{
+							Type:              "guardian_sync_update",
+							Sanctuary:         updatedSanct,
+							GuardianXPGained:  gXPGained,
+							GuardianLeveledUp: gLeveledUp,
+							Angel:             activeComp,
+							SummonTokens:      updatedSanct.SummonTokens,
+						})
+						if tokensEarned > 0 {
+							_ = conn.WriteJSON(Message{
+								Type:         "summon_token_earned",
+								Content:      fmt.Sprintf("🪙 Earned +%d Archangel Summon Token(s)! (Total: %d 🪙)", tokensEarned, updatedSanct.SummonTokens),
+								SummonTokens: updatedSanct.SummonTokens,
+								Sanctuary:    updatedSanct,
 							})
 						}
 					}
@@ -2357,6 +2908,7 @@ func main() {
 
 	globalAngelManager = newAngelManager(store, globalHub)
 	globalAngelManager.StartGlobalAngel("michael")
+	globalAngelManager.SeedExistingUserGuardians()
 
 	dm := newDemonManager(store, globalHub)
 	setGlobalDemonManager(dm)
