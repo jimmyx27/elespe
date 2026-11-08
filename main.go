@@ -609,6 +609,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn := &safeConn{conn: rawConn}
 	defer conn.Close()
 
+	conn.conn.SetReadLimit(64 * 1024)
 	conn.conn.SetReadDeadline(time.Now().Add(pongWait))
 	conn.conn.SetPongHandler(func(string) error {
 		return conn.conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -633,7 +634,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	uid := r.URL.Query().Get("uid")
-	if uid == "" {
+	token := r.URL.Query().Get("token")
+	if uid == "" || (strings.HasPrefix(uid, "acc_") && !verifyAuthToken(uid, token)) {
 		uid = fmt.Sprintf("user_%d", time.Now().UnixNano())
 	}
 
@@ -697,8 +699,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	if account != nil {
 		_ = conn.WriteJSON(Message{
-			Type:    "auth_success",
-			Account: account,
+			Type:      "auth_success",
+			Account:   account,
+			AuthToken: signAuthToken(account.UID),
 		})
 	}
 
@@ -740,12 +743,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		Translation: currentTransID,
 	})
 
+	var cachedTopWPM int
+	if an, _ := activeStore.GetUserAnalytics(ctx, uid); an != nil {
+		cachedTopWPM = an.TopWPM
+	}
+
 	sendSanctuaryState := func(progMap map[string]BookProgress) {
 		customs, _ := activeStore.GetCustomizations(ctx, uid)
-		var topWPM int
-		if an, _ := activeStore.GetUserAnalytics(ctx, uid); an != nil {
-			topWPM = an.TopWPM
-		}
+		topWPM := cachedTopWPM
 		totVerses := 0
 		longStreak := 0
 		if st, _ := activeStore.GetStreak(ctx, uid); st != nil {
@@ -1099,6 +1104,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	syncUserStateAfterAuth := func() {
+		if an, _ := activeStore.GetUserAnalytics(ctx, uid); an != nil {
+			cachedTopWPM = an.TopWPM
+		}
 		st, _ := activeStore.GetStreak(ctx, uid)
 		streak = st
 		if st != nil {
@@ -1140,7 +1148,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if activeHub != nil {
 				activeHub.UpdateClientIdentity(client, acc.DisplayName, acc.AvatarColor, client.StreakDays)
 			}
-			_ = conn.WriteJSON(Message{Type: "auth_success", Account: acc})
+			_ = conn.WriteJSON(Message{Type: "auth_success", Account: acc, AuthToken: signAuthToken(acc.UID)})
 			syncUserStateAfterAuth()
 
 		case "auth_login":
@@ -1156,7 +1164,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if activeHub != nil {
 				activeHub.UpdateClientIdentity(client, acc.DisplayName, acc.AvatarColor, client.StreakDays)
 			}
-			_ = conn.WriteJSON(Message{Type: "auth_success", Account: acc})
+			_ = conn.WriteJSON(Message{Type: "auth_success", Account: acc, AuthToken: signAuthToken(acc.UID)})
 			syncUserStateAfterAuth()
 
 		case "update_profile":
@@ -1171,7 +1179,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "claim_progress":
-			if msg.AnonUID != "" && msg.AnonUID != uid {
+			if msg.AnonUID != "" && msg.AnonUID != uid && !strings.HasPrefix(msg.AnonUID, "acc_") {
 				_ = activeStore.MergeUserProgress(ctx, uid, msg.AnonUID)
 				syncUserStateAfterAuth()
 			}
@@ -2301,9 +2309,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					prevVerses = streak.TotalVersesTyped
 					prevLongStreak = streak.LongestStreak
 				}
-				prevTopWPM := 0
-				if prevAn, _ := activeStore.GetUserAnalytics(ctx, uid); prevAn != nil {
-					prevTopWPM = prevAn.TopWPM
+				prevTopWPM := cachedTopWPM
+				if instantWPM > cachedTopWPM {
+					cachedTopWPM = instantWPM
 				}
 
 				// Record completed verse in streak
@@ -2882,8 +2890,9 @@ func main() {
 		}
 
 		config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
-		config.MaxConns = 5
-		config.MinConns = 0
+		config.ConnConfig.ConnectTimeout = 10 * time.Second
+		config.MaxConns = 15
+		config.MinConns = 1
 		config.MaxConnLifetime = time.Hour
 		config.MaxConnIdleTime = time.Minute * 30
 		config.HealthCheckPeriod = time.Minute
@@ -2894,7 +2903,8 @@ func main() {
 		}
 		defer pool.Close()
 
-		ps := &postgresStore{pool: pool}
+		ps := newPostgresStore(pool)
+		defer ps.Close()
 		store = ps
 
 		var version string

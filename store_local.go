@@ -505,7 +505,7 @@ func (s *localStore) RegisterAccount(ctx context.Context, username, email, passw
 		Username:     username,
 		DisplayName:  displayName,
 		Email:        email,
-		PasswordHash: passwordHash,
+		PasswordHash: saltPasswordHash(passwordHash),
 		AvatarColor:  avatarColor,
 		CreatedAt:    time.Now().UTC(),
 		LastActive:   time.Now().UTC(),
@@ -513,7 +513,7 @@ func (s *localStore) RegisterAccount(ctx context.Context, username, email, passw
 	s.data.Accounts[accountUID] = acc
 
 	// Claim/merge progress from anonymous UID if present
-	if anonUID != "" && anonUID != accountUID {
+	if anonUID != "" && anonUID != accountUID && !strings.HasPrefix(anonUID, "acc_") {
 		s.mergeUserProgressLocked(accountUID, anonUID)
 	}
 
@@ -531,7 +531,10 @@ func (s *localStore) LoginAccount(ctx context.Context, usernameOrEmail, password
 	var found *UserAccount
 	for _, acc := range s.data.Accounts {
 		if strings.EqualFold(acc.Username, key) || (acc.Email != "" && strings.EqualFold(acc.Email, key)) {
-			if acc.PasswordHash == passwordHash {
+			if verifyStoredPassword(acc.PasswordHash, passwordHash) {
+				if needsPasswordUpgrade(acc.PasswordHash) {
+					acc.PasswordHash = saltPasswordHash(passwordHash)
+				}
 				found = acc
 				break
 			}
@@ -546,7 +549,7 @@ func (s *localStore) LoginAccount(ctx context.Context, usernameOrEmail, password
 	found.LastActive = time.Now().UTC()
 
 	// Merge progress non-destructively
-	if anonUID != "" && anonUID != found.UID {
+	if anonUID != "" && anonUID != found.UID && !strings.HasPrefix(anonUID, "acc_") {
 		s.mergeUserProgressLocked(found.UID, anonUID)
 	}
 
@@ -605,7 +608,7 @@ func (s *localStore) MergeUserProgress(ctx context.Context, targetUID, sourceUID
 // mergeUserProgressLocked performs a robust, non-destructive merge of all progress,
 // favorites, streaks, badges, and history into targetUID.
 func (s *localStore) mergeUserProgressLocked(targetUID, sourceUID string) {
-	if targetUID == sourceUID || sourceUID == "" {
+	if targetUID == sourceUID || sourceUID == "" || strings.HasPrefix(sourceUID, "acc_") {
 		return
 	}
 

@@ -3133,11 +3133,30 @@ func TestDemonTaintRighteousnessDebuffAndGloriousMichaelTrail(t *testing.T) {
 	if got := countUppercaseRunes("In the Beginning GOD created."); got != 5 {
 		t.Errorf("Expected 5 uppercase runes in 'In the Beginning GOD created.', got %d", got)
 	}
+
+	// 5. Test Salted Password Hashing, Legacy Upgrade, and Auth Token Verification
+	preHash := hashPassword("MySacredSecret99")
+	salted1 := saltPasswordHash(preHash)
+	salted2 := saltPasswordHash(preHash)
+	if salted1 == salted2 {
+		t.Errorf("Expected distinct random salts for identical password pre-hashes")
+	}
+	if !verifyStoredPassword(salted1, preHash) || !verifyStoredPassword(salted2, preHash) {
+		t.Errorf("Expected salted password hashes to verify against pre-hash")
+	}
+	if verifyStoredPassword(salted1, hashPassword("WrongPass")) {
+		t.Errorf("Expected wrong password to fail verification")
+	}
+	if !verifyStoredPassword(preHash, preHash) || !needsPasswordUpgrade(preHash) {
+		t.Errorf("Expected legacy v1 hash to verify and flag for v2 upgrade")
+	}
+	tok := signAuthToken("acc_12345")
+	if !verifyAuthToken("acc_12345", tok) {
+		t.Errorf("Expected valid auth token to verify for acc_12345")
+	}
+	if verifyAuthToken("acc_99999", tok) || verifyAuthToken("acc_12345", "invalid") {
+		t.Errorf("Expected forged or mismatched auth token to be rejected")
+	}
 }
-
-
-
-
-
 
 

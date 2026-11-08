@@ -5,16 +5,214 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type dirtyBookProgItem struct {
+	uid         string
+	translation string
+	bookName    string
+	bp          BookProgress
+}
+
+type dirtyVerseCompItem struct {
+	uid         string
+	translation string
+	bookName    string
+	chapter     int
+	verse       int
+	delta       int
+}
+
+type cachedLeaderboards struct {
+	resp      *LeaderboardsResponse
+	fetchedAt time.Time
+}
+
 type postgresStore struct {
 	pool *pgxpool.Pool
+
+	mu                    sync.RWMutex
+	knownUsers            map[string]bool
+	sanctuaryCache        map[string]SanctuarySettings
+	dirtySanctuary        map[string]SanctuarySettings
+	streakCache           map[string]UserStreak
+	dirtyStreaks          map[string]UserStreak
+	bookProgCache         map[string]map[string]BookProgress // key: uid + "|" + translation
+	dirtyBookProg         map[string]dirtyBookProgItem       // key: uid + "|" + translation + "|" + bookName
+	accountCache          map[string]*UserAccount
+	badgesCache           map[string][]Badge
+	favsCache             map[string][]Favorite
+	userVerseCompCache    map[string]int               // key: uid + "|" + trans + "|" + book + ":" + ch + ":" + v
+	dirtyUserVerseComps   map[string]dirtyVerseCompItem
+	globalVerseCompCache  map[string]int               // key: trans + "|" + book + ":" + ch + ":" + v
+	dirtyGlobalVerseComps map[string]dirtyVerseCompItem
+	leaderboardsCache     map[string]cachedLeaderboards
+	crowdMetricsCache     *CrowdMetrics
+	crowdMetricsAt        time.Time
+
+	stopFlushChan chan struct{}
+	flushDoneChan chan struct{}
+	closeOnce     sync.Once
+}
+
+func newPostgresStore(pool *pgxpool.Pool) *postgresStore {
+	s := &postgresStore{
+		pool:                  pool,
+		knownUsers:            make(map[string]bool),
+		sanctuaryCache:        make(map[string]SanctuarySettings),
+		dirtySanctuary:        make(map[string]SanctuarySettings),
+		streakCache:           make(map[string]UserStreak),
+		dirtyStreaks:          make(map[string]UserStreak),
+		bookProgCache:         make(map[string]map[string]BookProgress),
+		dirtyBookProg:         make(map[string]dirtyBookProgItem),
+		accountCache:          make(map[string]*UserAccount),
+		badgesCache:           make(map[string][]Badge),
+		favsCache:             make(map[string][]Favorite),
+		userVerseCompCache:    make(map[string]int),
+		dirtyUserVerseComps:   make(map[string]dirtyVerseCompItem),
+		globalVerseCompCache:  make(map[string]int),
+		dirtyGlobalVerseComps: make(map[string]dirtyVerseCompItem),
+		leaderboardsCache:     make(map[string]cachedLeaderboards),
+		stopFlushChan:         make(chan struct{}),
+		flushDoneChan:         make(chan struct{}),
+	}
+	go s.startWriteBehindLoop()
+	return s
+}
+
+func (s *postgresStore) startWriteBehindLoop() {
+	defer close(s.flushDoneChan)
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.stopFlushChan:
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			s.Flush(ctx)
+			cancel()
+			return
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+			s.Flush(ctx)
+			cancel()
+		}
+	}
+}
+
+func (s *postgresStore) Close() {
+	s.closeOnce.Do(func() {
+		close(s.stopFlushChan)
+		<-s.flushDoneChan
+	})
+}
+
+// Flush persists all buffered in-memory progress, streaks, sanctuary settings, and verse completion deltas to Supabase/PostgreSQL.
+func (s *postgresStore) Flush(ctx context.Context) {
+	s.mu.Lock()
+	if len(s.dirtySanctuary) == 0 && len(s.dirtyStreaks) == 0 && len(s.dirtyBookProg) == 0 && len(s.dirtyUserVerseComps) == 0 && len(s.dirtyGlobalVerseComps) == 0 {
+		s.mu.Unlock()
+		return
+	}
+
+	sanctBatch := s.dirtySanctuary
+	s.dirtySanctuary = make(map[string]SanctuarySettings)
+
+	streakBatch := s.dirtyStreaks
+	s.dirtyStreaks = make(map[string]UserStreak)
+
+	bpBatch := s.dirtyBookProg
+	s.dirtyBookProg = make(map[string]dirtyBookProgItem)
+
+	uCompBatch := s.dirtyUserVerseComps
+	s.dirtyUserVerseComps = make(map[string]dirtyVerseCompItem)
+
+	gCompBatch := s.dirtyGlobalVerseComps
+	s.dirtyGlobalVerseComps = make(map[string]dirtyVerseCompItem)
+	s.mu.Unlock()
+
+	for uid, settings := range sanctBatch {
+		if err := s.flushSanctuaryRow(ctx, uid, settings); err != nil {
+			log.Printf("Write-behind sanctuary flush error for %s: %v", uid, err)
+		}
+	}
+
+	for _, streak := range streakBatch {
+		_ = s.EnsureUser(ctx, streak.UID)
+		_, err := s.pool.Exec(ctx, `
+			INSERT INTO user_streaks (uid, current_streak, longest_streak, last_active_date, today_verses_count, total_verses_typed, total_chars_typed, total_seconds, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+			ON CONFLICT (uid) DO UPDATE SET
+				current_streak = EXCLUDED.current_streak,
+				longest_streak = EXCLUDED.longest_streak,
+				last_active_date = EXCLUDED.last_active_date,
+				today_verses_count = EXCLUDED.today_verses_count,
+				total_verses_typed = EXCLUDED.total_verses_typed,
+				total_chars_typed = EXCLUDED.total_chars_typed,
+				total_seconds = EXCLUDED.total_seconds,
+				updated_at = CURRENT_TIMESTAMP
+		`, streak.UID, streak.CurrentStreak, streak.LongestStreak, streak.LastActiveDate, streak.TodayVersesCount, streak.TotalVersesTyped, streak.TotalCharsTyped, streak.TotalSeconds)
+		if err != nil {
+			log.Printf("Write-behind streak flush error for %s: %v", streak.UID, err)
+		}
+	}
+
+	for _, item := range bpBatch {
+		_ = s.EnsureUser(ctx, item.uid)
+		totalV := item.bp.TotalVerses
+		if totalV <= 0 {
+			totalV = 1
+		}
+		_, err := s.pool.Exec(ctx, `
+			INSERT INTO book_progress (uid, translation, book_name, current_verse, total_verses, correct_entries, mistakes, intro_completed, review_completed, completed_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
+			ON CONFLICT (uid, translation, book_name) DO UPDATE SET
+				current_verse = EXCLUDED.current_verse,
+				correct_entries = EXCLUDED.correct_entries,
+				mistakes = EXCLUDED.mistakes,
+				intro_completed = EXCLUDED.intro_completed,
+				review_completed = EXCLUDED.review_completed,
+				completed_at = EXCLUDED.completed_at,
+				updated_at = CURRENT_TIMESTAMP
+		`, item.uid, item.translation, item.bookName, item.bp.CurrentVerse, totalV, item.bp.CorrectEntries, item.bp.Mistakes, item.bp.IntroCompleted, item.bp.ReviewCompleted, item.bp.CompletedAt)
+		if err != nil {
+			log.Printf("Write-behind book_progress flush error for %s/%s: %v", item.uid, item.bookName, err)
+		}
+	}
+
+	for _, item := range gCompBatch {
+		if item.delta <= 0 {
+			continue
+		}
+		_, _ = s.pool.Exec(ctx, `
+			INSERT INTO global_verse_completions (translation, book_name, chapter, verse, times_completed, last_completed_at)
+			VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+			ON CONFLICT (translation, book_name, chapter, verse) DO UPDATE SET
+				times_completed = global_verse_completions.times_completed + $5,
+				last_completed_at = CURRENT_TIMESTAMP
+		`, item.translation, item.bookName, item.chapter, item.verse, item.delta)
+	}
+
+	for _, item := range uCompBatch {
+		if item.delta <= 0 || item.uid == "" || strings.HasPrefix(item.uid, "angel-") {
+			continue
+		}
+		_ = s.EnsureUser(ctx, item.uid)
+		_, _ = s.pool.Exec(ctx, `
+			INSERT INTO verse_completions (uid, translation, book_name, chapter, verse, times_completed, last_completed_at)
+			VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+			ON CONFLICT (uid, translation, book_name, chapter, verse) DO UPDATE SET
+				times_completed = verse_completions.times_completed + $6,
+				last_completed_at = CURRENT_TIMESTAMP
+		`, item.uid, item.translation, item.bookName, item.chapter, item.verse, item.delta)
+	}
 }
 
 func (s *postgresStore) initDB(ctx context.Context) error {
@@ -35,6 +233,8 @@ func (s *postgresStore) initDB(ctx context.Context) error {
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
+	CREATE INDEX IF NOT EXISTS idx_user_accounts_lower_username ON user_accounts(LOWER(username));
+	CREATE INDEX IF NOT EXISTS idx_user_accounts_lower_email ON user_accounts(LOWER(email));
 
 	CREATE TABLE IF NOT EXISTS book_progress (
 		id SERIAL PRIMARY KEY,
@@ -72,6 +272,9 @@ func (s *postgresStore) initDB(ctx context.Context) error {
 
 	ALTER TABLE typing_sessions ADD COLUMN IF NOT EXISTS translation TEXT NOT NULL DEFAULT 'kjv';
 	CREATE INDEX IF NOT EXISTS idx_typing_sessions_uid ON typing_sessions(uid);
+	CREATE INDEX IF NOT EXISTS idx_typing_sessions_started_at ON typing_sessions(started_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_typing_sessions_uid_wpm ON typing_sessions(uid, wpm DESC) WHERE wpm > 0;
+	CREATE INDEX IF NOT EXISTS idx_typing_sessions_wpm ON typing_sessions(wpm) WHERE wpm > 0;
 
 	CREATE TABLE IF NOT EXISTS favorites (
 		id SERIAL PRIMARY KEY,
@@ -100,6 +303,8 @@ func (s *postgresStore) initDB(ctx context.Context) error {
 		total_seconds INT DEFAULT 0,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
+	CREATE INDEX IF NOT EXISTS idx_user_streaks_current ON user_streaks(current_streak DESC);
+	CREATE INDEX IF NOT EXISTS idx_user_streaks_total_verses ON user_streaks(total_verses_typed DESC);
 
 	CREATE TABLE IF NOT EXISTS user_badges (
 		id SERIAL PRIMARY KEY,
@@ -112,6 +317,7 @@ func (s *postgresStore) initDB(ctx context.Context) error {
 		earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		UNIQUE(uid, badge_id)
 	);
+	CREATE INDEX IF NOT EXISTS idx_user_badges_uid ON user_badges(uid, earned_at DESC);
 
 	CREATE TABLE IF NOT EXISTS verse_comments (
 		id SERIAL PRIMARY KEY,
@@ -235,21 +441,80 @@ func (s *postgresStore) initDB(ctx context.Context) error {
 	ALTER TABLE boss_raids ADD COLUMN IF NOT EXISTS level INT DEFAULT 1;
 	ALTER TABLE boss_raids ADD COLUMN IF NOT EXISTS max_level INT DEFAULT 4;
 	ALTER TABLE boss_raids ADD COLUMN IF NOT EXISTS is_demon_boss BOOLEAN DEFAULT false;
+	CREATE INDEX IF NOT EXISTS idx_boss_raids_level_demon ON boss_raids(level, is_demon_boss, updated_at DESC);
+
+	-- Enable Row Level Security (RLS) on all public tables to satisfy Supabase Security Advisor
+	-- and block direct PostgREST anon/authenticated access while the Go server uses the owner/postgres connection.
+	ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE user_accounts ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE book_progress ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE typing_sessions ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE user_streaks ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE verse_comments ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE daily_race_results ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE verse_completions ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE global_verse_completions ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE sanctuary_settings ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE boss_raids ENABLE ROW LEVEL SECURITY;
+
+	DO $$
+	BEGIN
+		IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+			REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
+			REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon;
+		END IF;
+		IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+			REVOKE ALL ON ALL TABLES IN SCHEMA public FROM authenticated;
+			REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM authenticated;
+		END IF;
+	EXCEPTION WHEN OTHERS THEN
+		NULL;
+	END $$;
 	`
 	_, err := s.pool.Exec(ctx, schema)
 	return err
 }
 
 func (s *postgresStore) EnsureUser(ctx context.Context, uid string) error {
+	if uid == "" {
+		return nil
+	}
+	s.mu.RLock()
+	known := s.knownUsers[uid]
+	s.mu.RUnlock()
+	if known {
+		return nil
+	}
+
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO users (uid, last_active) 
 		VALUES ($1, CURRENT_TIMESTAMP)
 		ON CONFLICT (uid) DO UPDATE SET last_active = CURRENT_TIMESTAMP
 	`, uid)
+	if err == nil {
+		s.mu.Lock()
+		s.knownUsers[uid] = true
+		s.mu.Unlock()
+	}
 	return err
 }
 
 func (s *postgresStore) GetAllBookProgress(ctx context.Context, uid, translation string) (map[string]BookProgress, error) {
+	cacheKey := uid + "|" + translation
+	s.mu.RLock()
+	if cached, ok := s.bookProgCache[cacheKey]; ok && len(cached) > 0 {
+		out := make(map[string]BookProgress, len(cached))
+		for k, v := range cached {
+			out[k] = v
+		}
+		s.mu.RUnlock()
+		return out, nil
+	}
+	s.mu.RUnlock()
+
 	rows, err := s.pool.Query(ctx,
 		`SELECT
 			book_name,
@@ -275,10 +540,35 @@ func (s *postgresStore) GetAllBookProgress(ctx context.Context, uid, translation
 		}
 		progress[book] = bp
 	}
+
+	s.mu.Lock()
+	if s.bookProgCache[cacheKey] == nil {
+		s.bookProgCache[cacheKey] = make(map[string]BookProgress, len(progress))
+	}
+	for k, v := range progress {
+		if _, dirty := s.dirtyBookProg[cacheKey+"|"+k]; !dirty {
+			s.bookProgCache[cacheKey][k] = v
+		} else {
+			progress[k] = s.bookProgCache[cacheKey][k]
+		}
+	}
+	s.mu.Unlock()
+
 	return progress, nil
 }
 
 func (s *postgresStore) GetBookProgress(ctx context.Context, uid, translation, bookName string, totalVerses int) (*BookProgress, error) {
+	cacheKey := uid + "|" + translation
+	s.mu.RLock()
+	if m, ok := s.bookProgCache[cacheKey]; ok {
+		if bp, exists := m[bookName]; exists {
+			cp := bp
+			s.mu.RUnlock()
+			return &cp, nil
+		}
+	}
+	s.mu.RUnlock()
+
 	var bp BookProgress
 	err := s.pool.QueryRow(ctx, `
 		SELECT current_verse, total_verses, correct_entries, mistakes, intro_completed, review_completed, completed_at
@@ -288,42 +578,68 @@ func (s *postgresStore) GetBookProgress(ctx context.Context, uid, translation, b
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			_, insertErr := s.pool.Exec(ctx, `
-				INSERT INTO book_progress (uid, translation, book_name, total_verses, intro_completed, review_completed)
-				VALUES ($1, $2, $3, $4, false, false)
-				ON CONFLICT (uid, translation, book_name) DO NOTHING
-			`, uid, translation, bookName, totalVerses)
-			if insertErr != nil {
-				return nil, insertErr
-			}
-			return &BookProgress{
+			bp = BookProgress{
 				TotalVerses:     totalVerses,
 				IntroCompleted:  false,
 				ReviewCompleted: false,
-			}, nil
+			}
+			s.mu.Lock()
+			if s.bookProgCache[cacheKey] == nil {
+				s.bookProgCache[cacheKey] = make(map[string]BookProgress)
+			}
+			s.bookProgCache[cacheKey][bookName] = bp
+			s.dirtyBookProg[cacheKey+"|"+bookName] = dirtyBookProgItem{
+				uid:         uid,
+				translation: translation,
+				bookName:    bookName,
+				bp:          bp,
+			}
+			s.mu.Unlock()
+			return &bp, nil
 		}
 		return nil, err
 	}
+
+	s.mu.Lock()
+	if s.bookProgCache[cacheKey] == nil {
+		s.bookProgCache[cacheKey] = make(map[string]BookProgress)
+	}
+	s.bookProgCache[cacheKey][bookName] = bp
+	s.mu.Unlock()
 
 	return &bp, nil
 }
 
 func (s *postgresStore) UpdateBookProgress(ctx context.Context, uid, translation, bookName string, bp *BookProgress) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE book_progress
-		SET current_verse = $4,
-			correct_entries = $5,
-			mistakes = $6,
-			intro_completed = $7,
-			review_completed = $8,
-			completed_at = $9,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE uid = $1 AND translation = $2 AND book_name = $3
-	`, uid, translation, bookName, bp.CurrentVerse, bp.CorrectEntries, bp.Mistakes, bp.IntroCompleted, bp.ReviewCompleted, bp.CompletedAt)
-	return err
+	if bp == nil {
+		return nil
+	}
+	cacheKey := uid + "|" + translation
+	cp := *bp
+	s.mu.Lock()
+	if s.bookProgCache[cacheKey] == nil {
+		s.bookProgCache[cacheKey] = make(map[string]BookProgress)
+	}
+	s.bookProgCache[cacheKey][bookName] = cp
+	s.dirtyBookProg[cacheKey+"|"+bookName] = dirtyBookProgItem{
+		uid:         uid,
+		translation: translation,
+		bookName:    bookName,
+		bp:          cp,
+	}
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *postgresStore) EnsureBookProgressRows(ctx context.Context, uid, translation string, books []string, totals map[string]int) error {
+	cacheKey := uid + "|" + translation
+	s.mu.RLock()
+	_, alreadyLoaded := s.bookProgCache[cacheKey]
+	s.mu.RUnlock()
+	if alreadyLoaded {
+		return nil
+	}
+
 	totalList := make([]int, len(books))
 	for i, b := range books {
 		totalList[i] = totals[b]
@@ -348,26 +664,50 @@ func (s *postgresStore) CreateTypingSession(ctx context.Context, uid, translatio
 }
 
 func (s *postgresStore) UpdateTypingSession(ctx context.Context, sessionID int, stats *RuntimeStats) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE typing_sessions
-		SET chars_typed = $2,
-			correct_chars = $3,
-			wpm = $4,
-			ended_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-	`, sessionID, stats.CharsTyped, stats.CorrectChars, stats.WPM)
-	return err
+	if sessionID <= 0 || stats == nil {
+		return nil
+	}
+	chars := stats.CharsTyped
+	correct := stats.CorrectChars
+	wpm := stats.WPM
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = s.pool.Exec(bgCtx, `
+			UPDATE typing_sessions
+			SET chars_typed = $2,
+				correct_chars = $3,
+				wpm = $4,
+				ended_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+		`, sessionID, chars, correct, wpm)
+	}()
+	return nil
 }
 
 func (s *postgresStore) RecordTypingSession(ctx context.Context, uid, translation, bookName string, chars, correct, wpm int, duration float64) error {
-	_, err := s.pool.Exec(ctx, `
-		INSERT INTO typing_sessions (uid, translation, book_name, chars_typed, correct_chars, wpm, started_at, ended_at)
-		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP - ($7 || ' seconds')::interval, CURRENT_TIMESTAMP)
-	`, uid, translation, bookName, chars, correct, wpm, duration)
-	return err
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = s.EnsureUser(bgCtx, uid)
+		_, _ = s.pool.Exec(bgCtx, `
+			INSERT INTO typing_sessions (uid, translation, book_name, chars_typed, correct_chars, wpm, started_at, ended_at)
+			VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP - ($7 || ' seconds')::interval, CURRENT_TIMESTAMP)
+		`, uid, translation, bookName, chars, correct, wpm, duration)
+	}()
+	return nil
 }
 
 func (s *postgresStore) GetFavorites(ctx context.Context, uid string) ([]Favorite, error) {
+	s.mu.RLock()
+	if cached, ok := s.favsCache[uid]; ok {
+		cp := make([]Favorite, len(cached))
+		copy(cp, cached)
+		s.mu.RUnlock()
+		return cp, nil
+	}
+	s.mu.RUnlock()
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, uid, translation, book_name, book, chapter, verse, text, created_at, times_typed
 		FROM favorites
@@ -387,6 +727,13 @@ func (s *postgresStore) GetFavorites(ctx context.Context, uid string) ([]Favorit
 		}
 		favs = append(favs, f)
 	}
+
+	s.mu.Lock()
+	cp := make([]Favorite, len(favs))
+	copy(cp, favs)
+	s.favsCache[uid] = cp
+	s.mu.Unlock()
+
 	return favs, nil
 }
 
@@ -396,6 +743,11 @@ func (s *postgresStore) AddFavorite(ctx context.Context, fav Favorite) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (uid, translation, book_name, chapter, verse) DO NOTHING
 	`, fav.UID, fav.Translation, fav.BookName, fav.Book, fav.Chapter, fav.Verse, fav.Text)
+	if err == nil {
+		s.mu.Lock()
+		delete(s.favsCache, fav.UID)
+		s.mu.Unlock()
+	}
 	return err
 }
 
@@ -404,10 +756,28 @@ func (s *postgresStore) RemoveFavorite(ctx context.Context, uid, translation, bo
 		DELETE FROM favorites
 		WHERE uid = $1 AND translation = $2 AND book_name = $3 AND chapter = $4 AND verse = $5
 	`, uid, translation, bookName, chapter, verse)
+	if err == nil {
+		s.mu.Lock()
+		delete(s.favsCache, uid)
+		s.mu.Unlock()
+	}
 	return err
 }
 
 func (s *postgresStore) IsFavorite(ctx context.Context, uid, translation, bookName string, chapter, verse int) (bool, error) {
+	s.mu.RLock()
+	if cached, ok := s.favsCache[uid]; ok {
+		for _, f := range cached {
+			if f.Translation == translation && f.BookName == bookName && f.Chapter == chapter && f.Verse == verse {
+				s.mu.RUnlock()
+				return true, nil
+			}
+		}
+		s.mu.RUnlock()
+		return false, nil
+	}
+	s.mu.RUnlock()
+
 	var count int
 	err := s.pool.QueryRow(ctx, `
 		SELECT count(*)
@@ -418,6 +788,16 @@ func (s *postgresStore) IsFavorite(ctx context.Context, uid, translation, bookNa
 }
 
 func (s *postgresStore) RecordFavoriteTyped(ctx context.Context, uid, translation, bookName string, chapter, verse int) error {
+	s.mu.Lock()
+	if cached, ok := s.favsCache[uid]; ok {
+		for i := range cached {
+			if cached[i].Translation == translation && cached[i].BookName == bookName && cached[i].Chapter == chapter && cached[i].Verse == verse {
+				cached[i].TimesTyped++
+			}
+		}
+	}
+	s.mu.Unlock()
+
 	_, err := s.pool.Exec(ctx, `
 		UPDATE favorites
 		SET times_typed = times_typed + 1
@@ -427,6 +807,14 @@ func (s *postgresStore) RecordFavoriteTyped(ctx context.Context, uid, translatio
 }
 
 func (s *postgresStore) GetStreak(ctx context.Context, uid string) (*UserStreak, error) {
+	s.mu.RLock()
+	if cached, ok := s.streakCache[uid]; ok {
+		cp := cached
+		s.mu.RUnlock()
+		return &cp, nil
+	}
+	s.mu.RUnlock()
+
 	var streak UserStreak
 	err := s.pool.QueryRow(ctx, `
 		SELECT uid, current_streak, longest_streak, last_active_date, today_verses_count, total_verses_typed, total_chars_typed, total_seconds
@@ -444,15 +832,23 @@ func (s *postgresStore) GetStreak(ctx context.Context, uid string) (*UserStreak,
 				LastActiveDate:   nowDate,
 				TodayVersesCount: 0,
 			}
-			_, _ = s.pool.Exec(ctx, `
-				INSERT INTO user_streaks (uid, current_streak, longest_streak, last_active_date, today_verses_count)
-				VALUES ($1, 0, 0, $2, 0)
-				ON CONFLICT (uid) DO NOTHING
-			`, uid, nowDate)
+			s.mu.Lock()
+			s.streakCache[uid] = newStreak
+			s.dirtyStreaks[uid] = newStreak
+			s.mu.Unlock()
 			return &newStreak, nil
 		}
 		return nil, err
 	}
+
+	s.mu.Lock()
+	if _, dirty := s.dirtyStreaks[uid]; !dirty {
+		s.streakCache[uid] = streak
+	} else {
+		streak = s.streakCache[uid]
+	}
+	s.mu.Unlock()
+
 	return &streak, nil
 }
 
@@ -487,24 +883,24 @@ func (s *postgresStore) RecordVerseCompleted(ctx context.Context, uid string, ch
 	streak.TotalCharsTyped += chars
 	streak.TotalSeconds += int(seconds)
 
-	_, err = s.pool.Exec(ctx, `
-		INSERT INTO user_streaks (uid, current_streak, longest_streak, last_active_date, today_verses_count, total_verses_typed, total_chars_typed, total_seconds, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
-		ON CONFLICT (uid) DO UPDATE SET
-			current_streak = EXCLUDED.current_streak,
-			longest_streak = EXCLUDED.longest_streak,
-			last_active_date = EXCLUDED.last_active_date,
-			today_verses_count = EXCLUDED.today_verses_count,
-			total_verses_typed = EXCLUDED.total_verses_typed,
-			total_chars_typed = EXCLUDED.total_chars_typed,
-			total_seconds = EXCLUDED.total_seconds,
-			updated_at = CURRENT_TIMESTAMP
-	`, streak.UID, streak.CurrentStreak, streak.LongestStreak, streak.LastActiveDate, streak.TodayVersesCount, streak.TotalVersesTyped, streak.TotalCharsTyped, streak.TotalSeconds)
+	s.mu.Lock()
+	s.streakCache[uid] = *streak
+	s.dirtyStreaks[uid] = *streak
+	s.mu.Unlock()
 
-	return streak, err
+	return streak, nil
 }
 
 func (s *postgresStore) GetBadges(ctx context.Context, uid string) ([]Badge, error) {
+	s.mu.RLock()
+	if cached, ok := s.badgesCache[uid]; ok {
+		cp := make([]Badge, len(cached))
+		copy(cp, cached)
+		s.mu.RUnlock()
+		return cp, nil
+	}
+	s.mu.RUnlock()
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT badge_id, badge_type, name, description, icon, earned_at
 		FROM user_badges
@@ -524,10 +920,28 @@ func (s *postgresStore) GetBadges(ctx context.Context, uid string) ([]Badge, err
 		}
 		badges = append(badges, b)
 	}
+
+	s.mu.Lock()
+	cp := make([]Badge, len(badges))
+	copy(cp, badges)
+	s.badgesCache[uid] = cp
+	s.mu.Unlock()
+
 	return badges, nil
 }
 
 func (s *postgresStore) AwardBadge(ctx context.Context, uid string, badge Badge) (bool, error) {
+	s.mu.RLock()
+	if cached, ok := s.badgesCache[uid]; ok {
+		for _, b := range cached {
+			if b.ID == badge.ID {
+				s.mu.RUnlock()
+				return false, nil
+			}
+		}
+	}
+	s.mu.RUnlock()
+
 	tag, err := s.pool.Exec(ctx, `
 		INSERT INTO user_badges (uid, badge_id, badge_type, name, description, icon, earned_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -536,7 +950,15 @@ func (s *postgresStore) AwardBadge(ctx context.Context, uid string, badge Badge)
 	if err != nil {
 		return false, err
 	}
-	return tag.RowsAffected() > 0, nil
+	awarded := tag.RowsAffected() > 0
+	if awarded {
+		s.mu.Lock()
+		if cached, ok := s.badgesCache[uid]; ok {
+			s.badgesCache[uid] = append([]Badge{badge}, cached...)
+		}
+		s.mu.Unlock()
+	}
+	return awarded, nil
 }
 
 // ---- Accounts & Identity Implementation ----
@@ -555,11 +977,12 @@ func (s *postgresStore) RegisterAccount(ctx context.Context, username, email, pa
 	}
 
 	_ = s.EnsureUser(ctx, accountUID)
+	saltedHash := saltPasswordHash(passwordHash)
 
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO user_accounts (uid, username, email, password_hash, display_name, avatar_color)
 		VALUES ($1, $2, $3, $4, $5, $6)
-	`, accountUID, username, email, passwordHash, displayName, avatarColor)
+	`, accountUID, username, email, saltedHash, displayName, avatarColor)
 	if err != nil {
 		return nil, fmt.Errorf("username or account already exists: %w", err)
 	}
@@ -574,7 +997,12 @@ func (s *postgresStore) RegisterAccount(ctx context.Context, username, email, pa
 		LastActive:  time.Now().UTC(),
 	}
 
-	if anonUID != "" && anonUID != accountUID {
+	s.mu.Lock()
+	cp := *acc
+	s.accountCache[accountUID] = &cp
+	s.mu.Unlock()
+
+	if anonUID != "" && anonUID != accountUID && !strings.HasPrefix(anonUID, "acc_") {
 		_ = s.MergeUserProgress(ctx, accountUID, anonUID)
 	}
 
@@ -583,21 +1011,33 @@ func (s *postgresStore) RegisterAccount(ctx context.Context, username, email, pa
 
 func (s *postgresStore) LoginAccount(ctx context.Context, usernameOrEmail, passwordHash, anonUID string) (*UserAccount, error) {
 	var acc UserAccount
+	var storedHash string
 	key := strings.TrimSpace(usernameOrEmail)
 
 	err := s.pool.QueryRow(ctx, `
-		SELECT uid, username, email, display_name, avatar_color, created_at, last_active
+		SELECT uid, username, email, password_hash, display_name, avatar_color, created_at, last_active
 		FROM user_accounts
-		WHERE (LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1)) AND password_hash = $2
-	`, key, passwordHash).Scan(&acc.UID, &acc.Username, &acc.Email, &acc.DisplayName, &acc.AvatarColor, &acc.CreatedAt, &acc.LastActive)
+		WHERE LOWER(username) = LOWER($1) OR (email <> '' AND LOWER(email) = LOWER($1))
+		LIMIT 1
+	`, key).Scan(&acc.UID, &acc.Username, &acc.Email, &storedHash, &acc.DisplayName, &acc.AvatarColor, &acc.CreatedAt, &acc.LastActive)
 
-	if err != nil {
+	if err != nil || !verifyStoredPassword(storedHash, passwordHash) {
 		return nil, errors.New("invalid credentials")
 	}
 
-	_, _ = s.pool.Exec(ctx, `UPDATE user_accounts SET last_active = CURRENT_TIMESTAMP WHERE uid = $1`, acc.UID)
+	if needsPasswordUpgrade(storedHash) {
+		upgradedHash := saltPasswordHash(passwordHash)
+		_, _ = s.pool.Exec(ctx, `UPDATE user_accounts SET password_hash = $2, last_active = CURRENT_TIMESTAMP WHERE uid = $1`, acc.UID, upgradedHash)
+	} else {
+		_, _ = s.pool.Exec(ctx, `UPDATE user_accounts SET last_active = CURRENT_TIMESTAMP WHERE uid = $1`, acc.UID)
+	}
 
-	if anonUID != "" && anonUID != acc.UID {
+	s.mu.Lock()
+	cp := acc
+	s.accountCache[acc.UID] = &cp
+	s.mu.Unlock()
+
+	if anonUID != "" && anonUID != acc.UID && !strings.HasPrefix(anonUID, "acc_") {
 		_ = s.MergeUserProgress(ctx, acc.UID, anonUID)
 	}
 
@@ -605,6 +1045,18 @@ func (s *postgresStore) LoginAccount(ctx context.Context, usernameOrEmail, passw
 }
 
 func (s *postgresStore) GetAccount(ctx context.Context, uid string) (*UserAccount, error) {
+	s.mu.RLock()
+	if cached, ok := s.accountCache[uid]; ok {
+		if cached == nil {
+			s.mu.RUnlock()
+			return nil, pgx.ErrNoRows
+		}
+		cp := *cached
+		s.mu.RUnlock()
+		return &cp, nil
+	}
+	s.mu.RUnlock()
+
 	var acc UserAccount
 	err := s.pool.QueryRow(ctx, `
 		SELECT uid, username, email, display_name, avatar_color, created_at, last_active
@@ -612,8 +1064,18 @@ func (s *postgresStore) GetAccount(ctx context.Context, uid string) (*UserAccoun
 		WHERE uid = $1
 	`, uid).Scan(&acc.UID, &acc.Username, &acc.Email, &acc.DisplayName, &acc.AvatarColor, &acc.CreatedAt, &acc.LastActive)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.mu.Lock()
+			s.accountCache[uid] = nil
+			s.mu.Unlock()
+		}
 		return nil, err
 	}
+
+	s.mu.Lock()
+	cp := acc
+	s.accountCache[uid] = &cp
+	s.mu.Unlock()
 	return &acc, nil
 }
 
@@ -621,29 +1083,33 @@ func (s *postgresStore) UpdateProfile(ctx context.Context, uid, displayName, ava
 	_ = s.EnsureUser(ctx, uid)
 	var acc UserAccount
 
-	_, err := s.pool.Exec(ctx, `
+	err := s.pool.QueryRow(ctx, `
 		INSERT INTO user_accounts (uid, username, password_hash, display_name, avatar_color)
 		VALUES ($1, $1, '', $2, $3)
 		ON CONFLICT (uid) DO UPDATE SET
 			display_name = CASE WHEN $2 <> '' THEN $2 ELSE user_accounts.display_name END,
 			avatar_color = CASE WHEN $3 <> '' THEN $3 ELSE user_accounts.avatar_color END,
 			last_active = CURRENT_TIMESTAMP
-	`, uid, displayName, avatarColor)
+		RETURNING uid, username, COALESCE(email, ''), display_name, avatar_color, created_at, last_active
+	`, uid, displayName, avatarColor).Scan(&acc.UID, &acc.Username, &acc.Email, &acc.DisplayName, &acc.AvatarColor, &acc.CreatedAt, &acc.LastActive)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.pool.QueryRow(ctx, `
-		SELECT uid, username, email, display_name, avatar_color, created_at, last_active
-		FROM user_accounts WHERE uid = $1
-	`, uid).Scan(&acc.UID, &acc.Username, &acc.Email, &acc.DisplayName, &acc.AvatarColor, &acc.CreatedAt, &acc.LastActive)
-	return &acc, err
+	s.mu.Lock()
+	cp := acc
+	s.accountCache[uid] = &cp
+	s.mu.Unlock()
+	return &acc, nil
 }
 
 func (s *postgresStore) MergeUserProgress(ctx context.Context, targetUID, sourceUID string) error {
-	if targetUID == sourceUID || sourceUID == "" {
+	if targetUID == sourceUID || sourceUID == "" || strings.HasPrefix(sourceUID, "acc_") {
 		return nil
 	}
+
+	// Flush any buffered write-behind progress before merging in PostgreSQL
+	s.Flush(ctx)
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -754,7 +1220,23 @@ func (s *postgresStore) MergeUserProgress(ctx context.Context, targetUID, source
 			synced_books = sanctuary_settings.synced_books + EXCLUDED.synced_books
 	`, targetUID, sourceUID)
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	// Evict targetUID caches so subsequent reads fetch the freshly merged state
+	s.mu.Lock()
+	delete(s.sanctuaryCache, targetUID)
+	delete(s.streakCache, targetUID)
+	delete(s.badgesCache, targetUID)
+	delete(s.favsCache, targetUID)
+	for k := range s.bookProgCache {
+		if strings.HasPrefix(k, targetUID+"|") {
+			delete(s.bookProgCache, k)
+		}
+	}
+	s.mu.Unlock()
+	return nil
 }
 
 // ---- Verse Comments & Reflection Implementation ----
@@ -875,6 +1357,11 @@ func (s *postgresStore) SaveRaceResult(ctx context.Context, res RaceResult) erro
 		INSERT INTO daily_race_results (date, uid, display_name, avatar_color, wpm, duration, accuracy)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, res.Date, res.UID, res.DisplayName, res.AvatarColor, res.WPM, res.Duration, res.Accuracy)
+	if err == nil {
+		s.mu.Lock()
+		delete(s.leaderboardsCache, res.Date)
+		s.mu.Unlock()
+	}
 	return err
 }
 
@@ -907,6 +1394,14 @@ func (s *postgresStore) GetDailyRaceResults(ctx context.Context, dateStr string)
 // ---- Analytics & Leaderboard Implementation ----
 
 func (s *postgresStore) GetLeaderboards(ctx context.Context, dateStr string) (*LeaderboardsResponse, error) {
+	s.mu.RLock()
+	if cached, ok := s.leaderboardsCache[dateStr]; ok && time.Since(cached.fetchedAt) < 15*time.Second && cached.resp != nil {
+		resp := cached.resp
+		s.mu.RUnlock()
+		return resp, nil
+	}
+	s.mu.RUnlock()
+
 	resp := &LeaderboardsResponse{
 		DailyRace:   make([]LeaderboardEntry, 0),
 		TopWPM:      make([]LeaderboardEntry, 0),
@@ -959,6 +1454,7 @@ func (s *postgresStore) GetLeaderboards(ctx context.Context, dateStr string) (*L
 		SELECT ts.uid, COALESCE(ua.display_name, ts.uid), COALESCE(ua.avatar_color, '#10b981'), MAX(ts.wpm) as best_wpm
 		FROM typing_sessions ts
 		LEFT JOIN user_accounts ua ON ua.uid = ts.uid
+		WHERE ts.wpm > 0
 		GROUP BY ts.uid, ua.display_name, ua.avatar_color
 		ORDER BY best_wpm DESC
 		LIMIT 10
@@ -998,46 +1494,66 @@ func (s *postgresStore) GetLeaderboards(ctx context.Context, dateStr string) (*L
 		vRows.Close()
 	}
 
+	s.mu.Lock()
+	s.leaderboardsCache[dateStr] = cachedLeaderboards{resp: resp, fetchedAt: time.Now()}
+	s.mu.Unlock()
+
 	return resp, nil
 }
 
 func (s *postgresStore) GetUserAnalytics(ctx context.Context, uid string) (*UserAnalytics, error) {
+	defaultName := "Typist " + uid[:min(len(uid), 4)]
 	an := &UserAnalytics{
 		UID:             uid,
-		DisplayName:     "Typist " + uid[:min(len(uid), 4)],
+		DisplayName:     defaultName,
 		RecentSessions:  make([]SessionSummary, 0),
 		PercentileSpeed: 50,
 	}
 
-	_ = s.pool.QueryRow(ctx, `SELECT display_name FROM user_accounts WHERE uid = $1`, uid).Scan(&an.DisplayName)
-
+	var slowerCount, totalCount int
 	_ = s.pool.QueryRow(ctx, `
-		SELECT current_streak, longest_streak, total_verses_typed, total_chars_typed, total_seconds
-		FROM user_streaks WHERE uid = $1
-	`, uid).Scan(&an.CurrentStreak, &an.LongestStreak, &an.TotalVerses, &an.TotalChars, &an.TotalSeconds)
+		WITH user_wpm AS (
+			SELECT COALESCE(AVG(wpm), 0)::int AS avg_wpm, COALESCE(MAX(wpm), 0) AS top_wpm
+			FROM typing_sessions
+			WHERE uid = $1 AND wpm > 0
+		)
+		SELECT
+			COALESCE((SELECT display_name FROM user_accounts WHERE uid = $1), $2),
+			COALESCE((SELECT current_streak FROM user_streaks WHERE uid = $1), 0),
+			COALESCE((SELECT longest_streak FROM user_streaks WHERE uid = $1), 0),
+			COALESCE((SELECT total_verses_typed FROM user_streaks WHERE uid = $1), 0),
+			COALESCE((SELECT total_chars_typed FROM user_streaks WHERE uid = $1), 0),
+			COALESCE((SELECT total_seconds FROM user_streaks WHERE uid = $1), 0),
+			uw.avg_wpm,
+			uw.top_wpm,
+			CASE WHEN uw.avg_wpm > 0 THEN (SELECT COUNT(*) FROM typing_sessions WHERE wpm > 0 AND wpm < uw.avg_wpm) ELSE 0 END,
+			CASE WHEN uw.avg_wpm > 0 THEN (SELECT COUNT(*) FROM typing_sessions WHERE wpm > 0) ELSE 0 END
+		FROM user_wpm uw
+	`, uid, defaultName).Scan(
+		&an.DisplayName,
+		&an.CurrentStreak, &an.LongestStreak, &an.TotalVerses, &an.TotalChars, &an.TotalSeconds,
+		&an.AverageWPM, &an.TopWPM,
+		&slowerCount, &totalCount,
+	)
 
-	// User avg and top WPM
-	_ = s.pool.QueryRow(ctx, `
-		SELECT COALESCE(AVG(wpm), 0)::int, COALESCE(MAX(wpm), 0)
-		FROM typing_sessions WHERE uid = $1 AND wpm > 0
-	`, uid).Scan(&an.AverageWPM, &an.TopWPM)
+	// Merge with in-memory streak cache if more recent
+	s.mu.RLock()
+	if st, ok := s.streakCache[uid]; ok && st.TotalVersesTyped >= an.TotalVerses {
+		an.CurrentStreak = st.CurrentStreak
+		an.LongestStreak = st.LongestStreak
+		an.TotalVerses = st.TotalVersesTyped
+		an.TotalChars = st.TotalCharsTyped
+		an.TotalSeconds = st.TotalSeconds
+	}
+	s.mu.RUnlock()
 
-	// Percentile calculation
-	if an.AverageWPM > 0 {
-		var slowerCount, totalCount int
-		_ = s.pool.QueryRow(ctx, `
-			SELECT COUNT(*) FILTER (WHERE wpm < $1), COUNT(*)
-			FROM typing_sessions WHERE wpm > 0
-		`, an.AverageWPM).Scan(&slowerCount, &totalCount)
-
-		if totalCount > 0 {
-			an.PercentileSpeed = int(math.Round((float64(slowerCount) / float64(totalCount)) * 100))
-			if an.PercentileSpeed < 5 {
-				an.PercentileSpeed = 5
-			}
-			if an.PercentileSpeed > 99 {
-				an.PercentileSpeed = 99
-			}
+	if an.AverageWPM > 0 && totalCount > 0 {
+		an.PercentileSpeed = int(math.Round((float64(slowerCount) / float64(totalCount)) * 100))
+		if an.PercentileSpeed < 5 {
+			an.PercentileSpeed = 5
+		}
+		if an.PercentileSpeed > 99 {
+			an.PercentileSpeed = 99
 		}
 	}
 
@@ -1063,20 +1579,32 @@ func (s *postgresStore) GetUserAnalytics(ctx context.Context, uid string) (*User
 }
 
 func (s *postgresStore) GetCrowdMetrics(ctx context.Context) (*CrowdMetrics, error) {
+	s.mu.RLock()
+	if s.crowdMetricsCache != nil && time.Since(s.crowdMetricsAt) < 15*time.Second {
+		cp := *s.crowdMetricsCache
+		s.mu.RUnlock()
+		return &cp, nil
+	}
+	s.mu.RUnlock()
+
 	cm := &CrowdMetrics{
 		TypersByBook: make(map[string]int),
 		TrendingBook: "Genesis",
 	}
 
-	_ = s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM typing_sessions`).Scan(&cm.TotalVersesGlobal)
 	_ = s.pool.QueryRow(ctx, `
-		SELECT COUNT(*) FROM typing_sessions 
-		WHERE started_at >= CURRENT_TIMESTAMP - interval '1 hour'
-	`).Scan(&cm.VersesInLastHour)
-	_ = s.pool.QueryRow(ctx, `
-		SELECT COUNT(*) FROM typing_sessions 
-		WHERE started_at::date = CURRENT_DATE
-	`).Scan(&cm.TodayVersesGlobal)
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE started_at >= CURRENT_TIMESTAMP - interval '1 hour'),
+			COUNT(*) FILTER (WHERE started_at >= CURRENT_DATE)
+		FROM typing_sessions
+	`).Scan(&cm.TotalVersesGlobal, &cm.VersesInLastHour, &cm.TodayVersesGlobal)
+
+	s.mu.Lock()
+	cp := *cm
+	s.crowdMetricsCache = &cp
+	s.crowdMetricsAt = time.Now()
+	s.mu.Unlock()
 
 	return cm, nil
 }
@@ -1084,52 +1612,83 @@ func (s *postgresStore) GetCrowdMetrics(ctx context.Context) (*CrowdMetrics, err
 // ---- Verse Completion Counts & Sanctuary Customizations Implementation ----
 
 func (s *postgresStore) GetVerseCompletions(ctx context.Context, uid, translation, bookName string, chapter, verse int) (int, int, error) {
+	gKey := fmt.Sprintf("%s|%s:%d:%d", translation, bookName, chapter, verse)
+	uKey := fmt.Sprintf("%s|%s", uid, gKey)
+
+	s.mu.RLock()
+	uCount, uCached := s.userVerseCompCache[uKey]
+	gCount, gCached := s.globalVerseCompCache[gKey]
+	s.mu.RUnlock()
+
+	if uCached && gCached {
+		return uCount, gCount, nil
+	}
+
 	userCount := 0
 	globalCount := 0
-
 	_ = s.pool.QueryRow(ctx, `
-		SELECT times_completed FROM verse_completions
-		WHERE uid = $1 AND translation = $2 AND book_name = $3 AND chapter = $4 AND verse = $5
-	`, uid, translation, bookName, chapter, verse).Scan(&userCount)
+		SELECT
+			COALESCE((SELECT times_completed FROM verse_completions WHERE uid = $1 AND translation = $2 AND book_name = $3 AND chapter = $4 AND verse = $5), 0),
+			COALESCE((SELECT times_completed FROM global_verse_completions WHERE translation = $2 AND book_name = $3 AND chapter = $4 AND verse = $5), 0)
+	`, uid, translation, bookName, chapter, verse).Scan(&userCount, &globalCount)
 
-	_ = s.pool.QueryRow(ctx, `
-		SELECT times_completed FROM global_verse_completions
-		WHERE translation = $1 AND book_name = $2 AND chapter = $3 AND verse = $4
-	`, translation, bookName, chapter, verse).Scan(&globalCount)
+	s.mu.Lock()
+	if dirtyU, ok := s.dirtyUserVerseComps[uKey]; ok {
+		userCount += dirtyU.delta
+	}
+	if dirtyG, ok := s.dirtyGlobalVerseComps[gKey]; ok {
+		globalCount += dirtyG.delta
+	}
+	s.userVerseCompCache[uKey] = userCount
+	s.globalVerseCompCache[gKey] = globalCount
+	s.mu.Unlock()
 
 	return userCount, globalCount, nil
 }
 
 func (s *postgresStore) RecordVerseCompletion(ctx context.Context, uid, translation, bookName string, chapter, verse int) (int, int, error) {
-	globalCount := 1
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO global_verse_completions (translation, book_name, chapter, verse, times_completed, last_completed_at)
-		VALUES ($1, $2, $3, $4, 1, CURRENT_TIMESTAMP)
-		ON CONFLICT (translation, book_name, chapter, verse) DO UPDATE SET
-			times_completed = global_verse_completions.times_completed + 1,
-			last_completed_at = CURRENT_TIMESTAMP
-		RETURNING times_completed
-	`, translation, bookName, chapter, verse).Scan(&globalCount)
-	if err != nil {
-		return 0, 0, err
-	}
+	gKey := fmt.Sprintf("%s|%s:%d:%d", translation, bookName, chapter, verse)
+	uKey := fmt.Sprintf("%s|%s", uid, gKey)
+	isBot := uid == "" || strings.HasPrefix(uid, "angel-")
 
-	userCount := 0
-	if uid != "" && !strings.HasPrefix(uid, "angel-") {
-		_ = s.pool.QueryRow(ctx, `
-			INSERT INTO verse_completions (uid, translation, book_name, chapter, verse, times_completed, last_completed_at)
-			VALUES ($1, $2, $3, $4, 1, CURRENT_TIMESTAMP)
-			ON CONFLICT (uid, translation, book_name, chapter, verse) DO UPDATE SET
-				times_completed = verse_completions.times_completed + 1,
-				last_completed_at = CURRENT_TIMESTAMP
-			RETURNING times_completed
-		`, uid, translation, bookName, chapter, verse).Scan(&userCount)
-	}
+	s.mu.Lock()
+	gCount := s.globalVerseCompCache[gKey] + 1
+	s.globalVerseCompCache[gKey] = gCount
+	gDirty := s.dirtyGlobalVerseComps[gKey]
+	gDirty.translation = translation
+	gDirty.bookName = bookName
+	gDirty.chapter = chapter
+	gDirty.verse = verse
+	gDirty.delta++
+	s.dirtyGlobalVerseComps[gKey] = gDirty
 
-	return userCount, globalCount, nil
+	uCount := 0
+	if !isBot {
+		uCount = s.userVerseCompCache[uKey] + 1
+		s.userVerseCompCache[uKey] = uCount
+		uDirty := s.dirtyUserVerseComps[uKey]
+		uDirty.uid = uid
+		uDirty.translation = translation
+		uDirty.bookName = bookName
+		uDirty.chapter = chapter
+		uDirty.verse = verse
+		uDirty.delta++
+		s.dirtyUserVerseComps[uKey] = uDirty
+	}
+	s.mu.Unlock()
+
+	return uCount, gCount, nil
 }
 
 func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*SanctuarySettings, error) {
+	s.mu.RLock()
+	if cached, ok := s.sanctuaryCache[uid]; ok {
+		cp := cached
+		s.mu.RUnlock()
+		return &cp, nil
+	}
+	s.mu.RUnlock()
+
 	var set SanctuarySettings
 	var angelLvlsJSON, demonLvlsJSON []byte
 	err := s.pool.QueryRow(ctx, `
@@ -1157,7 +1716,7 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 		&angelLvlsJSON, &demonLvlsJSON,
 	)
 	if err != nil {
-		return &SanctuarySettings{
+		def := SanctuarySettings{
 			TextColor:          "emerald",
 			FontFamily:         "sans",
 			CaretAura:          "default",
@@ -1173,7 +1732,11 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 			GuardianRadiance:   100,
 			PassageBurstDamage: GetDemonSyncBalance().PassageBurstBaseDamage,
 			TrackerUnlocked:    false,
-		}, nil
+		}
+		s.mu.Lock()
+		s.sanctuaryCache[uid] = def
+		s.mu.Unlock()
+		return &def, nil
 	}
 	if len(angelLvlsJSON) > 0 {
 		_ = json.Unmarshal(angelLvlsJSON, &set.PreferredAngelLevels)
@@ -1191,10 +1754,39 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 	set.GuardianPower = 10 + (set.GuardianLevel-1)*2
 	set.GuardianRadiance = 100 + (set.GuardianLevel-1)*5
 	set.TrackerUnlocked = set.DemonsDefeated >= 6
+
+	s.mu.Lock()
+	if _, dirty := s.dirtySanctuary[uid]; !dirty {
+		s.sanctuaryCache[uid] = set
+	} else {
+		set = s.sanctuaryCache[uid]
+	}
+	s.mu.Unlock()
+
 	return &set, nil
 }
 
 func (s *postgresStore) SaveCustomizations(ctx context.Context, uid string, settings SanctuarySettings) error {
+	if settings.GuardianLevel < 1 {
+		settings.GuardianLevel = 1
+	}
+	if settings.PassageBurstDamage <= 0 {
+		settings.PassageBurstDamage = GetDemonSyncBalance().PassageBurstBaseDamage
+	}
+	settings.GuardianWards = (settings.GuardianLevel - 1) / 3
+	settings.GuardianPower = 10 + (settings.GuardianLevel-1)*2
+	settings.GuardianRadiance = 100 + (settings.GuardianLevel-1)*5
+	settings.TrackerUnlocked = settings.DemonsDefeated >= 6
+
+	s.mu.Lock()
+	s.sanctuaryCache[uid] = settings
+	s.dirtySanctuary[uid] = settings
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *postgresStore) flushSanctuaryRow(ctx context.Context, uid string, settings SanctuarySettings) error {
+	_ = s.EnsureUser(ctx, uid)
 	if settings.GuardianLevel < 1 {
 		settings.GuardianLevel = 1
 	}
@@ -1398,19 +1990,6 @@ func (s *postgresStore) GetBossRaidForLevel(ctx context.Context, level int, isDe
 }
 
 func (s *postgresStore) RecordBossStrike(ctx context.Context, uid, displayName, avatarColor string, wpm, damage int) (*BossRaid, error) {
-	b, err := s.GetBossRaid(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if b.CurrentHP > 0 {
-		b.CurrentHP -= damage
-		if b.CurrentHP <= 0 {
-			b.CurrentHP = 0
-			b.Conquered = true
-		}
-	}
-
 	conq := BossConqueror{
 		UID:         uid,
 		DisplayName: displayName,
@@ -1419,22 +1998,38 @@ func (s *postgresStore) RecordBossStrike(ctx context.Context, uid, displayName, 
 		Damage:      damage,
 		Timestamp:   time.Now().UTC(),
 	}
-	b.Conquerors = append([]BossConqueror{conq}, b.Conquerors...)
+	conqJSON, _ := json.Marshal([]BossConqueror{conq})
+
+	var b BossRaid
+	var rawConquerors []byte
+	err := s.pool.QueryRow(ctx, `
+		UPDATE boss_raids
+		SET current_hp = GREATEST(0, current_hp - $1),
+		    conquered = (current_hp - $1 <= 0),
+		    conquerors = ($2::jsonb || COALESCE(conquerors, '[]'::jsonb)),
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = (SELECT id FROM boss_raids ORDER BY updated_at DESC LIMIT 1)
+		RETURNING id, boss_name, boss_title, boss_rank, boss_wpm, COALESCE(level, 2), COALESCE(max_level, 4), COALESCE(is_demon_boss, false),
+		          max_hp, current_hp, required_wpm, translation, book_name, chapter, verse, text, conquered, conquerors, updated_at
+	`, damage, conqJSON).Scan(
+		&b.ID, &b.BossName, &b.BossTitle, &b.BossRank, &b.BossWPM, &b.Level, &b.MaxLevel, &b.IsDemonBoss,
+		&b.MaxHP, &b.CurrentHP, &b.RequiredWPM, &b.Translation, &b.BookName, &b.Chapter, &b.Verse, &b.Text, &b.Conquered, &rawConquerors, &b.UpdatedAt,
+	)
+	if err != nil {
+		def := defaultBossRaid()
+		_ = s.ResetBossRaid(ctx, *def)
+		return def, nil
+	}
+	if len(rawConquerors) > 0 {
+		_ = json.Unmarshal(rawConquerors, &b.Conquerors)
+	}
 	if len(b.Conquerors) > 50 {
 		b.Conquerors = b.Conquerors[:50]
 	}
-	b.UpdatedAt = time.Now().UTC()
-
-	raw, _ := json.Marshal(b.Conquerors)
-	_, err = s.pool.Exec(ctx, `
-		UPDATE boss_raids
-		SET current_hp = $1, conquered = $2, conquerors = $3, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4
-	`, b.CurrentHP, b.Conquered, raw, b.ID)
-	if err != nil {
-		return nil, err
+	if b.BossName == "Archangel Michael" {
+		b.BossName = "Big Mike"
 	}
-	return b, nil
+	return &b, nil
 }
 
 func (s *postgresStore) ResetBossRaid(ctx context.Context, raid BossRaid) error {

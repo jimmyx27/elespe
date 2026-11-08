@@ -5445,7 +5445,8 @@
       // ---- WebSocket Connection ----
       function connect() {
         const protocol = location.protocol === "https:" ? "wss" : "ws";
-        ws = new WebSocket(`${protocol}://${location.host}/ws?uid=${uid}&trans=${currentTrans}`);
+        const authToken = localStorage.getItem("auth_token") || "";
+        ws = new WebSocket(`${protocol}://${location.host}/ws?uid=${encodeURIComponent(uid)}&trans=${encodeURIComponent(currentTrans)}&token=${encodeURIComponent(authToken)}`);
 
         ws.onopen = () => {
           resetReconnectDelay();
@@ -5473,6 +5474,9 @@
             userAccount = msg.account;
             uid = msg.account.uid;
             localStorage.setItem("uid", uid);
+            if (msg.auth_token) {
+              localStorage.setItem("auth_token", msg.auth_token);
+            }
             userDisplayName.textContent = msg.account.display_name;
             userAvatarDot.style.background = msg.account.avatar_color || "#6366f1";
             userAvatarDot.textContent = msg.account.display_name ? msg.account.display_name[0].toUpperCase() : "👤";

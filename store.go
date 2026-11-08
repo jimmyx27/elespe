@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -516,12 +521,13 @@ type Message struct {
 	Category     string            `json:"category,omitempty"`
 
 	// Auth & Identity
-	Account  *UserAccount `json:"account,omitempty"`
-	Username string       `json:"username,omitempty"`
-	Password string       `json:"password,omitempty"`
-	Email    string       `json:"email,omitempty"`
-	Color    string       `json:"color,omitempty"`
-	AnonUID  string       `json:"anon_uid,omitempty"`
+	Account   *UserAccount `json:"account,omitempty"`
+	AuthToken string       `json:"auth_token,omitempty"`
+	Username  string       `json:"username,omitempty"`
+	Password  string       `json:"password,omitempty"`
+	Email     string       `json:"email,omitempty"`
+	Color     string       `json:"color,omitempty"`
+	AnonUID   string       `json:"anon_uid,omitempty"`
 
 	// Daily Challenge & Racing
 	Challenge *DailyChallenge `json:"challenge,omitempty"`
@@ -714,12 +720,83 @@ type Store interface {
 	ListGuardianSeedEntries(ctx context.Context) ([]GuardianSeedEntry, error)
 }
 
-// Password hashing utility using SHA-256 with static application salt
+// Password hashing utility using SHA-256 with static application salt (v1 pre-hash)
 func hashPassword(password string) string {
 	salt := "elespe-holy-scripture-salt-v1"
 	hasher := sha256.New()
 	hasher.Write([]byte(salt + password))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func deriveSaltedPasswordHash(saltHex, inputHash string) string {
+	mac := hmac.New(sha256.New, []byte("elespe-kdf-v2:"+saltHex))
+	mac.Write([]byte(inputHash))
+	digest := mac.Sum(nil)
+	for i := 0; i < 4096; i++ {
+		h := sha256.Sum256(append(digest, []byte(saltHex)...))
+		digest = h[:]
+	}
+	return "v2$" + saltHex + "$" + hex.EncodeToString(digest)
+}
+
+// saltPasswordHash wraps a pre-hashed password with a unique per-account 16-byte cryptographic random salt and 4096-round stretching.
+func saltPasswordHash(inputHash string) string {
+	if strings.HasPrefix(inputHash, "v2$") {
+		return inputHash
+	}
+	rawSalt := make([]byte, 16)
+	if _, err := rand.Read(rawSalt); err != nil {
+		rawSalt = []byte("elespe-fallback1")
+	}
+	saltHex := hex.EncodeToString(rawSalt)
+	return deriveSaltedPasswordHash(saltHex, inputHash)
+}
+
+// verifyStoredPassword constant-time verifies an input password hash against either a v2 per-account salted hash or a legacy v1 hash.
+func verifyStoredPassword(storedHash, inputHash string) bool {
+	if storedHash == "" || inputHash == "" {
+		return false
+	}
+	if strings.HasPrefix(storedHash, "v2$") {
+		parts := strings.Split(storedHash, "$")
+		if len(parts) != 3 {
+			return false
+		}
+		expected := deriveSaltedPasswordHash(parts[1], inputHash)
+		return subtle.ConstantTimeCompare([]byte(storedHash), []byte(expected)) == 1
+	}
+	return subtle.ConstantTimeCompare([]byte(storedHash), []byte(inputHash)) == 1
+}
+
+func needsPasswordUpgrade(storedHash string) bool {
+	return storedHash != "" && !strings.HasPrefix(storedHash, "v2$")
+}
+
+var authSecretKey = func() []byte {
+	if s := os.Getenv("AUTH_SECRET"); s != "" {
+		return []byte(s)
+	}
+	if s := os.Getenv("DATABASE_URL"); s != "" {
+		return []byte("elespe-auth-secret:" + s)
+	}
+	return []byte("elespe-default-hmac-session-secret-key-v1")
+}()
+
+func signAuthToken(uid string) string {
+	if uid == "" {
+		return ""
+	}
+	mac := hmac.New(sha256.New, authSecretKey)
+	mac.Write([]byte(uid))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func verifyAuthToken(uid, token string) bool {
+	if uid == "" || token == "" {
+		return false
+	}
+	expected := signAuthToken(uid)
+	return subtle.ConstantTimeCompare([]byte(expected), []byte(token)) == 1
 }
 
 func clampInt(val, minVal, maxVal int) int {
