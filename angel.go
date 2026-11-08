@@ -591,13 +591,20 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 		}
 
 		relocated := false
-		// When no human clients are connected, Michael cruises at a brisk patrol pace
-		if m.hub != nil && m.hub.ClientCount() == 0 && isMichael {
+		// When no human clients are viewing this verse, Michael cruises in coarse ticks without per-char broadcasts
+		if m.hub != nil && !m.hub.HasClientsOnVerse(curTrans, curBook, curCh, curV) && isMichael {
 			select {
 			case <-bot.StopChan:
 				return
 			case <-time.After(1500 * time.Millisecond):
 			}
+			bot.mu.Lock()
+			if bot.Translation != curTrans || bot.BookName != curBook || bot.Chapter != curCh || bot.Verse != curV {
+				relocated = true
+			} else {
+				bot.CharIndex = len([]rune(text))
+			}
+			bot.mu.Unlock()
 		} else {
 			// Calculate typing cadence:
 			// Standard: 5 chars per word -> delay per char = 60s / (WPM * 5)
@@ -634,8 +641,29 @@ func (m *AngelManager) runGlobalLoop(bot *AngelBot) {
 				bot.CharIndex = i
 				bot.mu.Unlock()
 
+				hasViewers := m.hub == nil || m.hub.HasClientsOnVerse(curTrans, curBook, curCh, curV)
+				if !hasViewers && i < totalChars {
+					rem := totalChars - i
+					remDur := charDelay * time.Duration(rem)
+					stepDur := 1 * time.Second
+					if remDur < stepDur {
+						stepDur = remDur
+					}
+					stepChars := max(1, int(stepDur/charDelay))
+					if stepChars > rem {
+						stepChars = rem
+					}
+					select {
+					case <-bot.StopChan:
+						return
+					case <-time.After(stepDur):
+					}
+					i += stepChars - 1
+					continue
+				}
+
 				// Broadcast ghost cursor to anyone on this verse
-				if m.hub != nil {
+				if m.hub != nil && hasViewers {
 					m.hub.BroadcastAngelCursor(curTrans, curBook, curCh, curV, GhostCursor{
 						UID:             bot.Info.ID,
 						DisplayName:     bot.Info.Icon + " " + bot.Info.Name,
@@ -731,20 +759,63 @@ func (m *AngelManager) EnsurePlayerGuardian(uid, displayName, avatarColor, trans
 	if verse <= 0 {
 		verse = 1
 	}
-	cleanedText := cleanVerseText(text)
-	if cleanedText == "" {
-		if td, ok := translations[trans]; ok {
-			for _, v := range td.VersesByBook[book] {
-				if v.Chapter == chapter && v.Verse == verse {
-					cleanedText = cleanVerseText(v.Text)
-					break
+
+	resolvePassageText := func() string {
+		cleaned := cleanVerseText(text)
+		if cleaned == "" {
+			if td, ok := translations[trans]; ok {
+				for _, v := range td.VersesByBook[book] {
+					if v.Chapter == chapter && v.Verse == verse {
+						cleaned = cleanVerseText(v.Text)
+						break
+					}
 				}
 			}
+			if cleaned == "" {
+				cleaned = "In the beginning God created the heaven and the earth."
+			}
 		}
-		if cleanedText == "" {
-			cleanedText = "In the beginning God created the heaven and the earth."
-		}
+		return cleaned
 	}
+
+	// Fast path: if the player's persistent Guardian Angel is already running, update its location without querying analytics/DB!
+	m.mu.Lock()
+	existing, ok := m.guardians[uid]
+	if ok && existing != nil {
+		existing.mu.Lock()
+		if existing.IsRunning {
+			if displayName != "" {
+				existing.Info.OwnerName = displayName
+			}
+			if avatarColor != "" {
+				existing.Info.OwnerColor = avatarColor
+			}
+			existing.Info.OwnerUID = uid
+			existing.Info.Translation = trans
+			existing.Info.BookName = book
+			existing.Info.Chapter = chapter
+			existing.Info.Verse = verse
+			if existing.Translation != trans || existing.BookName != book || existing.Chapter != chapter || existing.Verse != verse {
+				existing.Translation = trans
+				existing.BookName = book
+				existing.Chapter = chapter
+				existing.Verse = verse
+				existing.Text = resolvePassageText()
+				existing.CharIndex = 0
+			}
+			info := existing.Info
+			existing.mu.Unlock()
+			if _, hasComp := m.companions[uid]; !hasComp {
+				m.companions[uid] = existing
+			}
+			m.mu.Unlock()
+			return &info
+		}
+		existing.mu.Unlock()
+	}
+	m.mu.Unlock()
+
+	cleanedText := resolvePassageText()
 
 	var template AngelInfo
 	templates := m.GetAngelTemplatesForUser(uid)
@@ -780,36 +851,11 @@ func (m *AngelManager) EnsurePlayerGuardian(uid, displayName, avatarColor, trans
 	template.Verse = verse
 
 	m.mu.Lock()
-	existing, ok := m.guardians[uid]
-	if ok && existing != nil {
+	if existing, ok := m.guardians[uid]; ok && existing != nil {
 		existing.mu.Lock()
-		wasRunning := existing.IsRunning
-		if wasRunning {
-			existing.Info.Name = template.Name
-			existing.Info.Title = template.Title
-			existing.Info.WPM = template.WPM
-			existing.Info.Level = template.Level
-			existing.Info.PaceOffset = template.PaceOffset
-			existing.Info.OwnerUID = uid
-			existing.Info.OwnerName = template.OwnerName
-			existing.Info.OwnerColor = template.OwnerColor
-			existing.Info.Translation = trans
-			existing.Info.BookName = book
-			existing.Info.Chapter = chapter
-			existing.Info.Verse = verse
-			if existing.Translation != trans || existing.BookName != book || existing.Chapter != chapter || existing.Verse != verse {
-				existing.Translation = trans
-				existing.BookName = book
-				existing.Chapter = chapter
-				existing.Verse = verse
-				existing.Text = cleanedText
-				existing.CharIndex = 0
-			}
+		if existing.IsRunning {
 			info := existing.Info
 			existing.mu.Unlock()
-			if _, hasComp := m.companions[uid]; !hasComp {
-				m.companions[uid] = existing
-			}
 			m.mu.Unlock()
 			return &info
 		}
@@ -1174,8 +1220,29 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 			botInfo := bot.Info
 			bot.mu.Unlock()
 
+			hasViewers := m.hub != nil && m.hub.HasClientsOnVerse(trans, book, ch, v)
+			if !hasViewers && i < totalChars {
+				rem := totalChars - i
+				remDur := charDelay * time.Duration(rem)
+				stepDur := 1500 * time.Millisecond
+				if remDur < stepDur {
+					stepDur = remDur
+				}
+				stepChars := max(1, int(stepDur/charDelay))
+				if stepChars > rem {
+					stepChars = rem
+				}
+				select {
+				case <-bot.StopChan:
+					return
+				case <-time.After(stepDur):
+				}
+				i += stepChars - 1
+				continue
+			}
+
 			// Broadcast ghost cursor to anyone on this verse
-			if m.hub != nil {
+			if m.hub != nil && hasViewers {
 				playerOnline := m.hub.IsUserConnected(uid)
 				displayName := botInfo.Icon + " " + botInfo.Name
 				if isGuardian && botInfo.OwnerName != "" {

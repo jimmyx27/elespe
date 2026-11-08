@@ -956,8 +956,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			var angelTrailUpTo int
 			if activeAngelMgr != nil {
 				activeAngelMgr.EnsurePlayerGuardian(uid, client.DisplayName, client.AvatarColor, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
-				activeAngelMgr.UpdateCompanionLocation(uid, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
 				activeComp = activeAngelMgr.GetActiveCompanion(uid)
+				if activeComp != nil && !activeComp.IsGuardian {
+					activeAngelMgr.UpdateCompanionLocation(uid, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
+				}
 				guardiansOnVerse = activeAngelMgr.GetGuardiansOnVerse(currentTransID, v.BookName, v.Chapter, v.Verse)
 				michaelTrail = activeAngelMgr.IsVerseOnMichaelTrail(currentTransID, v.BookName, v.Chapter, v.Verse)
 				if activeComp != nil && activeComp.CharIndex > angelTrailUpTo {
@@ -979,7 +981,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if activeDemonMgr != nil {
 				activeDemonMgr.UpdateDemonLocation(uid, currentTransID, v.BookName, v.Chapter, v.Verse, v.Text)
 			}
-			if sanctuary, _ := activeStore.GetCustomizations(ctx, uid); sanctuary != nil {
+			sanctuary, _ := activeStore.GetCustomizations(ctx, uid)
+			if sanctuary != nil {
 				if sanctuary.GuardianBookName != v.BookName || sanctuary.GuardianChapter != v.Chapter || sanctuary.GuardianVerse != v.Verse {
 					sanctuary.GuardianBookName = v.BookName
 					sanctuary.GuardianChapter = v.Chapter
@@ -1007,7 +1010,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if wildD != nil {
 				demonTaintedUpTo = max(wildD.TaintedUpTo, wildD.CharIndex)
-				if sanctuary, _ := activeStore.GetCustomizations(ctx, uid); sanctuary != nil {
+				if sanctuary != nil {
 					wards = sanctuary.GuardianWards
 				}
 				if wildD.AngelicBeacon {

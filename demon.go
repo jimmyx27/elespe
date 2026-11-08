@@ -903,6 +903,23 @@ func (m *DemonManager) runDevil24_7Loop(bot *DemonBot) {
 		textRunes := []rune(text)
 		totalChars := len(textRunes)
 
+		if m.hub == nil || !m.hub.HasClientsOnVerse(item.trans, item.book, item.ch, item.v) {
+			bot.mu.Lock()
+			bot.CharIndex = totalChars
+			bot.mu.Unlock()
+			select {
+			case <-bot.StopChan:
+				return
+			case <-m.stopSpawnChan:
+				return
+			case <-time.After(1500 * time.Millisecond):
+			}
+			m.mu.Lock()
+			m.devil24_7VersesCount++
+			m.mu.Unlock()
+			continue
+		}
+
 		for i := 0; i <= totalChars; i++ {
 			select {
 			case <-bot.StopChan:
@@ -1399,14 +1416,14 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				}
 			}
 
-			charsPerTick := int(float64(wpm*5) * (2.0 / 60.0))
-			if charsPerTick < 2 {
-				charsPerTick = 2
+			charsPerTick := int(float64(wpm*5) * (4.0 / 60.0))
+			if charsPerTick < 3 {
+				charsPerTick = 3
 			}
 			select {
 			case <-m.stopSpawnChan:
 				return
-			case <-time.After(2 * time.Second):
+			case <-time.After(4 * time.Second):
 			}
 
 			m.mu.Lock()
@@ -1619,10 +1636,14 @@ func (m *DemonManager) AdvanceWildDemonToNextVerse(demonID string) (*WildDemon, 
 		target.WPM = baseWPM + target.EnrageCount*2
 	}
 	demonCopy := *target
-	allDemons := m.getWildDemonsLocked()
+	hasViewerOnNext := m.hub != nil && m.hub.HasClientsOnVerse(oldTrans, nextV.BookName, nextV.Chapter, nextV.Verse)
+	var allDemons []WildDemon
+	if hasPlayerFighting || hasViewerOnNext {
+		allDemons = m.getWildDemonsLocked()
+	}
 	m.mu.Unlock()
 
-	if m.hub != nil {
+	if m.hub != nil && (hasPlayerFighting || hasViewerOnNext) {
 		m.hub.BroadcastDemonEscaped(oldTrans, oldBook, oldCh, oldV, demonCopy, nextV)
 		m.hub.BroadcastWildDemonsList(allDemons)
 	}

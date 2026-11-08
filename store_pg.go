@@ -1482,17 +1482,18 @@ func (s *postgresStore) ListGuardianSeedEntries(ctx context.Context) ([]Guardian
 		       CASE WHEN COALESCE(us.guardian_chapter, 0) > 0 THEN us.guardian_chapter ELSE 1 END,
 		       CASE WHEN COALESCE(us.guardian_verse, 0) > 0 THEN us.guardian_verse ELSE 1 END
 		FROM user_accounts ua
-		FULL OUTER JOIN user_sanctuary us ON ua.uid = us.uid
+		FULL OUTER JOIN sanctuary_settings us ON ua.uid = us.uid
 		WHERE COALESCE(ua.uid, us.uid) NOT LIKE 'angel-%'
 		  AND COALESCE(ua.uid, us.uid) NOT LIKE 'demon-%'
-		LIMIT 32
+		ORDER BY COALESCE(ua.last_active, us.updated_at) DESC NULLS LAST
+		LIMIT 16
 	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	entries := make([]GuardianSeedEntry, 0, 32)
+	entries := make([]GuardianSeedEntry, 0, 16)
 	for rows.Next() {
 		var e GuardianSeedEntry
 		if err := rows.Scan(&e.UID, &e.Name, &e.Color, &e.BookName, &e.Chapter, &e.Verse); err == nil && e.UID != "" {

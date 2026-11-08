@@ -140,7 +140,7 @@ func (s *localStore) save() error {
 		return err
 	}
 	tmp := s.path + ".tmp"
-	data, err := json.MarshalIndent(s.data, "", "  ")
+	data, err := json.Marshal(s.data)
 	if err != nil {
 		return err
 	}
@@ -1179,7 +1179,8 @@ func (s *localStore) RecordVerseCompletion(ctx context.Context, uid, translation
 	globalCount := s.data.GlobalVerseCompletions[k]
 
 	userCount := 0
-	if uid != "" && !strings.HasPrefix(uid, "angel-") {
+	isAngelBot := strings.HasPrefix(uid, "angel-")
+	if uid != "" && !isAngelBot {
 		if s.data.UserVerseCompletions[uid] == nil {
 			s.data.UserVerseCompletions[uid] = make(map[string]int)
 		}
@@ -1187,7 +1188,9 @@ func (s *localStore) RecordVerseCompletion(ctx context.Context, uid, translation
 		userCount = s.data.UserVerseCompletions[uid][k]
 	}
 
-	_ = s.save()
+	if !isAngelBot {
+		_ = s.save()
+	}
 	return userCount, globalCount, nil
 }
 
@@ -1590,7 +1593,7 @@ func (s *localStore) ListGuardianSeedEntries(ctx context.Context) ([]GuardianSee
 	defer s.mu.Unlock()
 
 	seen := make(map[string]bool)
-	entries := make([]GuardianSeedEntry, 0, 32)
+	entries := make([]GuardianSeedEntry, 0, 16)
 	for uid, acc := range s.data.Accounts {
 		if uid == "" || strings.HasPrefix(uid, "angel-") || strings.HasPrefix(uid, "demon-") {
 			continue
@@ -1627,12 +1630,12 @@ func (s *localStore) ListGuardianSeedEntries(ctx context.Context) ([]GuardianSee
 			Chapter:  ch,
 			Verse:    v,
 		})
-		if len(entries) >= 32 {
+		if len(entries) >= 16 {
 			break
 		}
 	}
 	for uid, sc := range s.data.SanctuarySettings {
-		if len(entries) >= 32 {
+		if len(entries) >= 16 {
 			break
 		}
 		if seen[uid] || uid == "" || strings.HasPrefix(uid, "angel-") || strings.HasPrefix(uid, "demon-") {

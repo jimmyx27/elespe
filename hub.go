@@ -371,13 +371,24 @@ func (h *Hub) BroadcastMichaelSlay(trans, book string, chapter, verse int, demon
 
 func (h *Hub) BroadcastDemonEscaped(trans, book string, chapter, verse int, demon WildDemon, nextVerse Verse) {
 	content := fmt.Sprintf("%s %s completed %s %d:%d before being slain and prowled onto %s %d:%d!", demon.Icon, demon.Name, book, chapter, verse, nextVerse.BookName, nextVerse.Chapter, nextVerse.Verse)
-	h.broadcastAll(Message{
+	msg := Message{
 		Type:        "wild_demon_escaped",
 		Content:     content,
 		WildDemon:   &demon,
 		Verse:       &nextVerse,
 		Book:        book,
 		Translation: trans,
-	})
+	}
+	h.mu.RLock()
+	conns := make([]*safeConn, 0, 2)
+	for peer := range h.clients {
+		if peer.Translation == trans && ((peer.Book == book && peer.Chapter == chapter && peer.Verse == verse) || (peer.Book == nextVerse.BookName && peer.Chapter == nextVerse.Chapter && peer.Verse == nextVerse.Verse)) {
+			conns = append(conns, peer.conn)
+		}
+	}
+	h.mu.RUnlock()
+	for _, conn := range conns {
+		_ = conn.WriteJSON(msg)
+	}
 }
 

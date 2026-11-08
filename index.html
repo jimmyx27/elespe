@@ -1314,24 +1314,10 @@
         font-weight: 700;
         text-shadow:
           0 0 6px #fef08a,
-          0 0 14px #fbbf24,
-          0 0 24px #f59e0b,
-          0 0 38px rgba(249, 115, 22, 0.88);
-        background: linear-gradient(180deg, rgba(254, 240, 138, 0.1) 0%, rgba(251, 191, 36, 0.3) 100%);
+          0 0 14px #fbbf24;
+        background: linear-gradient(180deg, rgba(254, 240, 138, 0.1) 0%, rgba(251, 191, 36, 0.28) 100%);
         border-bottom: 2px solid #fde047;
         border-radius: 3px;
-        box-shadow: 0 2px 12px rgba(251, 191, 36, 0.45);
-        animation: michaelGloriousShimmer 1.8s infinite alternate ease-in-out;
-      }
-      @keyframes michaelGloriousShimmer {
-        0% {
-          text-shadow: 0 0 6px #fef08a, 0 0 14px #fbbf24, 0 0 24px #f59e0b;
-          filter: brightness(1.05);
-        }
-        100% {
-          text-shadow: 0 0 10px #ffffff, 0 0 20px #fde047, 0 0 34px #f59e0b, 0 0 48px #ea580c;
-          filter: brightness(1.25);
-        }
       }
       .typing-stage.michael-trail-stage {
         border-color: #fde047 !important;
@@ -3904,6 +3890,38 @@
         }
       }
 
+      let lastPresenceSentAt = 0;
+      let pendingPresenceTimer = null;
+      function sendPresenceCursorThrottled(forceImmediate = false) {
+        if (!ws || ws.readyState !== WebSocket.OPEN || isSpectator) return;
+        const now = Date.now();
+        const elapsed = now - lastPresenceSentAt;
+        if (forceImmediate || elapsed >= 200) {
+          if (pendingPresenceTimer) {
+            clearTimeout(pendingPresenceTimer);
+            pendingPresenceTimer = null;
+          }
+          lastPresenceSentAt = now;
+          ws.send(JSON.stringify({
+            type: "presence_cursor",
+            char_index: currentTyped.length,
+            wpm: liveWPM
+          }));
+        } else if (!pendingPresenceTimer) {
+          pendingPresenceTimer = setTimeout(() => {
+            pendingPresenceTimer = null;
+            if (ws && ws.readyState === WebSocket.OPEN && !isSpectator) {
+              lastPresenceSentAt = Date.now();
+              ws.send(JSON.stringify({
+                type: "presence_cursor",
+                char_index: currentTyped.length,
+                wpm: liveWPM
+              }));
+            }
+          }, 200 - elapsed);
+        }
+      }
+
       function recordKeystrokeForWPM() {
         const now = Date.now();
         if (!typingStartTime) {
@@ -3924,14 +3942,8 @@
         // Check Holy Resonance when active wild demon is present
         checkHolyResonance();
 
-        // Broadcast ghost cursor presence
-        if (ws && ws.readyState === WebSocket.OPEN && !isSpectator) {
-          ws.send(JSON.stringify({
-            type: "presence_cursor",
-            char_index: currentTyped.length,
-            wpm: liveWPM
-          }));
-        }
+        // Broadcast ghost cursor presence (throttled to avoid per-keystroke WebSocket floods)
+        sendPresenceCursorThrottled(false);
       }
 
       let hintTimer = null;
@@ -3953,7 +3965,7 @@
         const limit = Math.min(currentTargetText.length - 1, upToIdx);
         const typedLen = currentTyped ? currentTyped.length : 0;
         for (let k = 0; k <= limit; k++) {
-          if (michaelGloriousTrailIndices.has(k)) continue;
+          if (demonTaintedIndices.has(k) || michaelGloriousTrailIndices.has(k)) continue;
           demonTaintedIndices.add(k);
           if (k >= typedLen && verseReader) {
             const ch = verseReader.children[k];
@@ -3968,15 +3980,17 @@
         if (!currentTargetText || upToIdx < 0) return;
         const limit = Math.min(currentTargetText.length - 1, upToIdx);
         const typedLen = currentTyped ? currentTyped.length : 0;
-        if (isGlorious) {
+        if (isGlorious && !isMichaelGloriousTrailOnVerse) {
           isMichaelGloriousTrailOnVerse = true;
           updateMichaelTrailUI();
         }
         for (let k = 0; k <= limit; k++) {
           if (isGlorious) {
+            if (michaelGloriousTrailIndices.has(k)) continue;
             michaelGloriousTrailIndices.add(k);
             demonTaintedIndices.delete(k);
           } else {
+            if (angelGoldenTrailIndices.has(k) || michaelGloriousTrailIndices.has(k)) continue;
             angelGoldenTrailIndices.add(k);
           }
           if (k >= typedLen && verseReader) {
@@ -4126,10 +4140,12 @@
         }
       }
 
-      function renderTypingStage() {
+      function renderTypingStage(forceAllSpans = false) {
         if (!currentTargetText) {
           verseReader.textContent = "";
           verseReader._renderedTarget = "";
+          verseReader._lastTypedLen = 0;
+          verseReader._lastCheckpointIdx = 0;
           submitPromptBar.classList.remove("active");
           typingStage.classList.remove("is-complete");
           return;
@@ -4139,9 +4155,29 @@
         const typedLen = currentTyped.length;
 
         if (verseReader._renderedTarget === currentTargetText && verseReader.children.length === targetLen) {
-          for (let i = 0; i < targetLen; i++) {
-            applyCharSpanClasses(verseReader.children[i], i, typedLen);
+          if (!forceAllSpans && typeof verseReader._lastTypedLen === "number") {
+            const prevLen = verseReader._lastTypedLen;
+            const startIdx = Math.max(0, Math.min(prevLen, typedLen) - 1);
+            const endIdx = Math.min(targetLen - 1, Math.max(prevLen, typedLen) + 1);
+            for (let i = startIdx; i <= endIdx; i++) {
+              applyCharSpanClasses(verseReader.children[i], i, typedLen);
+            }
+            const prevCp = verseReader._lastCheckpointIdx || 0;
+            if (prevCp !== demonCheckpointIndex) {
+              if (prevCp >= 0 && prevCp < targetLen) {
+                applyCharSpanClasses(verseReader.children[prevCp], prevCp, typedLen);
+              }
+              if (demonCheckpointIndex > 0 && demonCheckpointIndex < targetLen) {
+                applyCharSpanClasses(verseReader.children[demonCheckpointIndex], demonCheckpointIndex, typedLen);
+              }
+            }
+          } else {
+            for (let i = 0; i < targetLen; i++) {
+              applyCharSpanClasses(verseReader.children[i], i, typedLen);
+            }
           }
+          verseReader._lastTypedLen = typedLen;
+          verseReader._lastCheckpointIdx = demonCheckpointIndex || 0;
         } else {
           const frag = document.createDocumentFragment();
           for (let i = 0; i < targetLen; i++) {
@@ -4154,6 +4190,8 @@
           verseReader.innerHTML = "";
           verseReader.appendChild(frag);
           verseReader._renderedTarget = currentTargetText;
+          verseReader._lastTypedLen = typedLen;
+          verseReader._lastCheckpointIdx = demonCheckpointIndex || 0;
         }
 
         const isMatched = (typedLen === targetLen && currentTyped === currentTargetText);
@@ -4319,7 +4357,7 @@
         if (demonShroudedIndices.has(idx) || demonCorruptedIndices.has(idx)) {
           demonShroudedIndices.delete(idx);
           demonCorruptedIndices.delete(idx);
-          const charEl = verseReader.querySelector(`.char[data-index="${idx}"]`);
+          const charEl = verseReader ? verseReader.children[idx] : null;
           if (charEl) {
             charEl.classList.remove("demon-shrouded", "demon-corrupted");
             charEl.classList.add("cleansed-flash");
@@ -4447,7 +4485,7 @@
                 unsentSyncedWords += 1;
               }
             }
-            if ((completedWordBoundary && unsentSyncedWords >= 1) || unsentSyncedLetters >= 15 || unsentGoldenTrailLetters >= 15 || unsentPurifiedLetters >= 10 || unsentCapitalizedLetters >= 5) {
+            if ((completedWordBoundary && unsentSyncedWords >= 5) || unsentSyncedLetters >= 30 || unsentGoldenTrailLetters >= 30 || unsentPurifiedLetters >= 15 || unsentCapitalizedLetters >= 8) {
               if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                   type: "guardian_sync_tick",
@@ -5004,13 +5042,19 @@
         return words.length;
       }
 
+      let cachedVoiceTargetText = "";
+      let cachedVoiceTargetWords = [];
       function updateVoiceProgressUI() {
-        if (!voiceNextWordPill) return;
+        if (!isVoiceMode || !voiceNextWordPill) return;
         if (!currentTargetText) {
           voiceNextWordPill.textContent = "Next: —";
           return;
         }
-        const words = parseTargetWords(currentTargetText);
+        if (cachedVoiceTargetText !== currentTargetText) {
+          cachedVoiceTargetText = currentTargetText;
+          cachedVoiceTargetWords = parseTargetWords(currentTargetText);
+        }
+        const words = cachedVoiceTargetWords;
         const curIdx = getCurrentTargetWordIndex(words);
         if (curIdx >= words.length || currentTyped === currentTargetText) {
           voiceNextWordPill.textContent = `✓ All ${words.length} words spoken!`;
@@ -5807,11 +5851,16 @@
               trackerUnlocked = !!msg.sanctuary.tracker_unlocked;
               demonsDefeatedCount = msg.sanctuary.demons_defeated || 0;
               updateTrackerButtonBadge();
-              renderAngels();
+              updateAngelHeaderBadges();
+              if (angelModal && angelModal.classList.contains("active")) {
+                renderAngels();
+              }
             }
             if (msg.unlocks) {
               availableUnlocks = msg.unlocks;
-              renderSanctuary();
+              if (sanctuaryModal && sanctuaryModal.classList.contains("active")) {
+                renderSanctuary();
+              }
             }
           }
 
@@ -5826,7 +5875,9 @@
             fireCelebrationFX();
             if (msg.unlocks) {
               availableUnlocks = msg.unlocks;
-              renderSanctuary();
+              if (sanctuaryModal && sanctuaryModal.classList.contains("active")) {
+                renderSanctuary();
+              }
             } else {
               ws.send(JSON.stringify({ type: "get_sanctuary" }));
             }
@@ -5851,7 +5902,10 @@
             if (msg.summon_tokens !== undefined && currentCustomizations) {
               currentCustomizations.summon_tokens = msg.summon_tokens;
             }
-            renderAngels();
+            updateAngelHeaderBadges();
+            if (angelModal && angelModal.classList.contains("active")) {
+              renderAngels();
+            }
             updateLiveWorldRibbon();
           }
 
@@ -5880,7 +5934,10 @@
             if (angelHUDName) angelHUDName.textContent = `${msg.angel.icon || '👼'} ${msg.angel.name} (${msg.angel.wpm} WPM)`;
             if (angelProgressBar) angelProgressBar.style.width = "0%";
             updateGuardianAndPeerSyncHUD();
-            renderAngels();
+            updateAngelHeaderBadges();
+            if (angelModal && angelModal.classList.contains("active")) {
+              renderAngels();
+            }
             updateLiveWorldRibbon();
             showToast("Angel Companion", `${msg.angel.name} joined your verse!`, msg.angel.icon || "👼");
           }
@@ -5890,7 +5947,10 @@
               applyCustomizations(msg.sanctuary);
               currentCustomizations = msg.sanctuary;
             }
-            renderAngels();
+            updateAngelHeaderBadges();
+            if (angelModal && angelModal.classList.contains("active")) {
+              renderAngels();
+            }
             showToast("Summon Token Required", msg.content || "Complete a Book Review to earn a Summon Token for Big Mike!", "🪙");
           }
 
@@ -5903,7 +5963,10 @@
               activeAngelCompanion = msg.angel;
             }
             updateGuardianAndPeerSyncHUD();
-            renderAngels();
+            updateAngelHeaderBadges();
+            if (angelModal && angelModal.classList.contains("active")) {
+              renderAngels();
+            }
             if (msg.guardian_leveled_up && msg.sanctuary) {
               fireCelebrationFX("gold");
               showToast("⭐ Guardian Angel Leveled Up!", `${currentCustomizations.guardian_name || "Your Guardian Angel"} reached Level ${msg.sanctuary.guardian_level}! (+Power & Holy Wards)`, "🕊️");
@@ -5926,7 +5989,10 @@
               updateHolyWardsBadge();
             }
             updateGuardianAndPeerSyncHUD();
-            renderAngels();
+            updateAngelHeaderBadges();
+            if (angelModal && angelModal.classList.contains("active")) {
+              renderAngels();
+            }
             showToast("🙌 Angelic Harmony Blessing!", msg.content || "Received +1 Angelic Aegis Ward & Fellowship Sync Buff!", "✨");
             appendMessage(msg.content || "🙌 Harmonized with a Fellowship Guardian Angel!", "badge-notice");
           }
@@ -5939,7 +6005,10 @@
             if (msg.summon_tokens !== undefined && currentCustomizations) {
               currentCustomizations.summon_tokens = msg.summon_tokens;
             }
-            renderAngels();
+            updateAngelHeaderBadges();
+            if (angelModal && angelModal.classList.contains("active")) {
+              renderAngels();
+            }
             showToast("🪙 Summon Token Earned!", msg.content || "Earned +1 Archangel Summon Token!", "🪙");
             appendMessage(msg.content || "🪙 Earned +1 Archangel Summon Token!", "badge-notice");
           }
@@ -5949,12 +6018,18 @@
               activeAngelCompanion = msg.angel;
               if (angelPaceHUD) angelPaceHUD.style.display = "flex";
               if (angelHUDName) angelHUDName.textContent = `${msg.angel.icon || '🕊️'} ${msg.angel.name} (${msg.angel.wpm} WPM)`;
-              renderAngels();
+              updateAngelHeaderBadges();
+              if (angelModal && angelModal.classList.contains("active")) {
+                renderAngels();
+              }
               showToast("Returned to Guardian", `${msg.angel.name} is active alongside you.`, "🕊️");
             } else {
               activeAngelCompanion = null;
               if (angelPaceHUD) angelPaceHUD.style.display = "none";
-              renderAngels();
+              updateAngelHeaderBadges();
+              if (angelModal && angelModal.classList.contains("active")) {
+                renderAngels();
+              }
               showToast("Angel Dismissed", "Companion returned to the heavens", "🕊️");
             }
           }
@@ -6139,7 +6214,9 @@
             if (msg.max_demons !== undefined) globalMaxDemons = msg.max_demons;
             if (msg.sanctification !== undefined) globalSanctification = msg.sanctification;
             updateTrackerButtonBadge();
-            renderDemonTracker(wildDemonsCache, trackerUnlocked, demonsDefeatedCount);
+            if (demonTrackerModal && demonTrackerModal.classList.contains("active")) {
+              renderDemonTracker(wildDemonsCache, trackerUnlocked, demonsDefeatedCount);
+            }
             updateLiveWorldRibbon();
           }
 
@@ -6150,7 +6227,9 @@
             showSwarmBanner(msg.swarm_event);
             appendMessage(msg.swarm_event, "badge-notice");
             updateTrackerButtonBadge();
-            renderDemonTracker(wildDemonsCache, trackerUnlocked, demonsDefeatedCount);
+            if (demonTrackerModal && demonTrackerModal.classList.contains("active")) {
+              renderDemonTracker(wildDemonsCache, trackerUnlocked, demonsDefeatedCount);
+            }
             updateLiveWorldRibbon();
           }
 
@@ -6302,7 +6381,7 @@
       // ---- Ghost Cursors Rendering ----
       const activeGhosts = new Map();
       function renderGhostCursor(ghost) {
-        const charEl = verseReader.querySelector(`.char[data-index="${ghost.char_index}"]`);
+        const charEl = verseReader ? verseReader.children[ghost.char_index] : null;
         let gEl = activeGhosts.get(ghost.uid);
 
         if (!gEl) {
@@ -6351,13 +6430,13 @@
               const targetIdx = ghost.char_index + s;
               if (targetIdx < (currentTargetText ? currentTargetText.length : 0)) {
                 demonShroudedIndices.add(targetIdx);
-                const ch = verseReader.querySelector(`.char[data-index="${targetIdx}"]`);
+                const ch = verseReader ? verseReader.children[targetIdx] : null;
                 if (ch && !ch.classList.contains("correct")) {
                   ch.classList.add("demon-shrouded");
                 }
                 setTimeout(() => {
                   demonShroudedIndices.delete(targetIdx);
-                  const chCurrent = verseReader.querySelector(`.char[data-index="${targetIdx}"]`);
+                  const chCurrent = verseReader ? verseReader.children[targetIdx] : null;
                   if (chCurrent) chCurrent.classList.remove("demon-shrouded");
                 }, 2800);
               }
@@ -6366,13 +6445,13 @@
             const targetIdx = ghost.char_index;
             if (targetIdx < (currentTargetText ? currentTargetText.length : 0)) {
               demonCorruptedIndices.add(targetIdx);
-              const ch = verseReader.querySelector(`.char[data-index="${targetIdx}"]`);
+              const ch = verseReader ? verseReader.children[targetIdx] : null;
               if (ch && !ch.classList.contains("correct")) {
                 ch.classList.add("demon-corrupted");
               }
               setTimeout(() => {
                 demonCorruptedIndices.delete(targetIdx);
-                const chCurrent = verseReader.querySelector(`.char[data-index="${targetIdx}"]`);
+                const chCurrent = verseReader ? verseReader.children[targetIdx] : null;
                 if (chCurrent) chCurrent.classList.remove("demon-corrupted");
               }, 3200);
             }
@@ -7205,15 +7284,36 @@
         });
       }
 
-      function renderAngels() {
-        if (!angelCardsContainer) return;
-        angelCardsContainer.innerHTML = "";
-
+      function updateAngelHeaderBadges() {
         const summonTokens = (currentCustomizations && currentCustomizations.summon_tokens) || 0;
         const tokenHeaderEl = document.getElementById("summonTokensHeaderBadge");
         if (tokenHeaderEl) {
           tokenHeaderEl.textContent = `🪙 ${summonTokens} Summon Token${summonTokens === 1 ? '' : 's'}`;
         }
+        if (btnAngelCompanionPill) {
+          if (activeAngelCompanion) {
+            btnAngelCompanionPill.classList.add("active");
+            btnAngelCompanionPill.innerHTML = `<span>${activeAngelCompanion.icon || "👼"}</span><span>${activeAngelCompanion.name} (${activeAngelCompanion.wpm} WPM)</span>`;
+            btnAngelCompanionPill.title = `Angel companion active. Click to change or dismiss.`;
+          } else {
+            btnAngelCompanionPill.classList.remove("active");
+            btnAngelCompanionPill.innerHTML = `<span>👼</span><span>Summon Scribe</span>`;
+            btnAngelCompanionPill.title = `Summon an Angel Bot companion to type alongside you`;
+          }
+        }
+        if (topAngelLabel) {
+          topAngelLabel.textContent = activeAngelCompanion
+            ? `${activeAngelCompanion.rank === "michael" ? activeAngelCompanion.name : activeAngelCompanion.name.split(" ")[0]} (${activeAngelCompanion.wpm}wpm)`
+            : "Angels";
+        }
+      }
+
+      function renderAngels() {
+        updateAngelHeaderBadges();
+        if (!angelCardsContainer) return;
+        angelCardsContainer.innerHTML = "";
+
+        const summonTokens = (currentCustomizations && currentCustomizations.summon_tokens) || 0;
         renderRoamingGuardians();
 
         const list = angelsList.length > 0 ? angelsList : [
