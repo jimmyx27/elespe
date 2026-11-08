@@ -3157,6 +3157,31 @@ func TestDemonTaintRighteousnessDebuffAndGloriousMichaelTrail(t *testing.T) {
 	if verifyAuthToken("acc_99999", tok) || verifyAuthToken("acc_12345", "invalid") {
 		t.Errorf("Expected forged or mismatched auth token to be rejected")
 	}
+
+	// 6. Verify UI Layout: Typing Stage above Companion Dock, Smart Buff Pills, Collapsible Guardian Tabs, and Zen Mode
+	htmlBytes, err := os.ReadFile("index.html")
+	if err != nil {
+		t.Fatalf("Failed to read index.html: %v", err)
+	}
+	htmlStr := string(htmlBytes)
+	verseIdx := strings.Index(htmlStr, `id="verse"`)
+	dockIdx := strings.Index(htmlStr, `id="companionDock"`)
+	if verseIdx == -1 || dockIdx == -1 || verseIdx > dockIdx {
+		t.Errorf("Expected #verse (pos %d) to appear above #companionDock (pos %d)", verseIdx, dockIdx)
+	}
+	for _, marker := range []string{
+		`id="stageBuffsBar"`,
+		`class="smart-buff-pill"`,
+		`id="guardianTabsShell"`,
+		`id="btnToggleGuardianDock"`,
+		`id="btnToggleZenMode"`,
+		`zen-typing`,
+		`revealSmartPillOnce`,
+	} {
+		if !strings.Contains(htmlStr, marker) {
+			t.Errorf("Expected index.html to contain %q", marker)
+		}
+	}
 }
 
 

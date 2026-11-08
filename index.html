@@ -1761,6 +1761,344 @@
           display: none;
         }
       }
+
+      /* ---- Smart Icon-First Buff Pills (Show name on first appearance, then collapse to icon + hover tooltip) ---- */
+      .stage-micro-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        min-height: 26px;
+        margin-bottom: -0.35rem;
+      }
+      .buff-pills-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+      }
+      .smart-buff-pill {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        height: 25px;
+        padding: 0 0.48rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        background: var(--card-solid);
+        border: 1px solid var(--border);
+        color: var(--text);
+        cursor: help;
+        user-select: none;
+        white-space: nowrap;
+        transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .smart-buff-pill:hover {
+        transform: translateY(-1px);
+        z-index: 60;
+      }
+      .smart-buff-pill .buff-icon {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.18rem;
+        line-height: 1;
+      }
+      .smart-buff-pill .buff-label {
+        display: inline-block;
+        max-width: 0;
+        opacity: 0;
+        overflow: hidden;
+        margin-left: 0;
+        vertical-align: bottom;
+        transition:
+          max-width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+          opacity 0.25s ease,
+          margin-left 0.25s ease;
+      }
+      .smart-buff-pill.first-reveal .buff-label,
+      .smart-buff-pill:hover .buff-label,
+      .smart-buff-pill:focus-visible .buff-label {
+        max-width: 240px;
+        opacity: 1;
+        margin-left: 0.32rem;
+      }
+      .smart-buff-pill[data-tooltip]::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 7px);
+        left: 50%;
+        transform: translateX(-50%) translateY(4px);
+        background: rgba(15, 23, 42, 0.96);
+        color: #f8fafc;
+        border: 1px solid rgba(251, 191, 36, 0.45);
+        border-radius: 8px;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        line-height: 1.35;
+        white-space: normal;
+        width: max-content;
+        max-width: 250px;
+        text-align: center;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+        z-index: 120;
+      }
+      .smart-buff-pill[data-tooltip]:hover::after {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* Compact Michael Glorious Trail Pill Group */
+      .michael-trail-banner {
+        display: none;
+        align-items: center;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        padding: 0;
+        margin: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+      }
+
+      /* Stage Top Hairline Progress Bar */
+      .stage-typing-progress {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: transparent;
+        border-radius: 10px 10px 0 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .stage-typing-progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, var(--accent), #34d399);
+        transition: width 0.12s ease-out;
+      }
+
+      /* ---- Expandable / Collapsible Guardian Angel & World Tabs Dock ---- */
+      .companion-dock {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        margin-top: 0.15rem;
+        transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1), transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .guardian-tabs-shell {
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 11px;
+        overflow: hidden;
+        transition: border-color 0.2s ease, background 0.2s ease;
+      }
+      .guardian-tabs-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        padding: 0.32rem 0.55rem;
+        flex-wrap: wrap;
+      }
+      .guardian-tab-list {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        flex-wrap: wrap;
+      }
+      .guardian-tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.32rem;
+        height: 27px;
+        padding: 0 0.6rem;
+        border-radius: 7px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 0.73rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.16s ease;
+      }
+      .guardian-tab-btn:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .guardian-tab-btn.active {
+        color: var(--text);
+        background: var(--card-solid);
+        border-color: var(--border);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+      }
+      .guardian-dock-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        height: 25px;
+        padding: 0 0.5rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--card-solid);
+        color: var(--muted);
+        font-size: 0.7rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .guardian-dock-toggle:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .guardian-tab-panels {
+        border-top: 1px solid var(--border);
+        padding: 0.55rem 0.7rem;
+        background: rgba(15, 23, 42, 0.22);
+        transition: all 0.25s ease;
+      }
+      .guardian-tabs-shell.collapsed .guardian-tab-panels {
+        display: none;
+      }
+      .guardian-tab-pane {
+        display: none;
+      }
+      .guardian-tab-pane.active {
+        display: block;
+      }
+      .guardian-tab-pane .angel-pace-hud,
+      .guardian-tab-pane .live-world-ribbon {
+        margin-bottom: 0;
+      }
+
+      /* Collapsible Sections inside Angel Modal & Guardian Card */
+      .collapsible-section {
+        border: 1px solid rgba(168, 85, 247, 0.28);
+        border-radius: 9px;
+        background: rgba(0, 0, 0, 0.25);
+        margin: 0.45rem 0;
+        overflow: hidden;
+      }
+      .collapsible-header {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.45rem 0.7rem;
+        background: rgba(168, 85, 247, 0.1);
+        border: none;
+        color: var(--text);
+        font-size: 0.76rem;
+        font-weight: 800;
+        cursor: pointer;
+        text-align: left;
+      }
+      .collapsible-header:hover {
+        background: rgba(168, 85, 247, 0.18);
+      }
+      .collapsible-body {
+        padding: 0.55rem 0.7rem;
+        border-top: 1px solid rgba(168, 85, 247, 0.2);
+      }
+      .collapsible-section.collapsed .collapsible-body {
+        display: none;
+      }
+      .collapsible-chevron {
+        font-size: 0.72rem;
+        color: var(--muted);
+        transition: transform 0.2s ease;
+      }
+      .collapsible-section.collapsed .collapsible-chevron {
+        transform: rotate(-90deg);
+      }
+
+      /* ---- Smooth Auto-Zen Mode Typer Transition ---- */
+      .topbar,
+      .bottom-bar,
+      .typing-footer,
+      .companion-dock,
+      .stage-micro-bar,
+      .panel,
+      .verse-card,
+      .typing-stage {
+        transition:
+          opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+          transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+          border-color 0.35s ease,
+          box-shadow 0.45s ease,
+          background-color 0.45s ease,
+          filter 0.45s ease;
+      }
+      body.zen-typing .topbar {
+        opacity: 0.15;
+        transform: translateY(-3px) scale(0.995);
+        filter: saturate(0.35);
+      }
+      body.zen-typing .topbar:hover,
+      body.zen-typing .topbar:focus-within {
+        opacity: 1;
+        transform: none;
+        filter: none;
+      }
+      body.zen-typing .companion-dock {
+        opacity: 0.08;
+        transform: translateY(4px);
+        filter: saturate(0.25);
+      }
+      body.zen-typing .companion-dock:hover {
+        opacity: 1;
+        transform: none;
+        filter: none;
+      }
+      body.zen-typing .typing-footer {
+        opacity: 0.18;
+      }
+      body.zen-typing .typing-footer:hover {
+        opacity: 1;
+      }
+      body.zen-typing .bottom-bar {
+        opacity: 0.14;
+        transform: translateY(4px);
+      }
+      body.zen-typing .bottom-bar:hover {
+        opacity: 1;
+        transform: none;
+      }
+      body.zen-typing .panel {
+        border-color: transparent;
+        box-shadow: none;
+        background: transparent;
+      }
+      body.zen-typing .verse-card {
+        border-color: transparent;
+        background: transparent;
+      }
+      body.zen-typing .typing-stage {
+        transform: translateY(-2px) scale(1.012);
+        border-color: var(--accent);
+        box-shadow:
+          0 20px 50px -12px rgba(0, 0, 0, 0.6),
+          0 0 0 4px var(--accent-soft);
+      }
+      body.zen-typing .ghost-cursor:not(.is-demon) .ghost-tag {
+        opacity: 0.25;
+        transform: scale(0.86);
+      }
+      .presence-btn.zen-active {
+        color: var(--accent) !important;
+        border-color: var(--accent) !important;
+        background: var(--accent-soft) !important;
+      }
     </style>
   </head>
   <body data-category="law">
@@ -1849,7 +2187,7 @@
         <span id="crowdTodayVerses">0 verses today</span>
       </div>
 
-      <!-- Focused Typing Stage -->
+      <!-- Focused Typing Stage (Primary Focus Immediately Under Version/Book/Verse Topbar) -->
       <main class="layout">
         <section class="panel">
           <!-- Mode Banner -->
@@ -1858,102 +2196,49 @@
             <button id="btnExitMode" class="mode-banner-back">← Back to Scripture</button>
           </div>
 
-          <!-- Live Scripture World Ribbon (Big Mike's Crusade, Fellowship Guardian Ghosts, Active Wild Demons) -->
-          <div id="liveWorldRibbon" class="live-world-ribbon">
-            <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
-              <button type="button" id="ribbonMichaelPill" class="world-ribbon-pill" title="Big Mike's live linear crusade across Scripture — click to jump to his verse!" style="border-color: rgba(251, 191, 36, 0.45); color: #fde047;">
-                <span>⚔️</span>
-                <span id="ribbonMichaelText">Big Mike: Genesis 1:1 (160 WPM)</span>
-              </button>
-              <button type="button" id="ribbonGuardiansPill" class="world-ribbon-pill" title="Persistent Player Guardian Angel Ghosts roaming Scripture — click to view &amp; jump!" style="border-color: rgba(56, 189, 248, 0.4); color: #7dd3fc;">
-                <span>👼</span>
-                <span id="ribbonGuardiansText">1 Guardian Scribe</span>
-              </button>
-            </div>
-            <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
-              <button type="button" id="ribbonDemonsPill" class="world-ribbon-pill" title="Active Wild Demons roaming Scripture — click to open Demon Tracker" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
-                <span>😈</span>
-                <span id="ribbonDemonsText">7 Wild Demons</span>
-              </button>
-            </div>
-          </div>
-
           <div id="verse" class="verse-card">
-            <!-- Big Mike's Glorious Golden Glowing Trail Banner -->
-            <div id="michaelTrailBanner" class="michael-trail-banner">
-              <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
-                <span>⚔️✨</span>
-                <span>GLORIOUS GOLDEN TRAIL OF BIG MIKE — This verse shines with Archangel Michael's radiant golden trail!</span>
-              </div>
-              <span style="background: rgba(0, 0, 0, 0.35); border: 1px solid #fde047; padding: 2px 8px; border-radius: 999px; color: #ffffff;">
-                🔥 2× Holy Smite · ⚖️ 2× Righteousness · ⭐ 2× Sync XP
-              </span>
-            </div>
-
-            <!-- Angel Companion Live Race / Pace HUD -->
-            <div id="angelPaceHUD" class="angel-pace-hud" style="display: none;">
-              <div class="angel-pace-header">
-                <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
-                  <span id="angelHUDName">👼 Guardian Angel (40 WPM)</span>
-                  <span id="angelHUDLevelBadge" style="font-size: 0.7rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(168, 85, 247, 0.22); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.45);">⭐ Lv. 1 (0/100 XP)</span>
-                  <span id="angelHUDSyncBadge" style="font-size: 0.7rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4);">✨ In Sync (+XP)</span>
-                </div>
-                <span id="angelHUDComparison">You: 0 WPM · Pace: 40 WPM</span>
-              </div>
-              <div class="angel-progress-track">
-                <div id="angelProgressBar" class="angel-progress-fill"></div>
-              </div>
-            </div>
-
-            <!-- Fellowship Peer Guardian Angel HUD (visible when another player's Guardian Angel ghost is on this verse) -->
-            <div id="fellowshipAngelHUD" class="angel-pace-hud" style="display: none; background: linear-gradient(135deg, rgba(14, 116, 144, 0.25), rgba(59, 130, 246, 0.18)); border: 1px solid rgba(56, 189, 248, 0.45);">
-              <div class="angel-pace-header" style="gap: 0.5rem; flex-wrap: wrap;">
-                <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
-                  <span id="fellowshipAngelName" style="font-weight: 800; color: #7dd3fc;">🕊️ Fellowship Guardian</span>
-                  <span id="fellowshipAngelStatusPill" style="font-size: 0.68rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: rgba(56, 189, 248, 0.2); color: #bae6fd; border: 1px solid rgba(56, 189, 248, 0.4);">👻 Player Ghost</span>
-                  <span id="fellowshipAngelBuffPill" style="font-size: 0.7rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(245, 158, 11, 0.2); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.45);">⚡ Sync Buff: +35% Smite · +50% XP</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.4rem;">
-                  <button type="button" id="btnInteractPeerAngel" class="presence-btn" style="font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-color: #38bdf8; color: #e0f2fe; background: rgba(56, 189, 248, 0.2); cursor: pointer;">🙌 Harmonize &amp; Bless (+Ward)</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Wild Demon Combat & Resonance HUD -->
-            <div id="wildDemonHUD" class="angel-pace-hud" style="display: none; background: linear-gradient(135deg, rgba(30, 10, 15, 0.95), rgba(15, 23, 42, 0.95)); border: 1px solid #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.25);">
-              <div class="angel-pace-header">
-                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                  <span id="wildDemonIconName" style="font-weight: 800; color: #f87171; font-size: 0.9rem;">😈 Whispering Imp (Lv. 1)</span>
-                  <span id="wildDemonPaceBadge" style="font-size: 0.7rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 7px; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700;">Target: 12 WPM</span>
-                  <span id="demonDebuffBadge" style="display: none; font-size: 0.7rem; background: rgba(251, 191, 36, 0.22); color: #fde047; padding: 2px 7px; border-radius: 999px; border: 1px solid #f59e0b; font-weight: 800;" title="Demon debuffed by Righteousness!">⛓️ Rebuked</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
-                  <span id="righteousnessBadge" style="font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(251, 191, 36, 0.16); color: #fde047; border: 1px solid rgba(251, 191, 36, 0.45);" title="Type red demon-tainted letters and golden angel trail letters to build Righteousness! At 100%, unleashes Sanctified Rebuke to debuff the demon!">⚖️ Righteousness: 0%</span>
-                  <span id="burstDamageBadge" style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: rgba(168, 85, 247, 0.2); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.45);" title="Adjustable Passage Finish Burst Damage — applied to the demon when you finish a passage before it!">
-                    <span>💥 Burst:</span>
-                    <button type="button" id="btnBurstDamageDown" style="background: rgba(0,0,0,0.35); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.4); border-radius: 4px; padding: 0 4px; font-size: 0.68rem; font-weight: 900; cursor: pointer; line-height: 1.2;" title="Decrease base passage burst damage (-5)">−</button>
-                    <strong id="burstDamageValue" style="min-width: 22px; text-align: center; color: #f3e8ff;">30</strong>
-                    <button type="button" id="btnBurstDamageUp" style="background: rgba(0,0,0,0.35); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.4); border-radius: 4px; padding: 0 4px; font-size: 0.68rem; font-weight: 900; cursor: pointer; line-height: 1.2;" title="Increase base passage burst damage (+5)">+</button>
+            <!-- Compact Active Buffs & Modifiers Strip (Shows name on first appearance, then collapses to icon until hovered) -->
+            <div id="stageBuffsBar" class="stage-micro-bar">
+              <div class="buff-pills-row">
+                <!-- Big Mike's Glorious Trail Consolidated Icon Buff Pills -->
+                <div id="michaelTrailBanner" class="michael-trail-banner">
+                  <span id="buffMichaelTrailPill" class="smart-buff-pill" data-buff-key="michael_trail" data-tooltip="Glorious Golden Trail of Big Mike — Archangel Michael's radiant trail blesses this verse!" style="background: rgba(251, 191, 36, 0.22); border-color: #fde047; color: #fef08a;">
+                    <span class="buff-icon">⚔️✨</span><span class="buff-label">Glorious Trail</span>
                   </span>
-                  <span id="checkpointBadge" style="font-size: 0.72rem; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: rgba(56, 189, 248, 0.14); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.35);" title="Every 2 punctuation marks typed locks in a Checkpoint so mistakes don't reset the whole verse!">🔖 CP: 0/2 Punct.</span>
-                  <span id="syncStacksBadge" style="font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="Gain 1 stack per word typed in sync. Every 5 stacks increases damage!">🔥 0 Stacks</span>
-                  <span id="holyWardsBadge" style="font-size: 0.78rem; font-weight: 800; color: #38bdf8; text-shadow: 0 0 6px #38bdf8;" title="Holy Wards absorb mistakes before checkpoint reset">🛡️ 0 Wards</span>
-                  <span id="resonanceIndicator" style="font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,0.08); color: var(--muted); border: 1px solid var(--border);">⚖️ Out of Tune</span>
+                  <span id="buffHolySmite2xPill" class="smart-buff-pill" data-buff-key="smite_2x" data-tooltip="2× Holy Smite Damage — All strikes against demons on this verse deal double damage!" style="background: rgba(245, 158, 11, 0.2); border-color: #f59e0b; color: #fde68a;">
+                    <span class="buff-icon">🔥 2×</span><span class="buff-label">2× Holy Smite</span>
+                  </span>
+                  <span id="buffRighteousness2xPill" class="smart-buff-pill" data-buff-key="righteousness_2x" data-tooltip="2× Righteousness Gain — Typing tainted & capital letters builds double Righteousness!" style="background: rgba(250, 204, 21, 0.2); border-color: #eab308; color: #fef08a;">
+                    <span class="buff-icon">⚖️ 2×</span><span class="buff-label">2× Righteousness</span>
+                  </span>
+                  <span id="buffSyncXp2xPill" class="smart-buff-pill" data-buff-key="sync_xp_2x" data-tooltip="2× Sync XP — Double Guardian Angel XP from golden trail & capital letters!" style="background: rgba(168, 85, 247, 0.22); border-color: #c084fc; color: #e9d5ff;">
+                    <span class="buff-icon">⭐ 2×</span><span class="buff-label">2× Sync XP</span>
+                  </span>
                 </div>
+
+                <!-- Contextual Angel Trail, Guardian Sync, Peer Ghost & Capital Grace Icon Pills -->
+                <span id="buffGoldenTrailPill" class="smart-buff-pill" data-buff-key="angel_golden_trail" data-tooltip="Angel Golden Trail: +20% Holy Smite Damage, +Righteousness & Auto-Cleanse ahead" style="display: none; background: rgba(245, 158, 11, 0.16); border-color: rgba(251, 191, 36, 0.5); color: #fbbf24;">
+                  <span class="buff-icon">✨ +20%</span><span class="buff-label">Golden Trail</span>
+                </span>
+                <span id="buffGuardianSyncPill" class="smart-buff-pill" data-buff-key="guardian_in_sync" data-tooltip="Guardian Angel In Sync (±10 chars): +15% Holy Smite Damage & Bonus Guardian XP" style="background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.45); color: #6ee7b7;">
+                  <span class="buff-icon">🕊️ +15%</span><span class="buff-label">Guardian Sync</span>
+                </span>
+                <span id="buffPeerSyncPill" class="smart-buff-pill" data-buff-key="peer_angel_sync" data-tooltip="Fellowship Guardian Sync: +35% Holy Smite Damage · +50% Guardian XP · Auto-Cleanse" style="display: none; background: rgba(56, 189, 248, 0.18); border-color: rgba(56, 189, 248, 0.5); color: #7dd3fc;">
+                  <span class="buff-icon">👻 +35%</span><span class="buff-label">Fellowship Sync</span>
+                </span>
+                <span id="buffCapitalGracePill" class="smart-buff-pill" data-buff-key="capital_grace" data-tooltip="Sacred Capital Letters: Typing uppercase letters grants +1.5× Smite DMG, +Sync Stacks & +Righteousness" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.35); color: #bae6fd;">
+                  <span class="buff-icon">🔠 ×1.5</span><span class="buff-label">Capital Grace</span>
+                </span>
               </div>
-              <div style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.25rem;">
-                <div class="angel-progress-track" style="flex: 1; height: 8px; background: rgba(0,0,0,0.5); border: 1px solid rgba(239, 68, 68, 0.3);">
-                  <div id="wildDemonHPBar" class="angel-progress-fill" style="width: 100%; background: linear-gradient(90deg, #ef4444, #dc2626); box-shadow: 0 0 8px #ef4444;"></div>
-                </div>
-                <span id="wildDemonHPText" style="font-size: 0.72rem; font-weight: 800; color: #fca5a5; min-width: 75px; text-align: right;">120 / 120 HP</span>
-              </div>
-              <div id="wildDemonStatusText" style="font-size: 0.75rem; color: #fca5a5; margin-top: 0.2rem; font-style: italic;">
-                Match the demon's slow methodical pace to deal holy damage!
+
+              <div class="buff-pills-row">
+                <button type="button" id="btnToggleZenMode" class="presence-btn" title="Toggle Zen Focus Mode (Alt+Z) — Auto-activates smoothly as you type">🧘 Zen</button>
               </div>
             </div>
 
-            <!-- Interactive Character-by-Character Reader -->
+            <!-- Interactive Character-by-Character Reader (Main Focus) -->
             <div id="typingStage" class="typing-stage" tabindex="0">
+              <div class="stage-typing-progress"><div id="stageTypingProgressFill" class="stage-typing-progress-fill"></div></div>
               <div id="ghostCursorsContainer"></div>
               <p id="verseReader" class="verse-reader"></p>
               <input id="hiddenInput" type="text" autocomplete="off" spellcheck="false" />
@@ -2027,6 +2312,142 @@
                 <button id="btnToggleVoiceMode" class="presence-btn voice-mode-btn" title="Toggle Voice Mode — Speak the verse aloud (Alt+V)">🎙️ Voice</button>
                 <button id="btnToggleSpectator" class="presence-btn" title="Spectate without typing">👁️ Watch</button>
                 <button id="btnRestartVerse" class="btn-restart">↺ Restart</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Secondary Companion, Combat & World Dock (Moved Below Typing Stage) -->
+          <div id="companionDock" class="companion-dock">
+            <!-- Wild Demon Combat & Resonance HUD (Compact Icon Badges with Hover Tooltips) -->
+            <div id="wildDemonHUD" class="angel-pace-hud" style="display: none; margin-bottom: 0; background: linear-gradient(135deg, rgba(30, 10, 15, 0.95), rgba(15, 23, 42, 0.95)); border: 1px solid #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.25);">
+              <div class="angel-pace-header" style="gap: 0.4rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                  <span id="wildDemonIconName" style="font-weight: 800; color: #f87171; font-size: 0.86rem;">😈 Whispering Imp (Lv. 1)</span>
+                  <span id="wildDemonPaceBadge" style="font-size: 0.68rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 1px 6px; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700;">Pace: 12 WPM</span>
+                  <span id="demonDebuffBadge" class="smart-buff-pill" data-buff-key="demon_debuff" data-tooltip="Sanctified Rebuke Debuff: -20% Demon WPM & +25% Vulnerability per stack" style="display: none; background: rgba(251, 191, 36, 0.22); color: #fde047; border-color: #f59e0b;">
+                    <span class="buff-icon">⛓️</span><span class="buff-label">Rebuked</span>
+                  </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                  <span id="righteousnessBadge" class="smart-buff-pill" data-buff-key="righteousness_meter" data-tooltip="Righteousness Meter: Type red demon-tainted letters, golden trail & capital letters. At 100%, triggers Sanctified Rebuke to debuff the demon!" style="background: rgba(251, 191, 36, 0.16); color: #fde047; border-color: rgba(251, 191, 36, 0.45);">
+                    <span class="buff-icon">⚖️ 0%</span><span class="buff-label">Righteousness</span>
+                  </span>
+                  <span id="burstDamageBadge" class="smart-buff-pill" data-buff-key="passage_burst" data-tooltip="Adjustable Passage Finish Burst Damage — applied to the demon when you finish a passage before it!" style="background: rgba(168, 85, 247, 0.2); color: #e9d5ff; border-color: rgba(168, 85, 247, 0.45);">
+                    <span class="buff-icon">
+                      <span>💥</span>
+                      <button type="button" id="btnBurstDamageDown" style="background: rgba(0,0,0,0.35); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.4); border-radius: 4px; padding: 0 4px; font-size: 0.65rem; font-weight: 900; cursor: pointer; line-height: 1.1;" title="Decrease base passage burst damage (-5)">−</button>
+                      <strong id="burstDamageValue" style="min-width: 18px; text-align: center; color: #f3e8ff;">30</strong>
+                      <button type="button" id="btnBurstDamageUp" style="background: rgba(0,0,0,0.35); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.4); border-radius: 4px; padding: 0 4px; font-size: 0.65rem; font-weight: 900; cursor: pointer; line-height: 1.1;" title="Increase base passage burst damage (+5)">+</button>
+                    </span>
+                    <span class="buff-label">Burst DMG</span>
+                  </span>
+                  <span id="checkpointBadge" class="smart-buff-pill" data-buff-key="punct_checkpoint" data-tooltip="Punctuation Checkpoint: Every 2 punctuation marks typed locks in a Checkpoint so mistakes don't reset the whole verse!" style="background: rgba(56, 189, 248, 0.14); color: #7dd3fc; border-color: rgba(56, 189, 248, 0.35);">
+                    <span class="buff-icon">🔖 0/2</span><span class="buff-label">Checkpoint</span>
+                  </span>
+                  <span id="syncStacksBadge" class="smart-buff-pill" data-buff-key="sync_stacks" data-tooltip="Sync Stacks: Gain 1 stack per word typed in sync (+bonus on capitals). Every 5 stacks increases holy strike damage!" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">
+                    <span class="buff-icon">🔥 0</span><span class="buff-label">Sync Stacks</span>
+                  </span>
+                  <span id="holyWardsBadge" class="smart-buff-pill" data-buff-key="holy_wards" data-tooltip="Holy Wards: Absorb typing mistakes before a Demonic Backlash checkpoint reset" style="background: rgba(56, 189, 248, 0.14); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">
+                    <span class="buff-icon">🛡️ 0</span><span class="buff-label">Holy Wards</span>
+                  </span>
+                  <span id="resonanceIndicator" class="smart-buff-pill" data-buff-key="holy_radiance" data-tooltip="Holy Radiance Pacing: Stay within ±5 characters of the demon to build Sync Stacks and deal Holy Smite damage!" style="background: rgba(255,255,255,0.08); color: var(--muted); border-color: var(--border);">
+                    <span class="buff-icon">⚖️ Pace</span><span class="buff-label">Out of Tune</span>
+                  </span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.15rem;">
+                <div class="angel-progress-track" style="flex: 1; height: 6px; background: rgba(0,0,0,0.5); border: 1px solid rgba(239, 68, 68, 0.3);">
+                  <div id="wildDemonHPBar" class="angel-progress-fill" style="width: 100%; background: linear-gradient(90deg, #ef4444, #dc2626); box-shadow: 0 0 8px #ef4444;"></div>
+                </div>
+                <span id="wildDemonHPText" style="font-size: 0.7rem; font-weight: 800; color: #fca5a5; min-width: 72px; text-align: right;">120 / 120 HP</span>
+              </div>
+              <div id="wildDemonStatusText" style="display: none; font-size: 0.72rem; color: #fca5a5; margin-top: 0.1rem; font-style: italic;"></div>
+            </div>
+
+            <!-- Expandable / Collapsible Guardian Angel & World Tabs -->
+            <div id="guardianTabsShell" class="guardian-tabs-shell collapsed">
+              <div class="guardian-tabs-bar">
+                <div class="guardian-tab-list" role="tablist">
+                  <button type="button" id="tabBtnGuardianMain" class="guardian-tab-btn active" data-g-tab="paneGuardian" title="Your Personal Guardian Angel — click to expand/collapse">
+                    <span>👼</span>
+                    <span id="tabGuardianSummary">Guardian Lv.1</span>
+                  </button>
+                  <button type="button" id="tabBtnFellowshipMain" class="guardian-tab-btn" data-g-tab="paneFellowship" title="Fellowship Player Guardian Ghosts on this verse — click to expand/collapse">
+                    <span>👻</span>
+                    <span id="tabFellowshipSummary">Fellowship Ghosts</span>
+                  </button>
+                  <button type="button" id="tabBtnWorldMain" class="guardian-tab-btn" data-g-tab="paneWorld" title="Live Scripture World Crusade (Big Mike & Roaming Demons) — click to expand/collapse">
+                    <span>🌍</span>
+                    <span id="tabWorldSummary">World Crusade</span>
+                  </button>
+                </div>
+                <button type="button" id="btnToggleGuardianDock" class="guardian-dock-toggle" title="Expand or collapse Guardian Angel tabs">
+                  <span id="guardianDockToggleLabel">Expand</span>
+                  <span id="guardianDockToggleChevron">▾</span>
+                </button>
+              </div>
+
+              <div id="guardianTabPanels" class="guardian-tab-panels">
+                <!-- Pane 1: Personal Guardian Angel -->
+                <div id="paneGuardian" class="guardian-tab-pane active">
+                  <div id="angelPaceHUD" class="angel-pace-hud" style="display: flex; border: none; padding: 0.15rem 0; background: transparent;">
+                    <div class="angel-pace-header">
+                      <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                        <span id="angelHUDName">👼 Guardian Angel (40 WPM)</span>
+                        <span id="angelHUDLevelBadge" class="smart-buff-pill" data-buff-key="guardian_lvl_badge" data-tooltip="Guardian Angel Level & Sync XP — Levels up as you complete letters, words, verses, and books in sync!" style="background: rgba(168, 85, 247, 0.22); color: #e9d5ff; border-color: rgba(168, 85, 247, 0.45);">
+                          <span class="buff-icon">⭐ Lv.1</span><span class="buff-label">0/100 XP</span>
+                        </span>
+                        <span id="angelHUDSyncBadge" class="smart-buff-pill" data-buff-key="guardian_sync_badge" data-tooltip="Stay within ±10 characters of your Guardian Angel for +15% Smite Damage & Sync XP" style="background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4);">
+                          <span class="buff-icon">✨ Sync</span><span class="buff-label">+15% DMG & XP</span>
+                        </span>
+                      </div>
+                      <span id="angelHUDComparison">You: 0 WPM · Pace: 40 WPM</span>
+                    </div>
+                    <div class="angel-progress-track">
+                      <div id="angelProgressBar" class="angel-progress-fill"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Pane 2: Fellowship Peer Guardian Ghosts -->
+                <div id="paneFellowship" class="guardian-tab-pane">
+                  <div id="fellowshipAngelHUD" class="angel-pace-hud" style="display: flex; border: none; padding: 0.15rem 0; background: transparent;">
+                    <div class="angel-pace-header" style="gap: 0.5rem; flex-wrap: wrap;">
+                      <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                        <span id="fellowshipAngelName" style="font-weight: 800; color: #7dd3fc;">🕊️ Fellowship Guardian Ghosts</span>
+                        <span id="fellowshipAngelStatusPill" style="font-size: 0.68rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: rgba(56, 189, 248, 0.2); color: #bae6fd; border: 1px solid rgba(56, 189, 248, 0.4);">👻 Roaming Scripture</span>
+                        <span id="fellowshipAngelBuffPill" class="smart-buff-pill" data-buff-key="peer_buff_pill" data-tooltip="Harmonize or type in sync with another player's Guardian Angel for +35% Smite Damage, +50% Sync XP & +1 Holy Ward!" style="background: rgba(245, 158, 11, 0.2); color: #fde68a; border-color: rgba(245, 158, 11, 0.45);">
+                          <span class="buff-icon">⚡ +35%</span><span class="buff-label">+35% Smite · +50% XP</span>
+                        </span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <button type="button" id="btnInteractPeerAngel" class="presence-btn" style="font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-color: #38bdf8; color: #e0f2fe; background: rgba(56, 189, 248, 0.2); cursor: pointer;">🙌 Harmonize &amp; Bless (+Ward)</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Pane 3: Live Scripture World Ribbon -->
+                <div id="paneWorld" class="guardian-tab-pane">
+                  <div id="liveWorldRibbon" class="live-world-ribbon" style="border: none; padding: 0.1rem 0; background: transparent;">
+                    <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                      <button type="button" id="ribbonMichaelPill" class="world-ribbon-pill" title="Big Mike's live linear crusade across Scripture — click to jump to his verse!" style="border-color: rgba(251, 191, 36, 0.45); color: #fde047;">
+                        <span>⚔️</span>
+                        <span id="ribbonMichaelText">Big Mike: Genesis 1:1 (160 WPM)</span>
+                      </button>
+                      <button type="button" id="ribbonGuardiansPill" class="world-ribbon-pill" title="Persistent Player Guardian Angel Ghosts roaming Scripture — click to view &amp; jump!" style="border-color: rgba(56, 189, 248, 0.4); color: #7dd3fc;">
+                        <span>👼</span>
+                        <span id="ribbonGuardiansText">1 Guardian Scribe</span>
+                      </button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                      <button type="button" id="ribbonDemonsPill" class="world-ribbon-pill" title="Active Wild Demons roaming Scripture — click to open Demon Tracker" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
+                        <span>😈</span>
+                        <span id="ribbonDemonsText">7 Wild Demons</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2537,17 +2958,21 @@
               </div>
             </div>
 
-            <!-- Roaming Player Guardian Ghosts Section -->
-            <div style="background: rgba(168, 85, 247, 0.07); border: 1px solid rgba(168, 85, 247, 0.28); border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 1rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem;">
-                <div>
-                  <h4 style="margin: 0; font-size: 0.86rem; color: #d8b4fe; text-transform: uppercase; letter-spacing: 0.5px;">👻 Fellowship Guardian Ghosts (Live Across Scripture)</h4>
-                  <p style="margin: 0.15rem 0 0; font-size: 0.76rem; color: var(--muted);">
-                    Every player's Guardian Angel continues mashing out verses linearly when they stop or leave (without granting book progress). Sync with another player's angel for <b>+35% Smite Damage</b>, <b>+50% Guardian XP</b>, and <b>Angelic Aegis Wards</b>!
-                  </p>
+            <!-- Expandable / Collapsible Roaming Player Guardian Ghosts Section -->
+            <div id="modalRoamingGuardiansSection" class="collapsible-section collapsed" style="border-color: rgba(168, 85, 247, 0.35); margin-bottom: 1rem;">
+              <div id="btnToggleModalRoamingGuardians" class="collapsible-header" title="Click to expand or collapse Fellowship Guardian Ghosts">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                  <span style="font-size: 0.85rem; color: #d8b4fe; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800;">👻 Fellowship Guardian Ghosts</span>
+                  <span id="modalRoamingGuardiansCountBadge" style="font-size: 0.68rem; background: rgba(168, 85, 247, 0.22); color: #e9d5ff; padding: 1px 7px; border-radius: 999px; font-weight: 800;">Live Across Scripture</span>
                 </div>
+                <span class="collapsible-chevron" style="color: #d8b4fe; font-size: 0.85rem;">▾</span>
               </div>
-              <div id="roamingGuardiansContainer" style="display: flex; flex-direction: column; gap: 0.45rem; max-height: 170px; overflow-y: auto;"></div>
+              <div class="collapsible-body">
+                <p style="margin: 0 0 0.5rem; font-size: 0.76rem; color: var(--muted);">
+                  Every player's Guardian Angel continues mashing out verses linearly when they stop or leave (without granting book progress). Sync with another player's angel for <b>+35% Smite Damage</b>, <b>+50% Guardian XP</b>, and <b>Angelic Aegis Wards</b>!
+                </p>
+                <div id="roamingGuardiansContainer" style="display: flex; flex-direction: column; gap: 0.45rem; max-height: 170px; overflow-y: auto;"></div>
+              </div>
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.4rem;">
@@ -3188,6 +3613,285 @@
         };
       });
 
+      // ---- Smart Buff Pills (First-Time Name Reveal + Hover Tooltip Consolidation) ----
+      const seenBuffKeysInSession = new Set();
+      function revealSmartPillOnce(el) {
+        if (!el) return;
+        const key = el.getAttribute("data-buff-key") || el.id;
+        if (!key || seenBuffKeysInSession.has(key)) return;
+        seenBuffKeysInSession.add(key);
+        el.classList.add("first-reveal");
+        if (el._firstRevealTimer) clearTimeout(el._firstRevealTimer);
+        el._firstRevealTimer = setTimeout(() => {
+          el.classList.remove("first-reveal");
+        }, 3800);
+      }
+
+      function setSmartPillContent(elOrId, iconText, labelText, tooltipText) {
+        const el = typeof elOrId === "string" ? document.getElementById(elOrId) : elOrId;
+        if (!el) return;
+        let iconEl = el.querySelector(".buff-icon");
+        let labelEl = el.querySelector(".buff-label");
+        if (!iconEl || !labelEl) {
+          el.innerHTML = `<span class="buff-icon"></span><span class="buff-label"></span>`;
+          iconEl = el.querySelector(".buff-icon");
+          labelEl = el.querySelector(".buff-label");
+        }
+        if (iconText !== null && iconText !== undefined) {
+          iconEl.textContent = iconText;
+        }
+        if (labelText !== null && labelText !== undefined) {
+          labelEl.textContent = labelText;
+        }
+        if (tooltipText) {
+          el.setAttribute("data-tooltip", tooltipText);
+        }
+        if (el.style.display !== "none") {
+          revealSmartPillOnce(el);
+        }
+      }
+
+      function updateStageBuffPills() {
+        const goldenPill = document.getElementById("buffGoldenTrailPill");
+        const guardianPill = document.getElementById("buffGuardianSyncPill");
+        const peerPill = document.getElementById("buffPeerSyncPill");
+        const capitalPill = document.getElementById("buffCapitalGracePill");
+
+        // 1. Angel Golden Trail Pill (shown when golden trail letters exist on verse and not overridden by Big Mike's 2x banner)
+        if (goldenPill) {
+          const hasGolden = angelGoldenTrailIndices.size > 0 && !isMichaelGloriousTrailOnVerse;
+          goldenPill.style.display = hasGolden ? "inline-flex" : "none";
+          if (hasGolden) {
+            setSmartPillContent(
+              goldenPill,
+              "✨ +20%",
+              "Golden Trail",
+              "Angel Golden Trail: +20% Holy Smite Damage, +Righteousness & Auto-Cleanse ahead"
+            );
+          }
+        }
+
+        // 2. Personal Guardian Sync Pill
+        if (guardianPill) {
+          const gLvl = (currentCustomizations && currentCustomizations.guardian_level) || 1;
+          if (isGuardianInSync) {
+            guardianPill.style.display = "inline-flex";
+            guardianPill.style.background = "rgba(16, 185, 129, 0.16)";
+            guardianPill.style.borderColor = "rgba(16, 185, 129, 0.45)";
+            guardianPill.style.color = "#6ee7b7";
+            setSmartPillContent(
+              guardianPill,
+              `🕊️ Lv.${gLvl}`,
+              "Guardian Sync",
+              `Guardian Angel (Lv.${gLvl}) In Sync (±10 chars): +15% Holy Smite Damage & Bonus Sync XP`
+            );
+          } else {
+            guardianPill.style.display = "inline-flex";
+            guardianPill.style.background = "rgba(245, 158, 11, 0.14)";
+            guardianPill.style.borderColor = "rgba(245, 158, 11, 0.38)";
+            guardianPill.style.color = "#fde68a";
+            setSmartPillContent(
+              guardianPill,
+              `🕊️ Lv.${gLvl}`,
+              "Pace Offset",
+              `Guardian Angel (Lv.${gLvl}): Match within ±10 characters for +15% Holy Smite Damage & Sync XP`
+            );
+          }
+        }
+
+        // 3. Fellowship Peer Angel Sync Pill
+        if (peerPill) {
+          const peerStatus = typeof getPeerAngelSyncStatus === "function" ? getPeerAngelSyncStatus() : { inSync: false, peer: null };
+          if (peerStatus.peer) {
+            peerPill.style.display = "inline-flex";
+            const ownerName = peerStatus.peer.owner_name || peerStatus.peer.display_name || "Fellow Scribe";
+            if (peerStatus.inSync) {
+              peerPill.style.background = "rgba(16, 185, 129, 0.2)";
+              peerPill.style.borderColor = "rgba(16, 185, 129, 0.5)";
+              peerPill.style.color = "#6ee7b7";
+              setSmartPillContent(
+                peerPill,
+                "👻 +35%",
+                "Fellowship Sync",
+                `In Sync with ${ownerName}'s Guardian: +35% Holy Smite DMG · +50% Guardian XP · Auto-Cleanse`
+              );
+            } else {
+              peerPill.style.background = "rgba(56, 189, 248, 0.16)";
+              peerPill.style.borderColor = "rgba(56, 189, 248, 0.45)";
+              peerPill.style.color = "#7dd3fc";
+              setSmartPillContent(
+                peerPill,
+                "👻 Peer",
+                `${ownerName}'s Ghost`,
+                `${ownerName}'s Guardian is on this verse! Match within ±10 chars or click Bless for +35% Smite DMG & +50% XP`
+              );
+            }
+          } else {
+            peerPill.style.display = "none";
+          }
+        }
+
+        // 4. Capital Grace Pill
+        if (capitalPill) {
+          setSmartPillContent(
+            capitalPill,
+            "🔠 ×1.5",
+            "Capital Grace",
+            "Sacred Capital Letters: Typing uppercase letters grants ×1.5 Holy Smite Damage, +1 Sync Stack & +Righteousness"
+          );
+        }
+      }
+
+      // ---- Expandable / Collapsible Guardian Angel Tabs (Main Dock & Modal) ----
+      const guardianTabsShell = document.getElementById("guardianTabsShell");
+      const btnToggleGuardianDock = document.getElementById("btnToggleGuardianDock");
+      const guardianDockToggleLabel = document.getElementById("guardianDockToggleLabel");
+      let isGuardianDockCollapsed = localStorage.getItem("guardian_dock_collapsed") !== "false";
+
+      function applyGuardianDockCollapseState() {
+        if (!guardianTabsShell) return;
+        guardianTabsShell.classList.toggle("collapsed", isGuardianDockCollapsed);
+        if (guardianDockToggleLabel) {
+          guardianDockToggleLabel.textContent = isGuardianDockCollapsed ? "Expand" : "Collapse";
+        }
+      }
+      applyGuardianDockCollapseState();
+
+      if (btnToggleGuardianDock) {
+        btnToggleGuardianDock.onclick = () => {
+          isGuardianDockCollapsed = !isGuardianDockCollapsed;
+          localStorage.setItem("guardian_dock_collapsed", String(isGuardianDockCollapsed));
+          applyGuardianDockCollapseState();
+          focusTyping();
+        };
+      }
+
+      document.querySelectorAll(".guardian-tab-btn").forEach((tabBtn) => {
+        tabBtn.onclick = () => {
+          const paneId = tabBtn.getAttribute("data-g-tab");
+          const wasActive = tabBtn.classList.contains("active");
+          if (!isGuardianDockCollapsed && wasActive) {
+            // Clicking the already-active tab collapses the dock to save room
+            isGuardianDockCollapsed = true;
+            localStorage.setItem("guardian_dock_collapsed", "true");
+            applyGuardianDockCollapseState();
+            focusTyping();
+            return;
+          }
+          document.querySelectorAll(".guardian-tab-btn").forEach((b) => b.classList.remove("active"));
+          document.querySelectorAll(".guardian-tab-pane").forEach((p) => p.classList.remove("active"));
+          tabBtn.classList.add("active");
+          const pane = document.getElementById(paneId);
+          if (pane) pane.classList.add("active");
+          if (isGuardianDockCollapsed) {
+            isGuardianDockCollapsed = false;
+            localStorage.setItem("guardian_dock_collapsed", "false");
+            applyGuardianDockCollapseState();
+          }
+          focusTyping();
+        };
+      });
+
+      const modalRoamingSection = document.getElementById("modalRoamingGuardiansSection");
+      const btnToggleModalRoaming = document.getElementById("btnToggleModalRoamingGuardians");
+      if (btnToggleModalRoaming && modalRoamingSection) {
+        btnToggleModalRoaming.onclick = () => {
+          modalRoamingSection.classList.toggle("collapsed");
+        };
+      }
+
+      // ---- Smooth Auto-Zen Mode Typer ----
+      const btnToggleZenMode = document.getElementById("btnToggleZenMode");
+      const stageTypingProgressFill = document.getElementById("stageTypingProgressFill");
+      let isZenModeActive = false;
+      let isZenModePinned = false;
+      let zenIdleTimer = null;
+      let lastZenMousePos = { x: 0, y: 0 };
+
+      function updateZenButtonUI() {
+        if (!btnToggleZenMode) return;
+        const active = isZenModeActive || isZenModePinned;
+        btnToggleZenMode.classList.toggle("active", active);
+        btnToggleZenMode.textContent = isZenModePinned ? "🧘 Zen: Locked" : (isZenModeActive ? "🧘 Zen: Active" : "🧘 Zen");
+      }
+
+      function enterZenTypingMode(pinned = false) {
+        if (pinned) isZenModePinned = true;
+        isZenModeActive = true;
+        document.body.classList.add("zen-typing");
+        updateZenButtonUI();
+      }
+
+      function exitZenTypingMode(forceUnpin = false) {
+        if (forceUnpin) isZenModePinned = false;
+        if (isZenModePinned) return;
+        isZenModeActive = false;
+        if (zenIdleTimer) {
+          clearTimeout(zenIdleTimer);
+          zenIdleTimer = null;
+        }
+        document.body.classList.remove("zen-typing");
+        updateZenButtonUI();
+      }
+
+      function triggerZenModeOnKeystroke() {
+        if (isSpectator || !currentTargetText) return;
+        if (currentTyped.length >= 2 && currentTyped.length < currentTargetText.length) {
+          if (!isZenModeActive) {
+            enterZenTypingMode(false);
+          }
+          if (zenIdleTimer) clearTimeout(zenIdleTimer);
+          zenIdleTimer = setTimeout(() => {
+            if (!isZenModePinned) {
+              exitZenTypingMode(false);
+            }
+          }, 3400);
+        } else if (currentTyped.length >= currentTargetText.length && !isZenModePinned) {
+          exitZenTypingMode(false);
+        }
+      }
+
+      if (btnToggleZenMode) {
+        btnToggleZenMode.onclick = () => {
+          if (isZenModePinned || isZenModeActive) {
+            exitZenTypingMode(true);
+          } else {
+            enterZenTypingMode(true);
+          }
+          focusTyping();
+        };
+      }
+
+      window.addEventListener("keydown", (e) => {
+        if (e.altKey && (e.key === "z" || e.key === "Z")) {
+          e.preventDefault();
+          if (isZenModePinned || isZenModeActive) {
+            exitZenTypingMode(true);
+          } else {
+            enterZenTypingMode(true);
+          }
+          focusTyping();
+        } else if (e.key === "Escape" && (isZenModeActive || isZenModePinned)) {
+          exitZenTypingMode(true);
+        }
+      });
+
+      window.addEventListener("mousemove", (e) => {
+        if (!isZenModeActive || isZenModePinned) {
+          lastZenMousePos.x = e.clientX;
+          lastZenMousePos.y = e.clientY;
+          return;
+        }
+        const dx = Math.abs(e.clientX - lastZenMousePos.x);
+        const dy = Math.abs(e.clientY - lastZenMousePos.y);
+        lastZenMousePos.x = e.clientX;
+        lastZenMousePos.y = e.clientY;
+        if (dx + dy > 28) {
+          // If the user intentionally moves the mouse to interact with controls, smoothly restore UI
+          exitZenTypingMode(false);
+        }
+      });
+
       // ---- Wild Demon Roaming & Resonance Combat (Section 15) ----
       function getSyncDamageTier(stacks = currentSyncStacks) {
         let s = Math.max(0, stacks || 0);
@@ -3252,7 +3956,10 @@
         const estTotal = calculatePassageFinishBurstDamage(baseStrike, currentSyncStacks, charsAhead, baseBurst);
         burstDamageValue.textContent = `${baseBurst}`;
         if (burstDamageBadge) {
-          burstDamageBadge.title = `Passage Finish Burst Damage: Base ${baseBurst} (Est. ${estTotal} total DMG if you finish before the demon). Click −/+ to adjust!`;
+          const tip = `Passage Finish Burst Damage: Base ${baseBurst} (Est. ${estTotal} total DMG if you finish before the demon). Click −/+ to adjust!`;
+          burstDamageBadge.title = tip;
+          burstDamageBadge.setAttribute("data-tooltip", tip);
+          revealSmartPillOnce(burstDamageBadge);
         }
       }
 
@@ -3292,13 +3999,23 @@
         const baseDmg = Math.max(1, Math.round(gPower / 10));
         const curDmg = calculateSyncStackDamage(baseDmg, currentSyncStacks);
         if (tiers > 0) {
-          syncStacksBadge.textContent = `🔥 ${currentSyncStacks} Stack${currentSyncStacks === 1 ? '' : 's'} (Tier ${tiers} · ${curDmg} DMG)`;
+          setSmartPillContent(
+            syncStacksBadge,
+            `🔥 ${currentSyncStacks}`,
+            `Sync Stacks (T${tiers} · ${curDmg} DMG)`,
+            `Sync Stacks: ${currentSyncStacks} active (Tier ${tiers} · ${curDmg} DMG per strike). Gain stacks by completing words in sync and typing capital letters!`
+          );
           syncStacksBadge.style.background = "linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(239, 68, 68, 0.35))";
           syncStacksBadge.style.color = "#fde047";
           syncStacksBadge.style.borderColor = "#f59e0b";
         } else {
           const nextIn = (DEMON_SYNC_BALANCE.stacksPerDamageTier || 5) - (currentSyncStacks % (DEMON_SYNC_BALANCE.stacksPerDamageTier || 5));
-          syncStacksBadge.textContent = `🔥 ${currentSyncStacks} Stack${currentSyncStacks === 1 ? '' : 's'} (${nextIn} to +DMG)`;
+          setSmartPillContent(
+            syncStacksBadge,
+            `🔥 ${currentSyncStacks}`,
+            `Sync Stacks (${nextIn} to +DMG)`,
+            `Sync Stacks: ${currentSyncStacks} (${nextIn} more stack${nextIn === 1 ? '' : 's'} for next damage tier). Complete words in sync or type Capital letters!`
+          );
           syncStacksBadge.style.background = "rgba(245, 158, 11, 0.15)";
           syncStacksBadge.style.color = "#fbbf24";
           syncStacksBadge.style.borderColor = "rgba(245, 158, 11, 0.4)";
@@ -3336,12 +4053,22 @@
         const progressInCycle = demonPunctuationCount % perCP;
         if (demonCheckpointIndex > 0) {
           const cpNum = Math.floor(demonPunctuationCount / perCP);
-          checkpointBadge.textContent = `🔖 CP #${cpNum} (Char ${demonCheckpointIndex} · ${progressInCycle}/${perCP} next)`;
+          setSmartPillContent(
+            checkpointBadge,
+            `🔖 CP#${cpNum}`,
+            `Checkpoint (Char ${demonCheckpointIndex})`,
+            `Punctuation Checkpoint #${cpNum} locked at char ${demonCheckpointIndex} (${progressInCycle}/${perCP} punct to next). Unwarded mistakes return here instead of verse start!`
+          );
           checkpointBadge.style.background = "linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.35))";
           checkpointBadge.style.color = "#bae6fd";
           checkpointBadge.style.borderColor = "#38bdf8";
         } else {
-          checkpointBadge.textContent = `🔖 CP: ${progressInCycle}/${perCP} Punct.`;
+          setSmartPillContent(
+            checkpointBadge,
+            `🔖 ${progressInCycle}/${perCP}`,
+            `Checkpoint`,
+            `Punctuation Checkpoint: ${progressInCycle}/${perCP} punctuation marks typed. Every ${perCP} punctuation marks locks in a safe checkpoint!`
+          );
           checkpointBadge.style.background = "rgba(56, 189, 248, 0.14)";
           checkpointBadge.style.color = "#7dd3fc";
           checkpointBadge.style.borderColor = "rgba(56, 189, 248, 0.35)";
@@ -3419,12 +4146,13 @@
         if (wildDemonPaceBadge) {
           const wpmDelta = dynWpm - activeWildDemonBaseWPM;
           if (wpmDelta > 0) {
-            wildDemonPaceBadge.textContent = `⚡ Pace: ${dynWpm} WPM (+${wpmDelta} Surge · ±${tolerance} Chars)`;
+            wildDemonPaceBadge.textContent = `⚡ ${dynWpm} WPM (+${wpmDelta})`;
           } else if (wpmDelta < 0) {
-            wildDemonPaceBadge.textContent = `🐢 Pace: ${dynWpm} WPM (${wpmDelta} Eased · ±${tolerance} Chars)`;
+            wildDemonPaceBadge.textContent = `🐢 ${dynWpm} WPM (${wpmDelta})`;
           } else {
-            wildDemonPaceBadge.textContent = `Pace: ~${dynWpm} WPM (Stay ±${tolerance} Chars)`;
+            wildDemonPaceBadge.textContent = `~${dynWpm} WPM`;
           }
+          wildDemonPaceBadge.title = `Demon Pace: ${dynWpm} WPM (Stay within ±${tolerance} chars for Holy Radiance)`;
         }
 
         if (typingStage) {
@@ -3437,21 +4165,36 @@
 
         if (resonanceIndicator) {
           if (inResonance) {
-            const relStr = userIdx === demonIdx ? "EXACT" : (userIdx > demonIdx ? `+${userIdx - demonIdx} CHAR` : `-${demonIdx - userIdx} CHAR`);
-            resonanceIndicator.textContent = `✨ RADIANCE ACTIVE (${relStr})`;
+            const relStr = userIdx === demonIdx ? "EXACT" : (userIdx > demonIdx ? `+${userIdx - demonIdx}c` : `-${demonIdx - userIdx}c`);
+            setSmartPillContent(
+              resonanceIndicator,
+              `✨ ${relStr}`,
+              `Holy Radiance`,
+              `Holy Radiance Active (${relStr}, within ±${tolerance} chars): Dealing Holy Smite damage & building Sync Stacks!`
+            );
             resonanceIndicator.style.background = "linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(251, 191, 36, 0.45))";
             resonanceIndicator.style.color = "#fbbf24";
             resonanceIndicator.style.borderColor = "#f59e0b";
           } else {
             if (userIdx > demonIdx + tolerance) {
               const ahead = userIdx - demonIdx;
-              resonanceIndicator.textContent = `⚡ SURGING AHEAD (+${ahead} · Demon +WPM)`;
+              setSmartPillContent(
+                resonanceIndicator,
+                `⚡ +${ahead}c`,
+                `Surging Ahead`,
+                `Ahead by +${ahead} chars (Demon accelerated to ${dynWpm} WPM). Stay within ±${tolerance} chars for Holy Radiance, or finish for Passage Burst DMG!`
+              );
               resonanceIndicator.style.background = "rgba(239, 68, 68, 0.25)";
               resonanceIndicator.style.color = "#f87171";
               resonanceIndicator.style.borderColor = "#ef4444";
             } else {
               const behind = demonIdx - userIdx;
-              resonanceIndicator.textContent = `🏃 BEHIND (-${behind} · Demon -WPM)`;
+              setSmartPillContent(
+                resonanceIndicator,
+                `🏃 -${behind}c`,
+                `Behind Pace`,
+                `Behind by -${behind} chars (Demon eased to ${dynWpm} WPM). Type red demon-tainted letters to purify & catch up within ±${tolerance} chars!`
+              );
               resonanceIndicator.style.background = "rgba(234, 179, 8, 0.2)";
               resonanceIndicator.style.color = "#fde047";
               resonanceIndicator.style.borderColor = "#eab308";
@@ -3621,10 +4364,20 @@
       function updateHolyWardsBadge() {
         if (!holyWardsBadge) return;
         if (currentHolyWards > 0) {
-          holyWardsBadge.textContent = `🛡️ ${currentHolyWards} Ward${currentHolyWards === 1 ? '' : 's'}`;
+          setSmartPillContent(
+            holyWardsBadge,
+            `🛡️ ${currentHolyWards}`,
+            `Holy Ward${currentHolyWards === 1 ? '' : 's'}`,
+            `Holy Wards: ${currentHolyWards} active. Absorbs typing mistakes before a Demonic Backlash checkpoint reset!`
+          );
           holyWardsBadge.style.color = "#38bdf8";
         } else {
-          holyWardsBadge.textContent = `🛡️ 0 Wards (Vulnerable!)`;
+          setSmartPillContent(
+            holyWardsBadge,
+            `🛡️ 0`,
+            `0 Wards (Vulnerable!)`,
+            `0 Holy Wards remaining! Any typing mistake will trigger Demonic Backlash and return you to your last Punctuation Checkpoint.`
+          );
           holyWardsBadge.style.color = "#f87171";
         }
       }
@@ -3939,6 +4692,9 @@
         liveWPM = Math.round(words / activeMinutes);
         if (liveWPM > 0 && liveWPM < 300) wpmEl.textContent = liveWPM;
 
+        // Smoothly transition into Zen Mode Typer as the user types
+        triggerZenModeOnKeystroke();
+
         // Check Holy Resonance when active wild demon is present
         checkHolyResonance();
 
@@ -4005,13 +4761,19 @@
             }
           }
         }
+        updateStageBuffPills();
       }
 
       function updateRighteousnessUI() {
         const badge = document.getElementById("righteousnessBadge");
         if (!badge) return;
         const pct = Math.min(100, Math.max(0, Math.round(currentRighteousness)));
-        badge.textContent = `✨ Righteousness: ${pct}%`;
+        setSmartPillContent(
+          badge,
+          `⚖️ ${pct}%`,
+          `Righteousness`,
+          `Righteousness: ${pct}% — Type red demon-tainted letters, golden trail & capital letters. At 100%, triggers Sanctified Rebuke (-20% Demon WPM & +25% Vulnerability)!`
+        );
         if (pct >= 80) {
           badge.style.background = "rgba(250, 204, 21, 0.32)";
           badge.style.color = "#fef08a";
@@ -4034,10 +4796,20 @@
         if (stacks > 0) {
           badge.style.display = "inline-flex";
           const bonusPct = stacks * 25;
-          badge.textContent = `⚡ Sanctified Debuff x${stacks} (-20% WPM · +${bonusPct}% DMG Taken)`;
+          setSmartPillContent(
+            badge,
+            `⛓️ ×${stacks}`,
+            `Sanctified Debuff (+${bonusPct}% DMG)`,
+            `Sanctified Rebuke Debuff ×${stacks}: Demon slowed by -20% WPM and takes +${bonusPct}% Holy Smite damage!`
+          );
         } else if (activeWildDemon.angelic_beacon) {
           badge.style.display = "inline-flex";
-          badge.textContent = `🕊️ Guardian Skirmish Beacon (+1 Holy Ward)`;
+          setSmartPillContent(
+            badge,
+            `🕊️ +1 Ward`,
+            `Guardian Beacon`,
+            `Guardian Skirmish Beacon: An autonomous Guardian Angel weakened this demon and left a +1 Holy Ward blessing!`
+          );
         } else {
           badge.style.display = "none";
         }
@@ -4047,11 +4819,15 @@
         const banner = document.getElementById("michaelTrailBanner");
         const active = isMichaelGloriousTrailOnVerse || michaelGloriousTrailIndices.size > 0;
         if (banner) {
-          banner.style.display = active ? "flex" : "none";
+          banner.style.display = active ? "inline-flex" : "none";
+          if (active) {
+            banner.querySelectorAll(".smart-buff-pill").forEach((pill) => revealSmartPillOnce(pill));
+          }
         }
         if (typingStage) {
           typingStage.classList.toggle("michael-trail-stage", active);
         }
+        updateStageBuffPills();
       }
 
       function updateLiveWorldRibbon() {
@@ -4061,6 +4837,14 @@
         const mPill = document.getElementById("ribbonMichaelPill");
         const gPill = document.getElementById("ribbonGuardiansPill");
         const dPill = document.getElementById("ribbonDemonsPill");
+        const tabWorldSummary = document.getElementById("tabWorldSummary");
+        const modalRgBadge = document.getElementById("modalRoamingGuardiansCountBadge");
+
+        const rgCount = Array.isArray(roamingGuardians) ? Math.max(1, roamingGuardians.length) : 1;
+        const peerCount = peerGuardiansOnVerse ? peerGuardiansOnVerse.size : 0;
+        const dCount = (globalActiveDemons !== undefined && globalActiveDemons > 0)
+          ? globalActiveDemons
+          : (Array.isArray(wildDemonsCache) ? wildDemonsCache.length : 0);
 
         if (mText) {
           if (globalAngelStatus && globalAngelStatus.book_name) {
@@ -4071,15 +4855,16 @@
           }
         }
         if (gText) {
-          const rgCount = Array.isArray(roamingGuardians) ? roamingGuardians.length : 1;
-          const peerCount = peerGuardiansOnVerse ? peerGuardiansOnVerse.size : 0;
           gText.innerHTML = `Guardians: <strong>${rgCount} Active</strong>${peerCount > 0 ? ` · <span style="color:#6ee7b7;">${peerCount} On Verse!</span>` : ''}`;
         }
         if (dText) {
-          const dCount = (globalActiveDemons !== undefined && globalActiveDemons > 0)
-            ? globalActiveDemons
-            : (Array.isArray(wildDemonsCache) ? wildDemonsCache.length : 0);
           dText.innerHTML = `Wild Demons: <strong>${dCount} Roaming</strong>${activeWildDemon ? ` · <span style="color:#fca5a5;">⚔️ ${escapeHtml(activeWildDemon.name)} Here!</span>` : ''}`;
+        }
+        if (tabWorldSummary) {
+          tabWorldSummary.textContent = `World (${dCount}😈 · ${rgCount}👼)`;
+        }
+        if (modalRgBadge) {
+          modalRgBadge.textContent = `${rgCount} Active${peerCount > 0 ? ` · ${peerCount} On Verse` : ''}`;
         }
 
         if (mPill && !mPill._bound) {
@@ -4148,11 +4933,16 @@
           verseReader._lastCheckpointIdx = 0;
           submitPromptBar.classList.remove("active");
           typingStage.classList.remove("is-complete");
+          if (stageTypingProgressFill) stageTypingProgressFill.style.width = "0%";
           return;
         }
 
         const targetLen = currentTargetText.length;
         const typedLen = currentTyped.length;
+        if (stageTypingProgressFill) {
+          const pct = targetLen > 0 ? Math.min(100, Math.round((typedLen / targetLen) * 100)) : 0;
+          stageTypingProgressFill.style.width = `${pct}%`;
+        }
 
         if (verseReader._renderedTarget === currentTargetText && verseReader.children.length === targetLen) {
           if (!forceAllSpans && typeof verseReader._lastTypedLen === "number") {
@@ -4199,6 +4989,7 @@
           submitPromptBar.classList.add("active");
           typingStage.classList.add("is-complete");
           typingHint.innerHTML = "<strong>✓ Passage Complete!</strong> Press <kbd class=\"kbd-highlight\">Enter ↵</kbd> or click Submit to advance.";
+          if (!isZenModePinned) exitZenTypingMode(false);
         } else {
           submitPromptBar.classList.remove("active");
           typingStage.classList.remove("is-complete");
@@ -4289,7 +5080,12 @@
         const reqXP = gLevel * 100;
         const lvlBadge = document.getElementById("angelHUDLevelBadge");
         if (lvlBadge) {
-          lvlBadge.textContent = `⭐ Lv. ${gLevel} (${gXP}/${reqXP} XP)`;
+          setSmartPillContent(
+            lvlBadge,
+            `⭐ Lv.${gLevel}`,
+            `${gXP}/${reqXP} XP`,
+            `Guardian Angel Level ${gLevel} (${gXP}/${reqXP} XP) — Levels up as you complete letters, words, verses, and books in sync!`
+          );
         }
         const syncBadge = document.getElementById("angelHUDSyncBadge");
         if (syncBadge) {
@@ -4297,16 +5093,32 @@
             syncBadge.style.background = "rgba(16, 185, 129, 0.2)";
             syncBadge.style.color = "#6ee7b7";
             syncBadge.style.borderColor = "rgba(16, 185, 129, 0.45)";
-            syncBadge.textContent = `✨ In Sync (+XP)`;
+            setSmartPillContent(
+              syncBadge,
+              `✨ Sync`,
+              `In Sync (+15% DMG & XP)`,
+              `In Sync with your Guardian Angel (within ±10 chars): Grants +15% Holy Smite Damage & Sync XP!`
+            );
           } else {
             syncBadge.style.background = "rgba(245, 158, 11, 0.16)";
             syncBadge.style.color = "#fde68a";
             syncBadge.style.borderColor = "rgba(245, 158, 11, 0.35)";
-            syncBadge.textContent = `🕊️ Pace Diff: ${diff}c`;
+            setSmartPillContent(
+              syncBadge,
+              `🕊️ ${diff}c`,
+              `Pace Diff: ${diff}c`,
+              `Guardian Angel is ${diff} characters away. Match within ±10 chars for +15% Holy Smite Damage & Sync XP!`
+            );
           }
         }
 
+        const tabGuardianSummary = document.getElementById("tabGuardianSummary");
+        if (tabGuardianSummary) {
+          tabGuardianSummary.textContent = `Guardian Lv.${gLevel} ${isGuardianInSync ? '✨' : `(${diff}c)`}`;
+        }
+
         const peerStatus = getPeerAngelSyncStatus();
+        const tabFellowshipSummary = document.getElementById("tabFellowshipSummary");
         const fHUD = document.getElementById("fellowshipAngelHUD");
         if (fHUD) {
           if (peerStatus.peer) {
@@ -4316,6 +5128,9 @@
             const fBuff = document.getElementById("fellowshipAngelBuffPill");
             const btnInteract = document.getElementById("btnInteractPeerAngel");
             const ownerLabel = peerStatus.peer.owner_name || peerStatus.peer.display_name || "Fellow Scribe";
+            if (tabFellowshipSummary) {
+              tabFellowshipSummary.textContent = `Fellowship (${ownerLabel}${peerStatus.inSync ? ' ✨' : ''})`;
+            }
             if (fName) {
               fName.textContent = `🕊️ ${peerStatus.peer.display_name || (ownerLabel + "'s Guardian")} (${peerStatus.peer.wpm || 40} WPM)`;
             }
@@ -4328,21 +5143,35 @@
                 fBuff.style.background = "rgba(16, 185, 129, 0.22)";
                 fBuff.style.color = "#6ee7b7";
                 fBuff.style.borderColor = "rgba(16, 185, 129, 0.45)";
-                fBuff.textContent = "✨ IN SYNC: +35% Smite DMG · +50% XP · Auto-Cleanse";
+                setSmartPillContent(
+                  fBuff,
+                  "✨ +35%",
+                  "IN SYNC (+35% Smite · +50% XP)",
+                  `In Sync with ${ownerLabel}'s Guardian: +35% Holy Smite DMG · +50% Guardian XP · Auto-Cleanse`
+                );
               } else {
                 fBuff.style.background = "rgba(245, 158, 11, 0.18)";
                 fBuff.style.color = "#fde68a";
                 fBuff.style.borderColor = "rgba(245, 158, 11, 0.4)";
-                fBuff.textContent = "⚡ Match Angel Pace (±10 chars) or Bless for Buff!";
+                setSmartPillContent(
+                  fBuff,
+                  "⚡ Sync",
+                  "Match ±10c or Bless",
+                  `Match ${ownerLabel}'s Angel within ±10 chars or click Harmonize & Bless for +35% Smite DMG, +50% XP & +1 Holy Ward!`
+                );
               }
             }
             if (btnInteract) {
               btnInteract.onclick = () => interactWithPeerAngel(peerStatus.peer.owner_uid || peerStatus.peer.uid);
             }
           } else {
-            fHUD.style.display = "none";
+            const rgCount = Array.isArray(roamingGuardians) ? Math.max(0, roamingGuardians.length - 1) : 0;
+            if (tabFellowshipSummary) {
+              tabFellowshipSummary.textContent = rgCount > 0 ? `Fellowship (${rgCount} Roaming)` : `Fellowship Ghosts`;
+            }
           }
         }
+        updateStageBuffPills();
       }
 
       function interactWithPeerAngel(peerUID) {
@@ -7361,70 +8190,79 @@
                 <span style="font-size:0.78rem; color:${ang.color}; font-weight:700;">${ang.title}</span>
                 <p style="margin:0.4rem 0; font-size:0.78rem; color:var(--muted); line-height:1.4;">${ang.description}</p>
 
-                <!-- Guardian RPG Stats & Sync Leveling -->
-                <div style="margin: 0.6rem 0; padding: 0.6rem; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(168,85,247,0.35);">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.3rem;">
-                    <div>
+                <!-- Expandable / Collapsible Guardian RPG Stats & Sync Leveling -->
+                <div class="collapsible-section guardian-stats-section" style="margin: 0.5rem 0; border-color: rgba(168,85,247,0.35);">
+                  <div class="collapsible-header" title="Click to expand or collapse Guardian RPG Stats & Sync Counters">
+                    <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
                       <span style="font-size:0.8rem; font-weight:800; color:#c084fc;">⭐ Level ${gLevel} Guardian</span>
-                      <span style="font-size:0.72rem; color:var(--muted); margin-left:0.3rem;">(${gXP} / ${reqXP} XP)</span>
+                      <span style="font-size:0.72rem; color:var(--muted);">(${gXP} / ${reqXP} XP)</span>
+                      <span style="font-size:0.72rem; font-weight:800; color:#38bdf8;">🛡️ ${gWards} Ward${gWards === 1 ? '' : 's'}</span>
+                      <span style="font-size:0.72rem; font-weight:800; color:#f59e0b;">⚡ ${gPower} PWR</span>
                     </div>
-                    <span style="font-size:0.75rem; font-weight:800; color:#38bdf8; text-shadow:0 0 6px #38bdf8;">🛡️ ${gWards} Holy Ward${gWards === 1 ? '' : 's'}</span>
+                    <span class="collapsible-chevron" style="color:#c084fc; font-size:0.85rem;">▾</span>
                   </div>
-                  <!-- XP Bar -->
-                  <div class="angel-progress-track" style="height:5px; background:rgba(255,255,255,0.08); border-radius:999px; margin-bottom:0.45rem;">
-                    <div class="angel-progress-fill" style="width:${xpPercent}%; background:linear-gradient(90deg, #a855f7, #38bdf8);"></div>
-                  </div>
-                  <!-- Synced Letters, Words, Verses, Books Counters -->
-                  <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:0.3rem; font-size:0.68rem; text-align:center; margin-bottom:0.4rem;">
-                    <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
-                      <div style="color:var(--muted); font-size:0.62rem;">Letters Sync</div>
-                      <div style="font-weight:800; color:#e9d5ff;">🔤 ${sLetters.toLocaleString()}</div>
+                  <div class="collapsible-body">
+                    <!-- XP Bar -->
+                    <div class="angel-progress-track" style="height:5px; background:rgba(255,255,255,0.08); border-radius:999px; margin-bottom:0.45rem;">
+                      <div class="angel-progress-fill" style="width:${xpPercent}%; background:linear-gradient(90deg, #a855f7, #38bdf8);"></div>
                     </div>
-                    <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
-                      <div style="color:var(--muted); font-size:0.62rem;">Words Sync</div>
-                      <div style="font-weight:800; color:#e9d5ff;">📖 ${sWords.toLocaleString()}</div>
+                    <!-- Synced Letters, Words, Verses, Books Counters -->
+                    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:0.3rem; font-size:0.68rem; text-align:center; margin-bottom:0.4rem;">
+                      <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                        <div style="color:var(--muted); font-size:0.62rem;">Letters Sync</div>
+                        <div style="font-weight:800; color:#e9d5ff;">🔤 ${sLetters.toLocaleString()}</div>
+                      </div>
+                      <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                        <div style="color:var(--muted); font-size:0.62rem;">Words Sync</div>
+                        <div style="font-weight:800; color:#e9d5ff;">📖 ${sWords.toLocaleString()}</div>
+                      </div>
+                      <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                        <div style="color:var(--muted); font-size:0.62rem;">Verses Sync</div>
+                        <div style="font-weight:800; color:#e9d5ff;">📜 ${sVerses.toLocaleString()}</div>
+                      </div>
+                      <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                        <div style="color:var(--muted); font-size:0.62rem;">Books Sync</div>
+                        <div style="font-weight:800; color:#fde68a;">🏆 ${sBooks.toLocaleString()}</div>
+                      </div>
                     </div>
-                    <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
-                      <div style="color:var(--muted); font-size:0.62rem;">Verses Sync</div>
-                      <div style="font-weight:800; color:#e9d5ff;">📜 ${sVerses.toLocaleString()}</div>
-                    </div>
-                    <div style="background:rgba(168,85,247,0.12); padding:0.2rem; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
-                      <div style="color:var(--muted); font-size:0.62rem;">Books Sync</div>
-                      <div style="font-weight:800; color:#fde68a;">🏆 ${sBooks.toLocaleString()}</div>
-                    </div>
-                  </div>
-                  <!-- Combat Stat Badges -->
-                  <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0.35rem; font-size:0.72rem; text-align:center;">
-                    <div style="background:rgba(255,255,255,0.04); padding:0.25rem; border-radius:6px; border:1px solid var(--border);">
-                      <div style="color:var(--muted); font-size:0.68rem;">Mistake Wards</div>
-                      <div style="font-weight:800; color:#38bdf8;">🛡️ ${gWards} Shield${gWards === 1 ? '' : 's'}</div>
-                    </div>
-                    <div style="background:rgba(255,255,255,0.04); padding:0.25rem; border-radius:6px; border:1px solid var(--border);">
-                      <div style="color:var(--muted); font-size:0.68rem;">Resonance Smite</div>
-                      <div style="font-weight:800; color:#f59e0b;">⚡ ${gPower} PWR</div>
-                    </div>
-                    <div style="background:rgba(255,255,255,0.04); padding:0.25rem; border-radius:6px; border:1px solid var(--border);">
-                      <div style="color:var(--muted); font-size:0.68rem;">Wild Exorcisms</div>
-                      <div style="font-weight:800; color:#ef4444;">😈 ${defDemons} Defeated</div>
+                    <!-- Combat Stat Badges -->
+                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0.35rem; font-size:0.72rem; text-align:center;">
+                      <div style="background:rgba(255,255,255,0.04); padding:0.25rem; border-radius:6px; border:1px solid var(--border);">
+                        <div style="color:var(--muted); font-size:0.68rem;">Mistake Wards</div>
+                        <div style="font-weight:800; color:#38bdf8;">🛡️ ${gWards} Shield${gWards === 1 ? '' : 's'}</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.04); padding:0.25rem; border-radius:6px; border:1px solid var(--border);">
+                        <div style="color:var(--muted); font-size:0.68rem;">Resonance Smite</div>
+                        <div style="font-weight:800; color:#f59e0b;">⚡ ${gPower} PWR</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.04); padding:0.25rem; border-radius:6px; border:1px solid var(--border);">
+                        <div style="color:var(--muted); font-size:0.68rem;">Wild Exorcisms</div>
+                        <div style="font-weight:800; color:#ef4444;">😈 ${defDemons} Defeated</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <!-- Guardian Tuning Controls -->
-                <div style="margin: 0.6rem 0; padding: 0.6rem; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(168,85,247,0.2);">
-                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:0.4rem;">
-                    <span style="color:var(--text-sub); font-weight:600;">Adaptive Pace Tuning (±10%):</span>
-                    <span style="font-weight:800; color:#c084fc;">${curPace > 0 ? '+' : ''}${curPace}%</span>
+                <!-- Expandable / Collapsible Guardian Tuning & Name Controls -->
+                <div class="collapsible-section collapsed guardian-tuning-section" style="margin: 0.45rem 0; border-color: rgba(168,85,247,0.25);">
+                  <div class="collapsible-header" title="Click to expand or collapse Adaptive Pace Tuning & Name">
+                    <div style="display:flex; align-items:center; gap:0.45rem;">
+                      <span style="font-size:0.78rem; color:var(--text-sub); font-weight:700;">⚙️ Pace Tuning &amp; Rename</span>
+                      <span style="font-size:0.72rem; font-weight:800; color:#c084fc;">(${curPace > 0 ? '+' : ''}${curPace}%)</span>
+                    </div>
+                    <span class="collapsible-chevron" style="color:#c084fc; font-size:0.85rem;">▾</span>
                   </div>
-                  <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-                    <button type="button" class="pace-btn ${curPace === -10 ? 'active' : ''}" data-pace="-10" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">-10% Gentle</button>
-                    <button type="button" class="pace-btn ${curPace === 0 ? 'active' : ''}" data-pace="0" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">Match (0%)</button>
-                    <button type="button" class="pace-btn ${curPace === 5 ? 'active' : ''}" data-pace="5" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">+5% Growth</button>
-                    <button type="button" class="pace-btn ${curPace === 10 ? 'active' : ''}" data-pace="10" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">+10% Challenge</button>
-                  </div>
-                  <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.6rem;">
-                    <input type="text" class="guardian-name-input form-input" value="${escapeHtml(currentCustomizations.guardian_name || ang.name)}" placeholder="Rename Guardian Angel..." style="font-size:0.8rem; padding:0.35rem 0.6rem; flex:1; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; color:var(--text);" />
-                    <button type="button" class="form-btn btn-save-guardian-name" style="font-size:0.75rem; padding:0.4rem 0.75rem; background:rgba(168,85,247,0.3); color:#e9d5ff; border:1px solid rgba(168,85,247,0.5); border-radius:6px; cursor:pointer; font-weight:700;">Save Name</button>
+                  <div class="collapsible-body">
+                    <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+                      <button type="button" class="pace-btn ${curPace === -10 ? 'active' : ''}" data-pace="-10" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">-10% Gentle</button>
+                      <button type="button" class="pace-btn ${curPace === 0 ? 'active' : ''}" data-pace="0" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">Match (0%)</button>
+                      <button type="button" class="pace-btn ${curPace === 5 ? 'active' : ''}" data-pace="5" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">+5% Growth</button>
+                      <button type="button" class="pace-btn ${curPace === 10 ? 'active' : ''}" data-pace="10" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">+10% Challenge</button>
+                    </div>
+                    <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.6rem;">
+                      <input type="text" class="guardian-name-input form-input" value="${escapeHtml(currentCustomizations.guardian_name || ang.name)}" placeholder="Rename Guardian Angel..." style="font-size:0.8rem; padding:0.35rem 0.6rem; flex:1; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; color:var(--text);" />
+                      <button type="button" class="form-btn btn-save-guardian-name" style="font-size:0.75rem; padding:0.4rem 0.75rem; background:rgba(168,85,247,0.3); color:#e9d5ff; border:1px solid rgba(168,85,247,0.5); border-radius:6px; cursor:pointer; font-weight:700;">Save Name</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -7435,6 +8273,14 @@
                 }
               </div>
             `;
+
+            // Collapsible headers inside Guardian Card
+            card.querySelectorAll(".collapsible-header").forEach((hdr) => {
+              hdr.onclick = () => {
+                const sec = hdr.closest(".collapsible-section");
+                if (sec) sec.classList.toggle("collapsed");
+              };
+            });
 
             // Pace buttons click listeners
             card.querySelectorAll(".pace-btn").forEach((btn) => {
