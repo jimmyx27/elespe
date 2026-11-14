@@ -3177,11 +3177,160 @@ func TestDemonTaintRighteousnessDebuffAndGloriousMichaelTrail(t *testing.T) {
 		`id="btnToggleZenMode"`,
 		`zen-typing`,
 		`revealSmartPillOnce`,
+		`id="angelTrainerStateBadge"`,
+		`id="btnToggleGuardianWPMLock"`,
+		`id="wildDemonChallengeBadge"`,
+		`book_progress_sync`,
 	} {
 		if !strings.Contains(htmlStr, marker) {
 			t.Errorf("Expected index.html to contain %q", marker)
 		}
 	}
 }
+
+func TestGuardianTrainerPacingWPMLockDemonChallengesAndProgressSync(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "elespe_trainer_progress_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ls, err := newLocalStore(filepath.Join(tmpDir, "data.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = ls
+	globalHub = newHub()
+	go globalHub.run()
+	globalAngelManager = newAngelManager(ls, globalHub)
+	defer globalAngelManager.Stop()
+	globalDemonManager = newDemonManager(ls, globalHub)
+	defer globalDemonManager.Stop()
+
+	// 1. Test CalculateTrainerGuardianWPM:
+	// a) Guardian slows down when 4+ chars ahead of player, and pauses/waits when >=12 chars ahead
+	wpmSlow, stateSlow, waitSlow := CalculateTrainerGuardianWPM(50, 0, 10, 16, 45, false, 0, true)
+	if waitSlow || stateSlow != "easing_back" || wpmSlow >= 45 {
+		t.Errorf("Expected guardian 6 chars ahead to ease back (<45 WPM, not waiting), got wpm=%d state=%q wait=%v", wpmSlow, stateSlow, waitSlow)
+	}
+	_, stateWait, waitFar := CalculateTrainerGuardianWPM(50, 0, 10, 23, 45, false, 0, true)
+	if !waitFar || stateWait != "waiting" {
+		t.Errorf("Expected guardian 13 chars ahead to wait for player, got state=%q wait=%v", stateWait, waitFar)
+	}
+	// b) Before player starts typing (userCharIdx == 0), guardian waits at char 6 so it never flies off
+	_, stateStartWait, waitStart := CalculateTrainerGuardianWPM(50, 0, 0, 6, 0, false, 0, false)
+	if !waitStart || stateStartWait != "waiting" {
+		t.Errorf("Expected guardian to wait at char 6 when player hasn't typed yet, got state=%q wait=%v", stateStartWait, waitStart)
+	}
+	// c) When player types faster than guardian, guardian speeds up ("pushing_pace")
+	wpmFast, stateFast, waitFast := CalculateTrainerGuardianWPM(40, 0, 25, 20, 75, false, 0, true)
+	if waitFast || stateFast != "pushing_pace" || wpmFast <= 75 {
+		t.Errorf("Expected guardian to speed up above player's 75 WPM when player leads, got wpm=%d state=%q", wpmFast, stateFast)
+	}
+	// d) When player types slower than guardian, guardian slows down
+	wpmGentle, _, _ := CalculateTrainerGuardianWPM(60, 0, 15, 16, 28, false, 0, true)
+	if wpmGentle > 28 {
+		t.Errorf("Expected guardian to slow down to player's 28 WPM, got %d", wpmGentle)
+	}
+	// e) When WPM is locked for muscle memory, guardian holds locked WPM (and still waits if too far ahead)
+	wpmLocked, stateLocked, waitLocked := CalculateTrainerGuardianWPM(40, 0, 20, 20, 85, true, 55, true)
+	if waitLocked || stateLocked != "locked" || wpmLocked != 55 {
+		t.Errorf("Expected locked guardian to hold 55 WPM, got wpm=%d state=%q wait=%v", wpmLocked, stateLocked, waitLocked)
+	}
+
+	// 2. Test AdjustGuardianPaceForPlayer auto-locking WPM after steady cadence
+	uidTrainer := "trainer_scribe"
+	globalAngelManager.EnsurePlayerGuardian(uidTrainer, "Trainer", "#a855f7", "kjv", "Genesis", 1, 1, "In the beginning God created the heaven and the earth.")
+	autoLocked := false
+	for idx := 1; idx <= 24; idx++ {
+		// Keep player within ±6 chars of guardian (which starts around 0) by testing steady cadence near char 2
+		updated := globalAngelManager.AdjustGuardianPaceForPlayer(uidTrainer, "kjv", "Genesis", 1, 1, 2, 52)
+		if updated != nil && updated.WPMLocked {
+			autoLocked = true
+			break
+		}
+	}
+	if !autoLocked {
+		t.Errorf("Expected Guardian Angel to auto-lock WPM after 18+ steady cadence characters")
+	}
+	gInfo := globalAngelManager.GetPlayerGuardian(uidTrainer)
+	if gInfo == nil || !gInfo.WPMLocked || gInfo.LockedWPM < 48 || gInfo.LockedWPM > 56 {
+		t.Errorf("Expected Guardian Angel WPMLocked=true around 52 WPM, got %+v", gInfo)
+	}
+
+	// Manual unlock via SetGuardianWPMLock
+	unlockedInfo := globalAngelManager.SetGuardianWPMLock(uidTrainer, false, 52)
+	if unlockedInfo == nil || unlockedInfo.WPMLocked {
+		t.Errorf("Expected SetGuardianWPMLock(false) to unlock guardian WPM, got %+v", unlockedInfo)
+	}
+
+	// 3. Test Wild Demon Challenge Archetypes ("speed_check" vs "precision_check")
+	speedCheckWPM := CalculateDynamicDemonWPMForChallenge(20, 25, 10, 60, "speed_check")
+	precisionCheckWPM := CalculateDynamicDemonWPMForChallenge(20, 25, 10, 60, "precision_check")
+	if speedCheckWPM <= precisionCheckWPM {
+		t.Errorf("Expected speed_check demon WPM (%d) to surge higher than precision_check demon WPM (%d)", speedCheckWPM, precisionCheckWPM)
+	}
+	if precisionCheckWPM > 24 {
+		t.Errorf("Expected precision_check demon to maintain a steady slow WPM (<=24), got %d", precisionCheckWPM)
+	}
+
+	// 4. Test WebSocket select_book with BookProgressSync & saved verse number so refresh never resets to Genesis 0
+	server := httptest.NewServer(http.HandlerFunc(handleWebSocket))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "?uid=refresh_persistence_user&trans=kjv"
+	wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial failed: %v", err)
+	}
+	defer wsConn.Close()
+
+	readUntilType := func(targetTypes ...string) (Message, error) {
+		_ = wsConn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		for {
+			var m Message
+			if err := wsConn.ReadJSON(&m); err != nil {
+				return m, err
+			}
+			for _, tt := range targetTypes {
+				if m.Type == tt {
+					return m, nil
+				}
+			}
+		}
+	}
+
+	if _, err := readUntilType("books"); err != nil {
+		t.Fatalf("Failed to read books on connect: %v", err)
+	}
+
+	// Simulate page refresh where client sends its localStorage BookProgressSync (Genesis currentVerse=5, introCompleted=true)
+	// and saved verse number 4. Server must NOT send "intro" (Genesis 0) — it must send "verse" #4!
+	err = wsConn.WriteJSON(Message{
+		Type:    "select_book",
+		Content: "Genesis",
+		Number:  4,
+		BookProgressSync: map[string]BookProgress{
+			"Genesis": {
+				CurrentVerse:   5,
+				TotalVerses:    1533,
+				CorrectEntries: 5,
+				IntroCompleted: true,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Failed to send select_book with BookProgressSync: %v", err)
+	}
+
+	respMsg, err := readUntilType("verse", "intro")
+	if err != nil {
+		t.Fatalf("Failed to read response after select_book: %v", err)
+	}
+	if respMsg.Type != "verse" || respMsg.Number != 4 {
+		t.Errorf("Expected select_book with BookProgressSync to load Genesis verse #4 (not Genesis 0 intro), got type=%q number=%d", respMsg.Type, respMsg.Number)
+	}
+}
+
 
 

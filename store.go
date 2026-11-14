@@ -286,6 +286,8 @@ type SanctuarySettings struct {
 	GuardianBookName     string         `json:"guardian_book_name,omitempty"`    // Last known or current book of the player's Guardian Angel
 	GuardianChapter      int            `json:"guardian_chapter,omitempty"`      // Last known or current chapter of the player's Guardian Angel
 	GuardianVerse        int            `json:"guardian_verse,omitempty"`        // Last known or current verse of the player's Guardian Angel
+	GuardianWPMLocked    bool           `json:"guardian_wpm_locked,omitempty"`   // Muscle-memory WPM lock state
+	GuardianLockedWPM    int            `json:"guardian_locked_wpm,omitempty"`   // Target locked WPM when GuardianWPMLocked is true
 	PreferredAngelLevels map[string]int `json:"preferred_angel_levels,omitempty"`
 	PreferredDemonLevels map[string]int `json:"preferred_demon_levels,omitempty"`
 }
@@ -352,6 +354,9 @@ type AngelInfo struct {
 	Progress    float64 `json:"progress,omitempty"`
 	IsGuardian   bool    `json:"is_guardian,omitempty"`
 	PaceOffset   int     `json:"pace_offset,omitempty"`
+	WPMLocked    bool    `json:"wpm_locked,omitempty"`
+	LockedWPM    int     `json:"locked_wpm,omitempty"`
+	TrainerState string  `json:"trainer_state,omitempty"`
 	Level        int     `json:"level,omitempty"`
 	MaxLevel     int     `json:"max_level,omitempty"`
 	IsDemon      bool    `json:"is_demon,omitempty"`
@@ -415,9 +420,11 @@ type WildDemon struct {
 	Chapter     int       `json:"chapter"`
 	Verse       int       `json:"verse"`
 	Text        string    `json:"text"`
-	WPM         int       `json:"wpm"` // slow methodical pace: 10 - 24 WPM
-	BaseWPM     int       `json:"base_wpm,omitempty"`
-	MaxHP       int       `json:"max_hp"`
+	WPM           int       `json:"wpm"` // slow methodical pace: 10 - 24 WPM, or fast speed check: 30 - 70 WPM
+	BaseWPM       int       `json:"base_wpm,omitempty"`
+	ChallengeType string    `json:"challenge_type,omitempty"`  // "speed_check" or "precision_check"
+	ChallengeDesc string    `json:"challenge_desc,omitempty"`  // Human-readable challenge description
+	MaxHP         int       `json:"max_hp"`
 	CurrentHP   int       `json:"current_hp"`
 	EnrageCount   int       `json:"enrage_count"`
 	CharIndex     int       `json:"char_index"`
@@ -479,19 +486,23 @@ type GhostCursor struct {
 	IsGloriousTrail bool   `json:"is_glorious_trail,omitempty"`
 	WPM             int    `json:"wpm"`
 	IsAngel         bool   `json:"is_angel,omitempty"`
-	AngelRank    string `json:"angel_rank,omitempty"`
-	AngelLevel   int    `json:"angel_level,omitempty"`
-	OwnerUID     string `json:"owner_uid,omitempty"`
-	OwnerName    string `json:"owner_name,omitempty"`
-	OwnerColor   string `json:"owner_color,omitempty"`
-	PlayerOnline bool   `json:"player_online,omitempty"`
-	IsDemon      bool   `json:"is_demon,omitempty"`
-	DemonRank    string `json:"demon_rank,omitempty"`
-	DemonLevel   int    `json:"demon_level,omitempty"`
-	CurrentHP    int    `json:"current_hp,omitempty"`
-	MaxHP        int    `json:"max_hp,omitempty"`
-	CastAbility  string `json:"cast_ability,omitempty"` // "shroud", "typo", ""
-	ShroudRange  int    `json:"shroud_range,omitempty"` // number of chars to shroud
+	AngelRank       string `json:"angel_rank,omitempty"`
+	AngelLevel      int    `json:"angel_level,omitempty"`
+	WPMLocked       bool   `json:"wpm_locked,omitempty"`
+	LockedWPM       int    `json:"locked_wpm,omitempty"`
+	TrainerState    string `json:"trainer_state,omitempty"`
+	OwnerUID        string `json:"owner_uid,omitempty"`
+	OwnerName       string `json:"owner_name,omitempty"`
+	OwnerColor      string `json:"owner_color,omitempty"`
+	PlayerOnline    bool   `json:"player_online,omitempty"`
+	IsDemon         bool   `json:"is_demon,omitempty"`
+	DemonRank       string `json:"demon_rank,omitempty"`
+	DemonLevel      int    `json:"demon_level,omitempty"`
+	ChallengeType   string `json:"challenge_type,omitempty"`
+	CurrentHP       int    `json:"current_hp,omitempty"`
+	MaxHP           int    `json:"max_hp,omitempty"`
+	CastAbility     string `json:"cast_ability,omitempty"` // "shroud", "typo", ""
+	ShroudRange     int    `json:"shroud_range,omitempty"` // number of chars to shroud
 }
 
 type Message struct {
@@ -577,10 +588,15 @@ type Message struct {
 	AngelSpeed            int            `json:"angel_speed,omitempty"`
 	AngelRank             string         `json:"angel_rank,omitempty"`
 	AngelLevel            int            `json:"angel_level,omitempty"`
-	GuardianSyncedLetters int            `json:"guardian_synced_letters,omitempty"`
-	GuardianSyncedWords   int            `json:"guardian_synced_words,omitempty"`
-	GuardianInSync        bool           `json:"guardian_in_sync,omitempty"`
-	PeerAngelUID          string         `json:"peer_angel_uid,omitempty"`
+	GuardianSyncedLetters int                    `json:"guardian_synced_letters,omitempty"`
+	GuardianSyncedWords   int                    `json:"guardian_synced_words,omitempty"`
+	GuardianInSync        bool                   `json:"guardian_in_sync,omitempty"`
+	GuardianWPMLocked     bool                   `json:"guardian_wpm_locked,omitempty"`
+	GuardianLockedWPM     int                    `json:"guardian_locked_wpm,omitempty"`
+	GuardianTrainerState  string                 `json:"guardian_trainer_state,omitempty"`
+	MistakesCount         int                    `json:"mistakes_count,omitempty"`
+	BookProgressSync      map[string]BookProgress `json:"book_progress_sync,omitempty"`
+	PeerAngelUID          string                 `json:"peer_angel_uid,omitempty"`
 	PeerAngelInSync       bool           `json:"peer_angel_in_sync,omitempty"`
 	AngelBuff             *AngelSyncBuff `json:"angel_buff,omitempty"`
 	GuardianXPGained      int                    `json:"guardian_xp_gained,omitempty"`

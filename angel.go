@@ -115,16 +115,114 @@ var canonicalAngels = []string{"guardian", "cherub", "seraph", "gabriel", "micha
 
 // AngelBot represents an active typing instance of an angel
 type AngelBot struct {
-	Info        AngelInfo
-	Translation string
-	BookName    string
-	Chapter     int
-	Verse       int
-	Text        string
-	CharIndex   int
-	StopChan    chan struct{}
-	IsRunning   bool
-	mu          sync.RWMutex
+	Info                AngelInfo
+	BaseWPM             int
+	Translation         string
+	BookName            string
+	Chapter             int
+	Verse               int
+	Text                string
+	CharIndex           int
+	PlayerCharIndex     int
+	PlayerWPM           int
+	PlayerLastKeystroke time.Time
+	SteadyStreak        int
+	LastSteadyWPM       int
+	AutoWPMLocked       bool
+	StopChan            chan struct{}
+	IsRunning           bool
+	mu                  sync.RWMutex
+}
+
+// CalculateTrainerGuardianWPM computes the adaptive type-trainer WPM, state, and whether the Guardian Angel
+// should pause and wait for the player when it gets too far ahead.
+func CalculateTrainerGuardianWPM(baseWPM, paceOffset, userCharIdx, angelCharIdx, userWPM int, wpmLocked bool, lockedWPM int, playerActiveRecently bool) (effectiveWPM int, trainerState string, shouldWait bool) {
+	if baseWPM < 12 {
+		baseWPM = 35
+	}
+	if paceOffset < -10 {
+		paceOffset = -10
+	}
+	if paceOffset > 10 {
+		paceOffset = 10
+	}
+
+	lead := angelCharIdx - userCharIdx
+
+	// Never fly off without the player: if the Guardian is too far ahead (or the player hasn't started / paused), wait!
+	if lead >= 12 || (userCharIdx == 0 && angelCharIdx >= 6) || (!playerActiveRecently && lead >= 5) {
+		waitWPM := baseWPM
+		if wpmLocked && lockedWPM > 0 {
+			waitWPM = lockedWPM
+		} else if userWPM > 0 {
+			waitWPM = userWPM
+		}
+		return max(8, waitWPM), "waiting", true
+	}
+
+	// Muscle-Memory WPM Lock State: hold a steady metronomic WPM so the player can lock in muscle memory.
+	if wpmLocked {
+		target := lockedWPM
+		if target <= 0 {
+			if userWPM > 0 {
+				target = userWPM
+			} else {
+				target = baseWPM
+			}
+		}
+		if target < 10 {
+			target = 10
+		}
+		// Still gently ease back if getting 6..11 chars ahead so the player isn't left behind
+		if lead >= 6 {
+			target = max(10, target-(lead-5)*3)
+		}
+		return min(220, target), "locked", false
+	}
+
+	// Adaptive Personal Type Trainer Mode:
+	// - Speeds up when the player types faster than the Guardian
+	// - Slows down when the player types slower or falls behind
+	effectiveWPM = baseWPM
+	trainerState = "in_cadence"
+
+	if userWPM > 0 {
+		paceBonus := int(math.Round(float64(userWPM) * float64(paceOffset) / 100.0))
+		if userWPM > baseWPM+1 || userCharIdx > angelCharIdx+1 {
+			playerLeadBoost := 0
+			if userCharIdx > angelCharIdx {
+				playerLeadBoost = min(14, (userCharIdx-angelCharIdx)*2)
+			}
+			push := max(2, paceBonus+2)
+			effectiveWPM = max(baseWPM+1, userWPM+push+playerLeadBoost)
+			trainerState = "pushing_pace"
+		} else if userWPM < baseWPM-2 || lead >= 4 {
+			effectiveWPM = max(10, userWPM+paceBonus)
+			trainerState = "easing_back"
+		} else {
+			effectiveWPM = max(12, userWPM+max(1, paceBonus))
+			trainerState = "in_cadence"
+		}
+	}
+
+	// Progressive rubber-banding slowdown if the Guardian is 4..11 chars ahead of the player
+	if lead >= 4 {
+		slowdown := (lead - 3) * 4
+		if effectiveWPM-slowdown < 8 {
+			effectiveWPM = 8
+		} else {
+			effectiveWPM -= slowdown
+		}
+		trainerState = "easing_back"
+	}
+
+	if effectiveWPM < 8 {
+		effectiveWPM = 8
+	}
+	if effectiveWPM > 220 {
+		effectiveWPM = 220
+	}
+	return effectiveWPM, trainerState, false
 }
 
 // AngelManager orchestrates the autonomous global angel scribe and client companions
@@ -268,6 +366,8 @@ func (m *AngelManager) GetAngelTemplatesForUser(uid string) []AngelInfo {
 
 	var preferredLevels map[string]int
 	var guardianLevel int = 1
+	var guardianWPMLocked bool
+	var guardianLockedWPM int
 	var ownerName string
 	var ownerColor string = "#818cf8"
 	if m.store != nil && uid != "" {
@@ -293,6 +393,8 @@ func (m *AngelManager) GetAngelTemplatesForUser(uid string) []AngelInfo {
 			if set.GuardianLevel > 0 {
 				guardianLevel = set.GuardianLevel
 			}
+			guardianWPMLocked = set.GuardianWPMLocked
+			guardianLockedWPM = set.GuardianLockedWPM
 		}
 	}
 
@@ -338,6 +440,18 @@ func (m *AngelManager) GetAngelTemplatesForUser(uid string) []AngelInfo {
 					inf.WPM = calcWPM
 				} else {
 					inf.WPM = 40 + paceOffset + levelBonus
+				}
+				inf.WPMLocked = guardianWPMLocked
+				if guardianLockedWPM > 0 {
+					inf.LockedWPM = guardianLockedWPM
+				} else {
+					inf.LockedWPM = inf.WPM
+				}
+				if guardianWPMLocked {
+					inf.WPM = inf.LockedWPM
+					inf.TrainerState = "locked"
+				} else {
+					inf.TrainerState = "in_cadence"
 				}
 				var paceLabel string
 				if paceOffset > 0 {
@@ -802,6 +916,13 @@ func (m *AngelManager) EnsurePlayerGuardian(uid, displayName, avatarColor, trans
 				existing.Verse = verse
 				existing.Text = resolvePassageText()
 				existing.CharIndex = 0
+				existing.PlayerCharIndex = 0
+				existing.SteadyStreak = 0
+				if existing.AutoWPMLocked {
+					existing.AutoWPMLocked = false
+					existing.Info.WPMLocked = false
+					existing.Info.TrainerState = "in_cadence"
+				}
 			}
 			info := existing.Info
 			existing.mu.Unlock()
@@ -864,6 +985,7 @@ func (m *AngelManager) EnsurePlayerGuardian(uid, displayName, avatarColor, trans
 
 	bot := &AngelBot{
 		Info:        template,
+		BaseWPM:     template.WPM,
 		Translation: trans,
 		BookName:    book,
 		Chapter:     chapter,
@@ -968,7 +1090,11 @@ func (m *AngelManager) UpdateCompanionWPM(uid string) {
 	for _, t := range templates {
 		if t.Rank == "guardian" {
 			bot.mu.Lock()
-			bot.Info.WPM = t.WPM
+			bot.BaseWPM = t.WPM
+			if !bot.Info.WPMLocked {
+				bot.Info.WPM = t.WPM
+			}
+			bot.Info.PaceOffset = t.PaceOffset
 			bot.Info.Level = t.Level
 			bot.Info.Title = t.Title
 			bot.Info.Name = t.Name
@@ -982,6 +1108,151 @@ func (m *AngelManager) UpdateCompanionWPM(uid string) {
 			break
 		}
 	}
+}
+
+// AdjustGuardianPaceForPlayer updates the player's Guardian Angel speed dynamically on each keystroke,
+// speeding up when the player types faster, slowing down when the player types slower, and auto-locking WPM
+// when the player holds a steady rhythmic cadence across multiple words to build muscle memory.
+func (m *AngelManager) AdjustGuardianPaceForPlayer(uid, trans, book string, chapter, verse, userCharIdx, userWPM int) *AngelInfo {
+	if uid == "" {
+		return nil
+	}
+	m.mu.RLock()
+	bot, ok := m.guardians[uid]
+	if !ok || bot == nil {
+		bot = m.companions[uid]
+	}
+	m.mu.RUnlock()
+	if bot == nil || !bot.Info.IsGuardian {
+		return nil
+	}
+
+	now := time.Now()
+	bot.mu.Lock()
+	defer bot.mu.Unlock()
+
+	if (trans != "" && bot.Translation != trans) || (book != "" && bot.BookName != book) || (chapter > 0 && bot.Chapter != chapter) || (verse > 0 && bot.Verse != verse) {
+		return nil
+	}
+
+	bot.PlayerCharIndex = userCharIdx
+	if userWPM > 0 {
+		bot.PlayerWPM = userWPM
+	}
+	bot.PlayerLastKeystroke = now
+
+	baseWPM := bot.BaseWPM
+	if baseWPM <= 0 {
+		baseWPM = bot.Info.WPM
+	}
+	if baseWPM <= 0 {
+		baseWPM = 35
+	}
+
+	// Check for automatic muscle-memory WPM lock when the player holds a steady cadence in sync with the Guardian
+	diff := userCharIdx - bot.CharIndex
+	if diff < 0 {
+		diff = -diff
+	}
+	if !bot.Info.WPMLocked && userWPM >= 12 && diff <= 6 {
+		wpmDelta := userWPM - bot.LastSteadyWPM
+		if wpmDelta < 0 {
+			wpmDelta = -wpmDelta
+		}
+		if bot.LastSteadyWPM == 0 || wpmDelta <= 4 {
+			bot.SteadyStreak++
+			if bot.LastSteadyWPM == 0 {
+				bot.LastSteadyWPM = userWPM
+			} else {
+				bot.LastSteadyWPM = (bot.LastSteadyWPM*2 + userWPM) / 3
+			}
+			if bot.SteadyStreak >= 18 {
+				// Enter Muscle-Memory WPM Lock for this passage!
+				paceBonus := int(math.Round(float64(bot.LastSteadyWPM) * float64(bot.Info.PaceOffset) / 100.0))
+				lockTarget := max(12, bot.LastSteadyWPM+max(1, paceBonus))
+				bot.AutoWPMLocked = true
+				bot.Info.WPMLocked = true
+				bot.Info.LockedWPM = lockTarget
+			}
+		} else {
+			bot.SteadyStreak = 1
+			bot.LastSteadyWPM = userWPM
+		}
+	} else if bot.AutoWPMLocked && userWPM > 0 {
+		// If auto-locked and the player surges > 12 WPM faster or drops > 12 WPM slower, unlock to adapt!
+		lockedDelta := userWPM - bot.Info.LockedWPM
+		if lockedDelta > 12 || lockedDelta < -12 {
+			bot.AutoWPMLocked = false
+			bot.Info.WPMLocked = false
+			bot.SteadyStreak = 0
+		}
+	}
+
+	effWPM, state, _ := CalculateTrainerGuardianWPM(
+		baseWPM,
+		bot.Info.PaceOffset,
+		userCharIdx,
+		bot.CharIndex,
+		bot.PlayerWPM,
+		bot.Info.WPMLocked,
+		bot.Info.LockedWPM,
+		true,
+	)
+	bot.Info.WPM = effWPM
+	bot.Info.TrainerState = state
+	info := bot.Info
+	info.CharIndex = bot.CharIndex
+	return &info
+}
+
+// SetGuardianWPMLock manually locks or unlocks the player's Guardian Angel WPM for muscle-memory training.
+func (m *AngelManager) SetGuardianWPMLock(uid string, locked bool, targetWPM int) *AngelInfo {
+	if uid == "" {
+		return nil
+	}
+	m.mu.RLock()
+	bot, ok := m.guardians[uid]
+	if !ok || bot == nil {
+		bot = m.companions[uid]
+	}
+	m.mu.RUnlock()
+	if bot == nil {
+		return nil
+	}
+
+	bot.mu.Lock()
+	bot.AutoWPMLocked = false
+	bot.SteadyStreak = 0
+	bot.Info.WPMLocked = locked
+	if targetWPM <= 0 {
+		if bot.PlayerWPM > 0 {
+			targetWPM = bot.PlayerWPM
+		} else if bot.Info.WPM > 0 {
+			targetWPM = bot.Info.WPM
+		} else {
+			targetWPM = 40
+		}
+	}
+	if targetWPM < 10 {
+		targetWPM = 10
+	}
+	if targetWPM > 220 {
+		targetWPM = 220
+	}
+	bot.Info.LockedWPM = targetWPM
+	if locked {
+		bot.Info.WPM = targetWPM
+		bot.Info.TrainerState = "locked"
+	} else {
+		if bot.BaseWPM > 0 {
+			bot.Info.WPM = bot.BaseWPM
+		}
+		bot.Info.TrainerState = "in_cadence"
+	}
+	info := bot.Info
+	info.CharIndex = bot.CharIndex
+	bot.mu.Unlock()
+	return &info
 }
 
 // DismissCompanion stops any temporary non-guardian companion for a user, while keeping their persistent Guardian Angel running in m.guardians.
@@ -1217,8 +1488,112 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 				break
 			}
 			bot.CharIndex = i
+			baseWPM := bot.BaseWPM
+			if baseWPM <= 0 {
+				baseWPM = bot.Info.WPM
+			}
+			playerCharIdx := bot.PlayerCharIndex
+			playerWPM := bot.PlayerWPM
+			lastKeystroke := bot.PlayerLastKeystroke
 			botInfo := bot.Info
 			bot.mu.Unlock()
+
+			// Personal Type Trainer adaptive WPM & rubber-banding slowdown when player is on the verse
+			if isGuardian && m.hub != nil {
+				for {
+					hubCharIdx, hubWPM, onVerse := m.hub.GetClientStatusOnVerse(uid, trans, book, ch, v)
+					if !onVerse {
+						break
+					}
+					if hubCharIdx > playerCharIdx {
+						playerCharIdx = hubCharIdx
+					}
+					if hubWPM > 0 {
+						playerWPM = hubWPM
+					}
+					activeRecently := !lastKeystroke.IsZero() && time.Since(lastKeystroke) <= 3*time.Second
+					effWPM, trainerState, shouldWait := CalculateTrainerGuardianWPM(
+						baseWPM,
+						botInfo.PaceOffset,
+						playerCharIdx,
+						i,
+						playerWPM,
+						botInfo.WPMLocked,
+						botInfo.LockedWPM,
+						activeRecently,
+					)
+					wpm = effWPM
+					charDelay = time.Duration(float64(time.Minute) / float64(max(8, wpm)*5))
+					if charDelay < 25*time.Millisecond {
+						charDelay = 25 * time.Millisecond
+					}
+
+					bot.mu.Lock()
+					if !bot.IsRunning {
+						bot.mu.Unlock()
+						return
+					}
+					if bot.Translation != trans || bot.BookName != book || bot.Chapter != ch || bot.Verse != v {
+						bot.mu.Unlock()
+						completed = false
+						break
+					}
+					bot.Info.WPM = wpm
+					bot.Info.TrainerState = trainerState
+					botInfo = bot.Info
+					playerCharIdx = bot.PlayerCharIndex
+					if hubCharIdx > playerCharIdx {
+						playerCharIdx = hubCharIdx
+					}
+					playerWPM = bot.PlayerWPM
+					if hubWPM > 0 {
+						playerWPM = hubWPM
+					}
+					lastKeystroke = bot.PlayerLastKeystroke
+					bot.mu.Unlock()
+
+					if !shouldWait || i == 0 {
+						break
+					}
+
+					// Broadcast waiting state so the player sees their Guardian patiently hovering and waiting for them
+					displayName := botInfo.Icon + " " + botInfo.Name
+					if botInfo.OwnerName != "" {
+						displayName = fmt.Sprintf("%s %s (%s)", botInfo.Icon, botInfo.Name, botInfo.OwnerName)
+					}
+					avatarColor := botInfo.Color
+					if botInfo.OwnerColor != "" {
+						avatarColor = botInfo.OwnerColor
+					}
+					m.hub.BroadcastAngelCursor(trans, book, ch, v, GhostCursor{
+						UID:          botInfo.ID,
+						DisplayName:  displayName,
+						AvatarColor:  avatarColor,
+						CharIndex:    i,
+						WPM:          wpm,
+						IsAngel:      true,
+						AngelRank:    botInfo.Rank,
+						AngelLevel:   botInfo.Level,
+						WPMLocked:    botInfo.WPMLocked,
+						LockedWPM:    botInfo.LockedWPM,
+						TrainerState: trainerState,
+						OwnerUID:     uid,
+						OwnerName:    botInfo.OwnerName,
+						OwnerColor:   botInfo.OwnerColor,
+						PlayerOnline: true,
+						TrailUpTo:    i,
+					})
+
+					select {
+					case <-bot.StopChan:
+						return
+					case <-time.After(150 * time.Millisecond):
+					}
+				}
+				if !completed {
+					break
+				}
+			}
 
 			hasViewers := m.hub != nil && m.hub.HasClientsOnVerse(trans, book, ch, v)
 			if !hasViewers && i < totalChars {
@@ -1261,6 +1636,9 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 					IsAngel:         true,
 					AngelRank:       botInfo.Rank,
 					AngelLevel:      botInfo.Level,
+					WPMLocked:       botInfo.WPMLocked,
+					LockedWPM:       botInfo.LockedWPM,
+					TrainerState:    botInfo.TrainerState,
 					OwnerUID:        uid,
 					OwnerName:       botInfo.OwnerName,
 					OwnerColor:      botInfo.OwnerColor,
@@ -1279,6 +1657,35 @@ func (m *AngelManager) runCompanionLoop(uid string, bot *AngelBot) {
 
 		if !completed {
 			continue
+		}
+
+		// If the player is actively on this verse and still typing it, wait at the finish line for them
+		// instead of flying off to the next verse without them!
+		if isGuardian && m.hub != nil {
+			for {
+				hubCharIdx, _, onVerse := m.hub.GetClientStatusOnVerse(uid, trans, book, ch, v)
+				bot.mu.RLock()
+				sameVerse := bot.IsRunning && bot.Translation == trans && bot.BookName == book && bot.Chapter == ch && bot.Verse == v
+				pIdx := max(bot.PlayerCharIndex, hubCharIdx)
+				lastKey := bot.PlayerLastKeystroke
+				bot.mu.RUnlock()
+				if !sameVerse {
+					completed = false
+					break
+				}
+				// Stay at the finish line while the player is actively typing this verse (or on this verse within 12s)
+				if !onVerse || pIdx >= totalChars || (!lastKey.IsZero() && time.Since(lastKey) > 12*time.Second && pIdx == 0) {
+					break
+				}
+				select {
+				case <-bot.StopChan:
+					return
+				case <-time.After(200 * time.Millisecond):
+				}
+			}
+			if !completed {
+				continue
+			}
 		}
 
 		// When companion/guardian completes the passage:

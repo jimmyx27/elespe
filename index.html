@@ -2323,6 +2323,9 @@
               <div class="angel-pace-header" style="gap: 0.4rem; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
                   <span id="wildDemonIconName" style="font-weight: 800; color: #f87171; font-size: 0.86rem;">😈 Whispering Imp (Lv. 1)</span>
+                  <span id="wildDemonChallengeBadge" class="smart-buff-pill" data-buff-key="demon_challenge_type" data-tooltip="Demon Challenge Archetype: Either a Hard WPM Speed Check or a Slow WPM Precision/Accuracy Check (+50% DMG with 0 mistakes!)" style="background: rgba(239, 68, 68, 0.22); color: #fca5a5; border-color: rgba(239, 68, 68, 0.45);">
+                    <span class="buff-icon">⚡ Speed Check</span><span class="buff-label">Hard WPM Trial</span>
+                  </span>
                   <span id="wildDemonPaceBadge" style="font-size: 0.68rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 1px 6px; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700;">Pace: 12 WPM</span>
                   <span id="demonDebuffBadge" class="smart-buff-pill" data-buff-key="demon_debuff" data-tooltip="Sanctified Rebuke Debuff: -20% Demon WPM & +25% Vulnerability per stack" style="display: none; background: rgba(251, 191, 36, 0.22); color: #fde047; border-color: #f59e0b;">
                     <span class="buff-icon">⛓️</span><span class="buff-label">Rebuked</span>
@@ -2400,6 +2403,12 @@
                         <span id="angelHUDSyncBadge" class="smart-buff-pill" data-buff-key="guardian_sync_badge" data-tooltip="Stay within ±10 characters of your Guardian Angel for +15% Smite Damage & Sync XP" style="background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4);">
                           <span class="buff-icon">✨ Sync</span><span class="buff-label">+15% DMG & XP</span>
                         </span>
+                        <span id="angelTrainerStateBadge" class="smart-buff-pill" data-buff-key="guardian_trainer_state" data-tooltip="Personal Type Trainer: Speeds up when you type faster, slows/waits if too far ahead, and locks WPM when you hold a steady cadence to build muscle memory!" style="background: rgba(56, 189, 248, 0.18); color: #7dd3fc; border-color: rgba(56, 189, 248, 0.4);">
+                          <span class="buff-icon">🎯 Cadence</span><span class="buff-label">Personal Type Trainer</span>
+                        </span>
+                        <button type="button" id="btnToggleGuardianWPMLock" class="presence-btn" title="Lock or unlock your Guardian Angel's WPM to train steady muscle memory at a fixed pace!" style="font-size: 0.68rem; font-weight: 800; padding: 1px 8px; border-radius: 999px; border-color: rgba(251, 191, 36, 0.45); color: #fde68a; background: rgba(251, 191, 36, 0.14); cursor: pointer;">
+                          🔓 Lock WPM
+                        </button>
                       </div>
                       <span id="angelHUDComparison">You: 0 WPM · Pace: 40 WPM</span>
                     </div>
@@ -3170,13 +3179,81 @@
 
       let currentTrans = localStorage.getItem("translation") || "kjv";
       let userAccount = null;
-      let selectedBook = null;
-      let bookProgress = {};
+
+      // LocalStorage Persistence Helpers for Book, Verse, and BookProgress (prevents resetting to Genesis 0 on refresh!)
+      function getBookProgressStorageKey(trans) {
+        return `book_progress_${(trans || currentTrans || "kjv").toLowerCase()}`;
+      }
+      function loadLocalBookProgress(trans) {
+        try {
+          const raw = localStorage.getItem(getBookProgressStorageKey(trans));
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === "object") return parsed;
+          }
+        } catch (_) {}
+        return {};
+      }
+      function saveLocalBookProgress(trans, progMap) {
+        try {
+          if (progMap && typeof progMap === "object") {
+            localStorage.setItem(getBookProgressStorageKey(trans), JSON.stringify(progMap));
+          }
+        } catch (_) {}
+      }
+      function mergeBookProgressMaps(serverMap, localMap) {
+        const merged = {};
+        const sMap = serverMap || {};
+        const lMap = localMap || {};
+        const allKeys = new Set([...Object.keys(sMap), ...Object.keys(lMap)]);
+        for (const book of allKeys) {
+          const s = sMap[book] || {};
+          const l = lMap[book] || {};
+          const curVerse = Math.max(s.currentVerse || 0, l.currentVerse || 0);
+          const totVerses = Math.max(s.totalVerses || 0, l.totalVerses || 0);
+          const introDone = !!(s.introCompleted || l.introCompleted || curVerse > 0);
+          const reviewDone = !!(s.reviewCompleted || l.reviewCompleted);
+          merged[book] = {
+            currentVerse: curVerse,
+            totalVerses: totVerses,
+            correctEntries: Math.max(s.correctEntries || 0, l.correctEntries || 0),
+            mistakeEntries: Math.max(s.mistakeEntries || 0, l.mistakeEntries || 0),
+            charsTyped: Math.max(s.charsTyped || 0, l.charsTyped || 0),
+            totalTimeMs: Math.max(s.totalTimeMs || 0, l.totalTimeMs || 0),
+            introCompleted: introDone,
+            reviewCompleted: reviewDone
+          };
+        }
+        return merged;
+      }
+      function saveSelectedBookAndVerse(book, verseNum, trans) {
+        try {
+          if (book) {
+            localStorage.setItem("selected_book", book);
+            localStorage.setItem(`selected_book_${(trans || currentTrans || "kjv").toLowerCase()}`, book);
+            if (verseNum && verseNum > 0) {
+              localStorage.setItem(`saved_verse_${(trans || currentTrans || "kjv").toLowerCase()}_${book}`, String(verseNum));
+            }
+          }
+        } catch (_) {}
+      }
+      function getSavedVerseForBook(trans, book) {
+        try {
+          const val = parseInt(localStorage.getItem(`saved_verse_${(trans || currentTrans || "kjv").toLowerCase()}_${book}`) || "0", 10);
+          return Number.isFinite(val) && val > 0 ? val : 0;
+        } catch (_) {
+          return 0;
+        }
+      }
+
+      let selectedBook = localStorage.getItem(`selected_book_${currentTrans.toLowerCase()}`) || localStorage.getItem("selected_book") || null;
+      let bookProgress = loadLocalBookProgress(currentTrans);
       let allBooks = [];
       let totalVersesInBook = 1;
-      let currentVerseNum = 1;
+      let currentVerseNum = (selectedBook && getSavedVerseForBook(currentTrans, selectedBook)) || 1;
       let isReviewLocked = true;
       let isIntroMandatory = false;
+      let verseMistakesCount = 0;
 
       // Current active target text to type & typed state
       let currentTargetText = "";
@@ -3209,6 +3286,9 @@
       let selectedAngelLevels = { cherub: 1, seraph: 1, gabriel: 1, michael: 1 };
       let guardianCharIndex = 0;
       let isGuardianInSync = true;
+      let guardianWPMLocked = !!currentCustomizations.guardian_wpm_locked;
+      let guardianLockedWPM = currentCustomizations.guardian_locked_wpm || 0;
+      let guardianTrainerState = guardianWPMLocked ? "locked" : "matching";
       let unsentSyncedLetters = 0;
       let unsentSyncedWords = 0;
       let unsentPurifiedLetters = 0;
@@ -3359,6 +3439,8 @@
       const angelHUDName = document.getElementById("angelHUDName");
       const angelHUDComparison = document.getElementById("angelHUDComparison");
       const angelProgressBar = document.getElementById("angelProgressBar");
+      const angelTrainerStateBadge = document.getElementById("angelTrainerStateBadge");
+      const btnToggleGuardianWPMLock = document.getElementById("btnToggleGuardianWPMLock");
       const angelCardsContainer = document.getElementById("angelCardsContainer");
       const btnWatchGlobalAngel = document.getElementById("btnWatchGlobalAngel");
       const btnDismissActiveAngel = document.getElementById("btnDismissActiveAngel");
@@ -3426,6 +3508,7 @@
       // Wild Demon Combat HUD & Tracker Modal
       const wildDemonHUD = document.getElementById("wildDemonHUD");
       const wildDemonIconName = document.getElementById("wildDemonIconName");
+      const wildDemonChallengeBadge = document.getElementById("wildDemonChallengeBadge");
       const wildDemonPaceBadge = document.getElementById("wildDemonPaceBadge");
       const burstDamageBadge = document.getElementById("burstDamageBadge");
       const burstDamageValue = document.getElementById("burstDamageValue");
@@ -4075,7 +4158,7 @@
         }
       }
 
-      function calculateDynamicDemonWPM(baseWpm, userCharIdx, demonCharIdx, userWpm) {
+      function calculateDynamicDemonWPM(baseWpm, userCharIdx, demonCharIdx, userWpm, challengeType = "") {
         const minWpm = DEMON_SYNC_BALANCE.minDemonWpm || 6;
         let base = Math.max(minWpm, baseWpm || 12);
         const threshold = DEMON_SYNC_BALANCE.paceAdjustThreshold || 5;
@@ -4083,15 +4166,36 @@
         const wpmStep = DEMON_SYNC_BALANCE.paceWpmPerStep || 2;
         const charDiff = userCharIdx - demonCharIdx;
 
+        // Archetype 1: Precision / Accuracy Check (Slow WPM Precision Trial)
+        if (challengeType === "precision_check") {
+          if (charDiff >= threshold) {
+            const steps = 1 + Math.floor((charDiff - threshold) / (stepChars + 2));
+            const bonus = Math.min(4, steps);
+            return base + bonus;
+          }
+          if (charDiff <= -threshold) {
+            const behind = -charDiff;
+            const steps = 1 + Math.floor((behind - threshold) / stepChars);
+            const reduction = Math.min(DEMON_SYNC_BALANCE.maxDemonWpmReduction || 8, steps * wpmStep);
+            return Math.max(minWpm, base - reduction);
+          }
+          return base;
+        }
+
+        const isSpeedCheck = challengeType === "speed_check";
+
         // 1. User is typing 5+ chars ahead of the demon: demon WPM increases
         if (charDiff >= threshold) {
           const steps = 1 + Math.floor((charDiff - threshold) / stepChars);
-          let bonus = steps * wpmStep;
+          let bonus = steps * (isSpeedCheck ? wpmStep + 1 : wpmStep);
           if (userWpm > base) {
-            bonus += Math.floor((userWpm - base) / 4);
+            bonus += Math.floor((userWpm - base) / (isSpeedCheck ? 3 : 4));
           }
-          if (DEMON_SYNC_BALANCE.maxDemonWpmBonus > 0) {
-            bonus = Math.min(bonus, DEMON_SYNC_BALANCE.maxDemonWpmBonus);
+          const maxBonus = isSpeedCheck
+            ? (DEMON_SYNC_BALANCE.maxDemonWpmBonus || 18) + 8
+            : (DEMON_SYNC_BALANCE.maxDemonWpmBonus || 18);
+          if (maxBonus > 0) {
+            bonus = Math.min(bonus, maxBonus);
           }
           return base + bonus;
         }
@@ -4104,8 +4208,12 @@
           if (userWpm > 0 && userWpm < base) {
             reduction += Math.floor((base - userWpm) / 4);
           }
-          if (DEMON_SYNC_BALANCE.maxDemonWpmReduction > 0) {
-            reduction = Math.min(reduction, DEMON_SYNC_BALANCE.maxDemonWpmReduction);
+          let maxRed = DEMON_SYNC_BALANCE.maxDemonWpmReduction || 8;
+          if (isSpeedCheck && maxRed > 4) {
+            maxRed = Math.floor(maxRed / 2);
+          }
+          if (maxRed > 0) {
+            reduction = Math.min(reduction, maxRed);
           }
           return Math.max(minWpm, base - reduction);
         }
@@ -4118,12 +4226,39 @@
           return Math.max(minWpm, base - reduction);
         }
         if (charDiff > 0 && userWpm > base + 4) {
-          let bonus = Math.max(1, Math.floor((userWpm - base) / 5));
-          const maxInWin = Math.floor((DEMON_SYNC_BALANCE.maxDemonWpmBonus || 18) / 3);
+          let bonus = Math.max(1, Math.floor((userWpm - base) / (isSpeedCheck ? 4 : 5)));
+          const maxInWin = Math.floor((DEMON_SYNC_BALANCE.maxDemonWpmBonus || 18) / (isSpeedCheck ? 2 : 3));
           if (maxInWin > 0) bonus = Math.min(bonus, maxInWin);
           return base + bonus;
         }
         return base;
+      }
+
+      function updateWildDemonChallengeBadge(d = activeWildDemon) {
+        if (!wildDemonChallengeBadge || !d) return;
+        const cType = d.challenge_type || (d.rank === "tormentor" || d.rank === "apollyon" ? "speed_check" : "precision_check");
+        if (cType === "precision_check") {
+          wildDemonChallengeBadge.style.background = "rgba(14, 165, 233, 0.22)";
+          wildDemonChallengeBadge.style.color = "#7dd3fc";
+          wildDemonChallengeBadge.style.borderColor = "rgba(56, 189, 248, 0.5)";
+          const zeroErrActive = verseMistakesCount === 0;
+          setSmartPillContent(
+            wildDemonChallengeBadge,
+            zeroErrActive ? "🎯 Precision ×1.5" : "🎯 Precision Check",
+            zeroErrActive ? "0 Mistakes (+50% DMG!)" : `${verseMistakesCount} Mistake${verseMistakesCount === 1 ? '' : 's'}`,
+            d.challenge_desc || "Slow WPM Precision/Accuracy Check: Holds a steady methodical pace. Zero mistakes on this passage grants +50% Precision Mastery Smite Damage!"
+          );
+        } else {
+          wildDemonChallengeBadge.style.background = "rgba(239, 68, 68, 0.25)";
+          wildDemonChallengeBadge.style.color = "#fca5a5";
+          wildDemonChallengeBadge.style.borderColor = "rgba(239, 68, 68, 0.55)";
+          setSmartPillContent(
+            wildDemonChallengeBadge,
+            "⚡ Speed Check",
+            "Hard WPM Trial",
+            d.challenge_desc || "Hard WPM Speed Check: Surges forward aggressively! Push your typing speed to stay in sync or outpace it for Passage Burst Damage!"
+          );
+        }
       }
 
       function checkHolyResonance() {
@@ -4140,9 +4275,10 @@
         // User is in Radiance/Resonance within ±5 characters of the demon!
         const inResonance = (charDiff <= tolerance);
 
-        // Compute dynamic demon WPM based on lead/lag
-        const dynWpm = calculateDynamicDemonWPM(activeWildDemonBaseWPM, userIdx, demonIdx, liveWPM);
+        // Compute dynamic demon WPM based on lead/lag & challenge archetype ("speed_check" vs "precision_check")
+        const dynWpm = calculateDynamicDemonWPM(activeWildDemonBaseWPM, userIdx, demonIdx, liveWPM, activeWildDemon.challenge_type);
         activeWildDemon.wpm = dynWpm;
+        updateWildDemonChallengeBadge(activeWildDemon);
         if (wildDemonPaceBadge) {
           const wpmDelta = dynWpm - activeWildDemonBaseWPM;
           if (wpmDelta > 0) {
@@ -4263,6 +4399,7 @@
         if (wildDemonPaceBadge) {
           wildDemonPaceBadge.textContent = `Pace: ~${d.wpm} WPM (Stay ±${DEMON_SYNC_BALANCE.charSyncTolerance || 5} Chars)`;
         }
+        updateWildDemonChallengeBadge(d);
         updateCheckpointBadge();
         updateSyncStacksBadge();
         updateHolyWardsBadge();
@@ -4520,6 +4657,10 @@
             const evoBadge = (d.level && d.level > 1)
               ? `<span style="background: rgba(239,68,68,0.25); color: #fca5a5; padding: 2px 6px; border-radius: 4px; font-weight: 700;">Lv.${d.level} Evolved</span>`
               : `<span style="background: rgba(255,255,255,0.08); color: var(--text-sub); padding: 2px 6px; border-radius: 4px; font-weight: 600;">Lv.1</span>`;
+            const isPrecision = (d.challenge_type === "precision_check");
+            const challengeTag = isPrecision
+              ? `<span style="font-size: 0.65rem; background: rgba(14,165,233,0.22); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.45); padding: 1px 5px; border-radius: 4px; font-weight: 700;" title="${escapeHtml(d.challenge_desc || 'Slow WPM Precision/Accuracy Check (+50% DMG with 0 mistakes)')}">🎯 Precision Check</span>`
+              : `<span style="font-size: 0.65rem; background: rgba(239,68,68,0.22); color: #fca5a5; border: 1px solid rgba(239,68,68,0.45); padding: 1px 5px; border-radius: 4px; font-weight: 700;" title="${escapeHtml(d.challenge_desc || 'Hard WPM Speed Check')}">⚡ Speed Check</span>`;
             return `
               <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;">
                 <td style="padding: 0.6rem 0.5rem; font-weight: 700; color: #f87171;">
@@ -4533,7 +4674,7 @@
                 </td>
                 <td style="padding: 0.6rem 0.5rem; font-size: 0.8rem;">
                   <div style="display: flex; flex-direction: column; gap: 2px;">
-                    <div>${evoBadge}</div>
+                    <div style="display: flex; gap: 0.3rem; flex-wrap: wrap; align-items: center;">${evoBadge} ${challengeTag}</div>
                     <span style="font-size: 0.7rem; color: var(--muted);">Age: ${ageStr}</span>
                   </div>
                 </td>
@@ -5114,7 +5255,93 @@
 
         const tabGuardianSummary = document.getElementById("tabGuardianSummary");
         if (tabGuardianSummary) {
-          tabGuardianSummary.textContent = `Guardian Lv.${gLevel} ${isGuardianInSync ? '✨' : `(${diff}c)`}`;
+          const lockIcon = guardianWPMLocked ? "🔒" : (isGuardianInSync ? "✨" : `(${diff}c)`);
+          tabGuardianSummary.textContent = `Guardian Lv.${gLevel} ${lockIcon}`;
+        }
+
+        // Update Personal Type Trainer State Badge & WPM Lock Button
+        const signedLead = guardianCharIndex - userChars;
+        let effectiveState = guardianTrainerState || "matching";
+        if (guardianWPMLocked) {
+          effectiveState = "locked";
+        } else if (signedLead >= 12 || (userChars === 0 && signedLead >= 6)) {
+          effectiveState = "waiting";
+        } else if (signedLead >= 4) {
+          effectiveState = "easing_back";
+        } else if (liveWPM > 0 && activeAngelCompanion && liveWPM > (activeAngelCompanion.wpm || 40) + 4) {
+          effectiveState = "pushing_pace";
+        }
+
+        if (angelTrainerStateBadge) {
+          if (effectiveState === "locked") {
+            const lockSpd = guardianLockedWPM || (activeAngelCompanion && activeAngelCompanion.wpm) || 40;
+            angelTrainerStateBadge.style.background = "rgba(251, 191, 36, 0.22)";
+            angelTrainerStateBadge.style.color = "#fde047";
+            angelTrainerStateBadge.style.borderColor = "rgba(251, 191, 36, 0.5)";
+            setSmartPillContent(
+              angelTrainerStateBadge,
+              `🔒 ${lockSpd} WPM`,
+              `Muscle Memory Lock`,
+              `Muscle-Memory WPM Lock Active (${lockSpd} WPM): Your Guardian holds a steady ${lockSpd} WPM cadence (and still slows if too far ahead) so you can train consistent muscle memory!`
+            );
+          } else if (effectiveState === "waiting") {
+            angelTrainerStateBadge.style.background = "rgba(56, 189, 248, 0.22)";
+            angelTrainerStateBadge.style.color = "#bae6fd";
+            angelTrainerStateBadge.style.borderColor = "rgba(56, 189, 248, 0.5)";
+            setSmartPillContent(
+              angelTrainerStateBadge,
+              `⏳ Waiting`,
+              `Waiting for You`,
+              `Personal Type Trainer: Your Guardian Angel paused ahead (+${Math.max(0, signedLead)}c) so it never flies off without you! Type to resume cadence.`
+            );
+          } else if (effectiveState === "easing_back") {
+            angelTrainerStateBadge.style.background = "rgba(14, 165, 233, 0.18)";
+            angelTrainerStateBadge.style.color = "#7dd3fc";
+            angelTrainerStateBadge.style.borderColor = "rgba(56, 189, 248, 0.4)";
+            setSmartPillContent(
+              angelTrainerStateBadge,
+              `🐢 Easing`,
+              `Slowing for You`,
+              `Personal Type Trainer: Your Guardian Angel slowed down so you can comfortably catch up and stay in sync!`
+            );
+          } else if (effectiveState === "pushing_pace") {
+            angelTrainerStateBadge.style.background = "rgba(168, 85, 247, 0.22)";
+            angelTrainerStateBadge.style.color = "#e9d5ff";
+            angelTrainerStateBadge.style.borderColor = "rgba(168, 85, 247, 0.5)";
+            setSmartPillContent(
+              angelTrainerStateBadge,
+              `🚀 Pushing`,
+              `Rising with Your WPM`,
+              `Personal Type Trainer: You're typing faster! Your Guardian Angel is accelerating alongside you to push your WPM ceiling.`
+            );
+          } else {
+            angelTrainerStateBadge.style.background = "rgba(16, 185, 129, 0.18)";
+            angelTrainerStateBadge.style.color = "#6ee7b7";
+            angelTrainerStateBadge.style.borderColor = "rgba(16, 185, 129, 0.4)";
+            setSmartPillContent(
+              angelTrainerStateBadge,
+              `🎯 Cadence`,
+              `Matched Pace`,
+              `Personal Type Trainer: Adapts to your live speed (faster when you speed up, slower if you slow down). Hold a steady cadence or click Lock WPM to build muscle memory!`
+            );
+          }
+        }
+
+        if (btnToggleGuardianWPMLock) {
+          const lockSpd = guardianLockedWPM || (activeAngelCompanion && activeAngelCompanion.wpm) || liveWPM || 40;
+          if (guardianWPMLocked) {
+            btnToggleGuardianWPMLock.textContent = `🔒 Locked (${lockSpd} WPM)`;
+            btnToggleGuardianWPMLock.style.background = "rgba(251, 191, 36, 0.28)";
+            btnToggleGuardianWPMLock.style.borderColor = "#f59e0b";
+            btnToggleGuardianWPMLock.style.color = "#fef08a";
+            btnToggleGuardianWPMLock.title = `Muscle-Memory WPM Lock is ON at ${lockSpd} WPM. Click to unlock adaptive speed training.`;
+          } else {
+            btnToggleGuardianWPMLock.textContent = `🔓 Lock WPM`;
+            btnToggleGuardianWPMLock.style.background = "rgba(251, 191, 36, 0.12)";
+            btnToggleGuardianWPMLock.style.borderColor = "rgba(251, 191, 36, 0.4)";
+            btnToggleGuardianWPMLock.style.color = "#fde68a";
+            btnToggleGuardianWPMLock.title = `Click to lock your Guardian Angel at ${liveWPM > 10 ? liveWPM : lockSpd} WPM to train steady muscle memory!`;
+          }
         }
 
         const peerStatus = getPeerAngelSyncStatus();
@@ -5172,6 +5399,46 @@
           }
         }
         updateStageBuffPills();
+      }
+
+      function toggleGuardianWPMLock(explicitLock, explicitWPM) {
+        const nextLock = explicitLock !== undefined ? !!explicitLock : !guardianWPMLocked;
+        const targetWPM = explicitWPM || (liveWPM >= 12 ? liveWPM : ((activeAngelCompanion && activeAngelCompanion.wpm) || guardianLockedWPM || 40));
+        guardianWPMLocked = nextLock;
+        if (nextLock) {
+          guardianLockedWPM = targetWPM;
+          guardianTrainerState = "locked";
+        } else {
+          guardianTrainerState = "matching";
+        }
+        currentCustomizations.guardian_wpm_locked = guardianWPMLocked;
+        currentCustomizations.guardian_locked_wpm = guardianLockedWPM;
+        localStorage.setItem("sanctuary_settings", JSON.stringify(currentCustomizations));
+        updateGuardianAndPeerSyncHUD();
+        if (angelModal && angelModal.classList.contains("active")) {
+          renderAngels();
+        }
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: "toggle_guardian_wpm_lock",
+            guardian_wpm_locked: guardianWPMLocked,
+            guardian_locked_wpm: guardianLockedWPM,
+            wpm: liveWPM
+          }));
+        }
+        if (guardianWPMLocked) {
+          showToast("🔒 Muscle-Memory WPM Locked", `Guardian locked at ${guardianLockedWPM} WPM! Match its steady cadence to build muscle memory.`, "🎯");
+        } else {
+          showToast("🔓 Adaptive Trainer Unlocked", "Guardian Angel will dynamically adapt to your live typing speed!", "🕊️");
+        }
+        focusTyping();
+      }
+
+      if (btnToggleGuardianWPMLock) {
+        btnToggleGuardianWPMLock.onclick = (e) => {
+          e.preventDefault();
+          toggleGuardianWPMLock();
+        };
       }
 
       function interactWithPeerAngel(peerUID) {
@@ -5423,6 +5690,9 @@
               if (activeWildDemon.debuff_stacks > 0) {
                 totalDamage = Math.round(totalDamage * (1 + 0.25 * activeWildDemon.debuff_stacks));
               }
+              if (activeWildDemon.challenge_type === "precision_check" && verseMistakesCount === 0) {
+                totalDamage = Math.max(totalDamage + 2, Math.round(totalDamage * 1.5));
+              }
               activeWildDemon.current_hp = Math.max(0, activeWildDemon.current_hp - totalDamage);
               updateWildDemonHPUI(activeWildDemon);
 
@@ -5438,7 +5708,8 @@
                   purified_letters: purifiedCountThisKey,
                   golden_trail_letters: onAngelGoldenThisKey ? 1 : 0,
                   capitalized_letters: capitalizedCountThisKey,
-                  michael_trail_active: onGloriousTrailThisKey
+                  michael_trail_active: onGloriousTrailThisKey,
+                  mistakes_count: verseMistakesCount
                 }));
               }
             }
@@ -5457,8 +5728,10 @@
 
           playKeyClick();
         } else {
+          verseMistakesCount++;
           playMistakeSound();
           if (activeWildDemon) {
+            updateWildDemonChallengeBadge(activeWildDemon);
             if (currentHolyWards > 0) {
               currentHolyWards--;
               updateHolyWardsBadge();
@@ -5617,6 +5890,28 @@
           return;
         }
 
+        // Optimistically persist completion to localStorage so an immediate refresh never loses progress!
+        if (selectedBook) {
+          const prev = bookProgress[selectedBook] || {};
+          if (currentMode === "intro") {
+            bookProgress[selectedBook] = { ...prev, introCompleted: true };
+            saveLocalBookProgress(currentTrans, bookProgress);
+          } else if (currentMode === "verse") {
+            const nextV = Math.max(prev.currentVerse || 0, currentVerseNum || 1);
+            bookProgress[selectedBook] = {
+              ...prev,
+              currentVerse: nextV,
+              totalVerses: totalVersesInBook || prev.totalVerses || 1,
+              introCompleted: true
+            };
+            saveLocalBookProgress(currentTrans, bookProgress);
+            saveSelectedBookAndVerse(selectedBook, Math.min(totalVersesInBook || nextV + 1, nextV + 1), currentTrans);
+          } else if (currentMode === "review") {
+            bookProgress[selectedBook] = { ...prev, introCompleted: true, reviewCompleted: true };
+            saveLocalBookProgress(currentTrans, bookProgress);
+          }
+        }
+
         const peerStatus = getPeerAngelSyncStatus();
         ws.send(JSON.stringify({
           type: "content",
@@ -5648,12 +5943,14 @@
       btnRestartVerse.onclick = () => {
         currentTyped = "";
         hiddenInput.value = "";
+        verseMistakesCount = 0;
         syncedWordEndIndices.clear();
         syncedCapitalIndices.clear();
         demonCheckpointIndex = 0;
         demonPunctuationCount = 0;
         if (verseReader) verseReader._renderedTarget = "";
         updateCheckpointBadge();
+        if (activeWildDemon) updateWildDemonChallengeBadge(activeWildDemon);
         resetVerseTypingTimer();
         resetVoiceVerseState();
         renderTypingStage();
@@ -6329,11 +6626,15 @@
 
           if (msg.type === "books") {
             allBooks = msg.books || [];
-            bookProgress = msg.progress || {};
             if (msg.translation) {
               currentTrans = msg.translation;
               updateSpanishAccentBarVisibility();
             }
+            // Merge server progress with localStorage progress so refreshing NEVER resets to Genesis 0!
+            const localProg = loadLocalBookProgress(currentTrans);
+            bookProgress = mergeBookProgressMaps(msg.progress || {}, localProg);
+            saveLocalBookProgress(currentTrans, bookProgress);
+
             bookSelect.innerHTML = "";
             allBooks.forEach((b) => {
               const opt = document.createElement("option");
@@ -6345,11 +6646,29 @@
               bookSelect.appendChild(opt);
             });
 
-            if (!selectedBook || !allBooks.includes(selectedBook)) {
-              selectedBook = allBooks[0];
+            // Restore saved book for this translation (or global saved book, or furthest progressed book)
+            const savedBookForTrans = localStorage.getItem(`selected_book_${currentTrans.toLowerCase()}`) || localStorage.getItem("selected_book");
+            if (savedBookForTrans && allBooks.includes(savedBookForTrans)) {
+              selectedBook = savedBookForTrans;
+            } else if (!selectedBook || !allBooks.includes(selectedBook)) {
+              let progressedBook = null;
+              for (const b of allBooks) {
+                const p = bookProgress[b];
+                if (p && (p.currentVerse > 0 || p.introCompleted)) {
+                  progressedBook = b;
+                }
+              }
+              selectedBook = progressedBook || allBooks[0];
             }
             bookSelect.value = selectedBook;
-            ws.send(JSON.stringify({ type: "select_book", content: selectedBook }));
+            const savedVerseNum = getSavedVerseForBook(currentTrans, selectedBook);
+            saveSelectedBookAndVerse(selectedBook, savedVerseNum, currentTrans);
+            ws.send(JSON.stringify({
+              type: "select_book",
+              content: selectedBook,
+              number: savedVerseNum,
+              book_progress_sync: bookProgress
+            }));
             updateNavigationState();
           }
 
@@ -6357,15 +6676,27 @@
             const b = msg.book;
             const p = msg.progress;
             if (b && p) {
-              bookProgress[b] = p;
+              if (p.currentVerse > 0 && !p.introCompleted) {
+                p.introCompleted = true;
+              }
+              const prev = bookProgress[b] || {};
+              bookProgress[b] = {
+                ...prev,
+                ...p,
+                currentVerse: Math.max(prev.currentVerse || 0, p.currentVerse || 0),
+                introCompleted: !!(prev.introCompleted || p.introCompleted || p.currentVerse > 0),
+                reviewCompleted: !!(prev.reviewCompleted || p.reviewCompleted)
+              };
+              saveLocalBookProgress(currentTrans, bookProgress);
               const bLabel = displayBookName(b);
+              const mergedP = bookProgress[b];
               for (const opt of bookSelect.options) {
                 if (opt.value === b) {
-                  opt.textContent = `${bLabel} (${p.reviewCompleted ? "done" : `${p.currentVerse}/${p.totalVerses}`})`;
+                  opt.textContent = `${bLabel} (${mergedP.reviewCompleted ? "done" : `${mergedP.currentVerse}/${mergedP.totalVerses}`})`;
                   break;
                 }
               }
-              updateReviewLockUI(p.currentVerse < p.totalVerses);
+              updateReviewLockUI(mergedP.currentVerse < mergedP.totalVerses);
               updateNavigationState();
             }
           }
@@ -6375,10 +6706,27 @@
             currentTargetText = msg.content;
             currentTyped = "";
             hiddenInput.value = "";
+            verseMistakesCount = 0;
             resetVerseTypingTimer();
             currentVerseObj = msg.verse;
             currentVerseNum = msg.number;
             totalVersesInBook = msg.total;
+            if (msg.verse && msg.verse.book_name) {
+              selectedBook = msg.verse.book_name;
+              if (bookSelect && bookSelect.value !== selectedBook && allBooks.includes(selectedBook)) {
+                bookSelect.value = selectedBook;
+              }
+              const prevBp = bookProgress[selectedBook] || {};
+              bookProgress[selectedBook] = {
+                ...prevBp,
+                currentVerse: Math.max(prevBp.currentVerse || 0, Math.max(0, (msg.number || 1) - 1)),
+                totalVerses: msg.total || prevBp.totalVerses || totalVersesInBook,
+                introCompleted: true,
+                reviewCompleted: !!prevBp.reviewCompleted
+              };
+              saveLocalBookProgress(currentTrans, bookProgress);
+              saveSelectedBookAndVerse(selectedBook, currentVerseNum, currentTrans);
+            }
 
             verseRefEl.textContent = `${displayBookName(msg.verse.book_name, msg.translation)} ${msg.verse.chapter}:${msg.verse.verse}`;
             verseCountEl.textContent = `${msg.number} / ${msg.total}`;
@@ -6587,6 +6935,14 @@
             fireCelebrationFX();
             appendMessage(msg.content, "complete");
             showToast("🏆 Book Mastered!", msg.content, "🏆");
+            if (selectedBook) {
+              bookProgress[selectedBook] = {
+                ...(bookProgress[selectedBook] || {}),
+                introCompleted: true,
+                reviewCompleted: true
+              };
+              saveLocalBookProgress(currentTrans, bookProgress);
+            }
             updateReviewLockUI(false);
             updateNavigationState();
           }
@@ -6627,6 +6983,13 @@
           }
 
           if (msg.type === "modeComplete") {
+            if (selectedBook) {
+              bookProgress[selectedBook] = {
+                ...(bookProgress[selectedBook] || {}),
+                introCompleted: true
+              };
+              saveLocalBookProgress(currentTrans, bookProgress);
+            }
             appendMessage(`✓ ${msg.content}`, "complete");
             showToast("Splendid Job!", msg.content, "✍️");
           }
@@ -6681,10 +7044,17 @@
             if (msg.sanctuary) {
               applyCustomizations(msg.sanctuary);
               currentCustomizations = msg.sanctuary;
+              if (msg.sanctuary.guardian_wpm_locked !== undefined) {
+                guardianWPMLocked = !!msg.sanctuary.guardian_wpm_locked;
+              }
+              if (msg.sanctuary.guardian_locked_wpm !== undefined && msg.sanctuary.guardian_locked_wpm > 0) {
+                guardianLockedWPM = msg.sanctuary.guardian_locked_wpm;
+              }
               trackerUnlocked = !!msg.sanctuary.tracker_unlocked;
               demonsDefeatedCount = msg.sanctuary.demons_defeated || 0;
               updateTrackerButtonBadge();
               updateAngelHeaderBadges();
+              updateGuardianAndPeerSyncHUD();
               if (angelModal && angelModal.classList.contains("active")) {
                 renderAngels();
               }
@@ -6694,6 +7064,40 @@
               if (sanctuaryModal && sanctuaryModal.classList.contains("active")) {
                 renderSanctuary();
               }
+            }
+          }
+
+          if (msg.type === "guardian_trainer_update") {
+            if (msg.guardian_wpm_locked !== undefined) {
+              guardianWPMLocked = !!msg.guardian_wpm_locked;
+              currentCustomizations.guardian_wpm_locked = guardianWPMLocked;
+            }
+            if (msg.guardian_locked_wpm !== undefined && msg.guardian_locked_wpm > 0) {
+              guardianLockedWPM = msg.guardian_locked_wpm;
+              currentCustomizations.guardian_locked_wpm = guardianLockedWPM;
+            }
+            if (msg.guardian_trainer_state) {
+              guardianTrainerState = msg.guardian_trainer_state;
+            }
+            if (msg.angel) {
+              activeAngelCompanion = msg.angel;
+              if (angelHUDName) {
+                angelHUDName.textContent = `${msg.angel.icon || '🕊️'} ${msg.angel.name} (${msg.angel.wpm} WPM)`;
+              }
+            } else if (msg.wpm && activeAngelCompanion) {
+              activeAngelCompanion.wpm = msg.wpm;
+              if (angelHUDName) {
+                angelHUDName.textContent = `${activeAngelCompanion.icon || '🕊️'} ${activeAngelCompanion.name} (${msg.wpm} WPM)`;
+              }
+            }
+            localStorage.setItem("sanctuary_settings", JSON.stringify(currentCustomizations));
+            updateGuardianAndPeerSyncHUD();
+            if (angelModal && angelModal.classList.contains("active")) {
+              renderAngels();
+            }
+            if (msg.content) {
+              showToast(guardianWPMLocked ? "🔒 Muscle-Memory WPM Locked" : "🕊️ Personal Type Trainer", msg.content, guardianWPMLocked ? "🎯" : "🕊️");
+              appendMessage(`🎯 ${msg.content}`, "badge-notice");
             }
           }
 
@@ -7326,20 +7730,39 @@
 
           if (isOwnGuardian || (!isPeerGuardian && !isGloriousMichael)) {
             guardianCharIndex = ghost.char_index || 0;
+            if (ghost.wpm_locked !== undefined) {
+              guardianWPMLocked = !!ghost.wpm_locked;
+            }
+            if (ghost.locked_wpm !== undefined && ghost.locked_wpm > 0) {
+              guardianLockedWPM = ghost.locked_wpm;
+            }
+            if (ghost.trainer_state) {
+              guardianTrainerState = ghost.trainer_state;
+            }
+            if (activeAngelCompanion && ghost.wpm) {
+              activeAngelCompanion.wpm = ghost.wpm;
+            }
+            const tagEl = gEl.querySelector(".ghost-tag");
+            if (tagEl) {
+              const lockTag = guardianWPMLocked ? " 🔒" : (ghost.trainer_state === "waiting" ? " ⏳" : "");
+              tagEl.textContent = `${ghost.display_name} (${ghost.wpm}wpm${lockTag})`;
+            }
             if (angelPaceHUD) angelPaceHUD.style.display = "flex";
-            if (angelHUDName) angelHUDName.textContent = `${ghost.display_name} (${ghost.wpm} WPM)`;
+            if (angelHUDName) angelHUDName.textContent = `${ghost.display_name} (${ghost.wpm} WPM${guardianWPMLocked ? ' 🔒' : ''})`;
             const tgtLen = currentTargetText ? currentTargetText.length : 1;
             const pct = Math.min(100, Math.round((ghost.char_index / tgtLen) * 100));
             if (angelProgressBar) angelProgressBar.style.width = `${pct}%`;
             if (angelHUDComparison) {
               const userChars = currentTyped ? currentTyped.length : 0;
               const diff = userChars - ghost.char_index;
-              if (diff > 0) {
-                angelHUDComparison.innerHTML = `<span style="color:var(--success); font-weight:700;">▲ You're +${diff} char${diff === 1 ? '' : 's'} ahead</span>`;
+              if (ghost.trainer_state === "waiting") {
+                angelHUDComparison.innerHTML = `<span style="color:#38bdf8; font-weight:700;">⏳ Waiting for you (+${Math.abs(diff)}c)</span>`;
+              } else if (diff > 0) {
+                angelHUDComparison.innerHTML = `<span style="color:var(--success); font-weight:700;">▲ You're +${diff} char${diff === 1 ? '' : 's'} ahead (${liveWPM || 0} vs ${ghost.wpm} WPM)</span>`;
               } else if (diff < 0) {
-                angelHUDComparison.innerHTML = `<span style="color:#f59e0b; font-weight:700;">▼ Angel is +${Math.abs(diff)} ahead</span>`;
+                angelHUDComparison.innerHTML = `<span style="color:#f59e0b; font-weight:700;">▼ Angel +${Math.abs(diff)}c (${ghost.trainer_state === 'easing_back' ? '🐢 slowing' : ghost.wpm + ' WPM'})</span>`;
               } else {
-                angelHUDComparison.innerHTML = `<span style="color:var(--accent); font-weight:700;">◈ Tied pace!</span>`;
+                angelHUDComparison.innerHTML = `<span style="color:var(--accent); font-weight:700;">◈ Tied cadence (${ghost.wpm} WPM)!</span>`;
               }
             }
           }
@@ -7369,13 +7792,22 @@
         const newTrans = transSelect.value;
         currentTrans = newTrans;
         localStorage.setItem("translation", newTrans);
+        bookProgress = loadLocalBookProgress(newTrans);
+        selectedBook = localStorage.getItem(`selected_book_${newTrans.toLowerCase()}`) || selectedBook;
         updateSpanishAccentBarVisibility();
         ws.send(JSON.stringify({ type: "select_translation", content: newTrans }));
       };
 
       bookSelect.onchange = () => {
         selectedBook = bookSelect.value;
-        ws.send(JSON.stringify({ type: "select_book", content: selectedBook }));
+        const savedVerseNum = getSavedVerseForBook(currentTrans, selectedBook);
+        saveSelectedBookAndVerse(selectedBook, savedVerseNum, currentTrans);
+        ws.send(JSON.stringify({
+          type: "select_book",
+          content: selectedBook,
+          number: savedVerseNum,
+          book_progress_sync: bookProgress
+        }));
       };
 
       favToggleBtn.onclick = () => {
@@ -7393,13 +7825,16 @@
         progressEl.value = stats.currentVerse || 0;
 
         if (selectedBook && stats.totalVerses) {
+          const prev = bookProgress[selectedBook] || {};
+          const curV = Math.max(prev.currentVerse || 0, stats.currentVerse || 0);
           bookProgress[selectedBook] = {
-            ...(bookProgress[selectedBook] || {}),
-            currentVerse: stats.currentVerse,
-            totalVerses: stats.totalVerses,
-            introCompleted: stats.introCompleted,
-            reviewCompleted: stats.reviewCompleted
+            ...prev,
+            currentVerse: curV,
+            totalVerses: stats.totalVerses || prev.totalVerses,
+            introCompleted: !!(prev.introCompleted || stats.introCompleted || curV > 0),
+            reviewCompleted: !!(prev.reviewCompleted || stats.reviewCompleted)
           };
+          saveLocalBookProgress(currentTrans, bookProgress);
           updateNavigationState();
         }
       }
@@ -8259,6 +8694,15 @@
                       <button type="button" class="pace-btn ${curPace === 5 ? 'active' : ''}" data-pace="5" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">+5% Growth</button>
                       <button type="button" class="pace-btn ${curPace === 10 ? 'active' : ''}" data-pace="10" style="flex:1; font-size:0.72rem; padding:0.3rem 0.4rem; border-radius:6px;">+10% Challenge</button>
                     </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-top:0.5rem; padding:0.4rem 0.55rem; background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); border-radius:6px;">
+                      <div style="font-size:0.72rem; color:var(--text-sub);">
+                        <strong style="color:#fde047;">🎯 Muscle-Memory WPM Lock:</strong>
+                        <span>${guardianWPMLocked ? `Locked at ${guardianLockedWPM || ang.wpm} WPM` : 'Adaptive (auto-locks on steady cadence)'}</span>
+                      </div>
+                      <button type="button" class="form-btn btn-card-toggle-wpm-lock" style="font-size:0.72rem; padding:0.28rem 0.65rem; background:${guardianWPMLocked ? 'rgba(251,191,36,0.28)' : 'rgba(255,255,255,0.08)'}; color:#fde047; border:1px solid rgba(251,191,36,0.5); border-radius:6px; cursor:pointer; font-weight:800;">
+                        ${guardianWPMLocked ? '🔒 Unlock WPM' : '🔓 Lock WPM'}
+                      </button>
+                    </div>
                     <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.6rem;">
                       <input type="text" class="guardian-name-input form-input" value="${escapeHtml(currentCustomizations.guardian_name || ang.name)}" placeholder="Rename Guardian Angel..." style="font-size:0.8rem; padding:0.35rem 0.6rem; flex:1; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; color:var(--text);" />
                       <button type="button" class="form-btn btn-save-guardian-name" style="font-size:0.75rem; padding:0.4rem 0.75rem; background:rgba(168,85,247,0.3); color:#e9d5ff; border:1px solid rgba(168,85,247,0.5); border-radius:6px; cursor:pointer; font-weight:700;">Save Name</button>
@@ -8299,6 +8743,12 @@
             // Save Guardian Name click listener
             const saveNameBtn = card.querySelector(".btn-save-guardian-name");
             const nameInput = card.querySelector(".guardian-name-input");
+            const lockWpmCardBtn = card.querySelector(".btn-card-toggle-wpm-lock");
+            if (lockWpmCardBtn) {
+              lockWpmCardBtn.onclick = () => {
+                toggleGuardianWPMLock();
+              };
+            }
             if (saveNameBtn && nameInput) {
               saveNameBtn.onclick = () => {
                 const newName = nameInput.value.trim();

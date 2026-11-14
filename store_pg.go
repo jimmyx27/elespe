@@ -46,6 +46,7 @@ type postgresStore struct {
 	streakCache           map[string]UserStreak
 	dirtyStreaks          map[string]UserStreak
 	bookProgCache         map[string]map[string]BookProgress // key: uid + "|" + translation
+	bookProgFullLoaded    map[string]bool                    // key: uid + "|" + translation
 	dirtyBookProg         map[string]dirtyBookProgItem       // key: uid + "|" + translation + "|" + bookName
 	accountCache          map[string]*UserAccount
 	badgesCache           map[string][]Badge
@@ -72,6 +73,7 @@ func newPostgresStore(pool *pgxpool.Pool) *postgresStore {
 		streakCache:           make(map[string]UserStreak),
 		dirtyStreaks:          make(map[string]UserStreak),
 		bookProgCache:         make(map[string]map[string]BookProgress),
+		bookProgFullLoaded:    make(map[string]bool),
 		dirtyBookProg:         make(map[string]dirtyBookProgItem),
 		accountCache:          make(map[string]*UserAccount),
 		badgesCache:           make(map[string][]Badge),
@@ -505,13 +507,15 @@ func (s *postgresStore) EnsureUser(ctx context.Context, uid string) error {
 func (s *postgresStore) GetAllBookProgress(ctx context.Context, uid, translation string) (map[string]BookProgress, error) {
 	cacheKey := uid + "|" + translation
 	s.mu.RLock()
-	if cached, ok := s.bookProgCache[cacheKey]; ok && len(cached) > 0 {
-		out := make(map[string]BookProgress, len(cached))
-		for k, v := range cached {
-			out[k] = v
+	if s.bookProgFullLoaded[cacheKey] {
+		if cached, ok := s.bookProgCache[cacheKey]; ok && len(cached) > 0 {
+			out := make(map[string]BookProgress, len(cached))
+			for k, v := range cached {
+				out[k] = v
+			}
+			s.mu.RUnlock()
+			return out, nil
 		}
-		s.mu.RUnlock()
-		return out, nil
 	}
 	s.mu.RUnlock()
 
@@ -538,6 +542,9 @@ func (s *postgresStore) GetAllBookProgress(ctx context.Context, uid, translation
 		if err := rows.Scan(&book, &bp.CurrentVerse, &bp.TotalVerses, &bp.CorrectEntries, &bp.Mistakes, &bp.IntroCompleted, &bp.ReviewCompleted, &bp.CompletedAt); err != nil {
 			continue
 		}
+		if bp.CurrentVerse > 0 && !bp.IntroCompleted {
+			bp.IntroCompleted = true
+		}
 		progress[book] = bp
 	}
 
@@ -548,10 +555,16 @@ func (s *postgresStore) GetAllBookProgress(ctx context.Context, uid, translation
 	for k, v := range progress {
 		if _, dirty := s.dirtyBookProg[cacheKey+"|"+k]; !dirty {
 			s.bookProgCache[cacheKey][k] = v
-		} else {
-			progress[k] = s.bookProgCache[cacheKey][k]
 		}
 	}
+	for k, cachedBP := range s.bookProgCache[cacheKey] {
+		if cachedBP.CurrentVerse > 0 && !cachedBP.IntroCompleted {
+			cachedBP.IntroCompleted = true
+			s.bookProgCache[cacheKey][k] = cachedBP
+		}
+		progress[k] = cachedBP
+	}
+	s.bookProgFullLoaded[cacheKey] = true
 	s.mu.Unlock()
 
 	return progress, nil
@@ -562,6 +575,9 @@ func (s *postgresStore) GetBookProgress(ctx context.Context, uid, translation, b
 	s.mu.RLock()
 	if m, ok := s.bookProgCache[cacheKey]; ok {
 		if bp, exists := m[bookName]; exists {
+			if bp.CurrentVerse > 0 && !bp.IntroCompleted {
+				bp.IntroCompleted = true
+			}
 			cp := bp
 			s.mu.RUnlock()
 			return &cp, nil
@@ -600,6 +616,10 @@ func (s *postgresStore) GetBookProgress(ctx context.Context, uid, translation, b
 		return nil, err
 	}
 
+	if bp.CurrentVerse > 0 && !bp.IntroCompleted {
+		bp.IntroCompleted = true
+	}
+
 	s.mu.Lock()
 	if s.bookProgCache[cacheKey] == nil {
 		s.bookProgCache[cacheKey] = make(map[string]BookProgress)
@@ -613,6 +633,9 @@ func (s *postgresStore) GetBookProgress(ctx context.Context, uid, translation, b
 func (s *postgresStore) UpdateBookProgress(ctx context.Context, uid, translation, bookName string, bp *BookProgress) error {
 	if bp == nil {
 		return nil
+	}
+	if bp.CurrentVerse > 0 && !bp.IntroCompleted {
+		bp.IntroCompleted = true
 	}
 	cacheKey := uid + "|" + translation
 	cp := *bp
@@ -634,7 +657,7 @@ func (s *postgresStore) UpdateBookProgress(ctx context.Context, uid, translation
 func (s *postgresStore) EnsureBookProgressRows(ctx context.Context, uid, translation string, books []string, totals map[string]int) error {
 	cacheKey := uid + "|" + translation
 	s.mu.RLock()
-	_, alreadyLoaded := s.bookProgCache[cacheKey]
+	alreadyLoaded := s.bookProgFullLoaded[cacheKey]
 	s.mu.RUnlock()
 	if alreadyLoaded {
 		return nil
@@ -1233,6 +1256,7 @@ func (s *postgresStore) MergeUserProgress(ctx context.Context, targetUID, source
 	for k := range s.bookProgCache {
 		if strings.HasPrefix(k, targetUID+"|") {
 			delete(s.bookProgCache, k)
+			delete(s.bookProgFullLoaded, k)
 		}
 	}
 	s.mu.Unlock()

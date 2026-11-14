@@ -137,6 +137,76 @@ func CalculateDynamicDemonWPM(baseWPM, userCharIdx, demonCharIdx, userWPM int) i
 	return CalculateDynamicDemonWPMWithConfig(baseWPM, userCharIdx, demonCharIdx, userWPM, GetDemonSyncBalance())
 }
 
+// CalculateDynamicDemonWPMForChallenge adjusts the demon's WPM according to its challenge archetype:
+// - "speed_check": Hard WPM check! Surges aggressively to challenge the player's raw typing speed and never drops below a brisk floor.
+// - "precision_check": Slow WPM precision/accuracy check! Maintains a deliberate, methodical cadence (10-22 WPM) to test rhythmic accuracy.
+func CalculateDynamicDemonWPMForChallenge(baseWPM, userCharIdx, demonCharIdx, userWPM int, challengeType string) int {
+	cfg := GetDemonSyncBalance()
+	if challengeType == "speed_check" {
+		speedFloor := max(26, baseWPM+8)
+		if userWPM > 0 {
+			target := int(math.Round(float64(userWPM) * 1.08))
+			if target > speedFloor {
+				speedFloor = min(target, baseWPM+28)
+			}
+		}
+		dyn := CalculateDynamicDemonWPMWithConfig(max(baseWPM, speedFloor), userCharIdx, demonCharIdx, userWPM, cfg)
+		if dyn < speedFloor-2 {
+			dyn = speedFloor - 2
+		}
+		return dyn
+	}
+	if challengeType == "precision_check" {
+		precBase := baseWPM
+		if precBase > 20 {
+			precBase = 20
+		}
+		if precBase < 10 {
+			precBase = 12
+		}
+		// Keep a tight, methodical pace (±3 WPM around precBase) so the player must focus on precision & zero mistakes
+		charDiff := userCharIdx - demonCharIdx
+		if charDiff >= 6 {
+			return min(24, precBase+3)
+		}
+		if charDiff <= -6 {
+			return max(8, precBase-3)
+		}
+		return precBase
+	}
+	return CalculateDynamicDemonWPMWithConfig(baseWPM, userCharIdx, demonCharIdx, userWPM, cfg)
+}
+
+func assignWildDemonChallengeProfile(d *WildDemon, forceType string) {
+	if d == nil {
+		return
+	}
+	cType := forceType
+	if cType != "speed_check" && cType != "precision_check" {
+		// Alternate deterministically or by rank/ID so players encounter both Speed Checks and Precision Checks
+		switch d.Rank {
+		case "tormentor", "apollyon":
+			if len(d.ID)%2 == 0 {
+				cType = "speed_check"
+			} else {
+				cType = "precision_check"
+			}
+		default:
+			if len(d.Name)%2 == 0 {
+				cType = "precision_check"
+			} else {
+				cType = "speed_check"
+			}
+		}
+	}
+	d.ChallengeType = cType
+	if cType == "speed_check" {
+		d.ChallengeDesc = "⚡ WPM Speed Check — Type fast to outpace this surging adversary before it finishes the verse!"
+	} else {
+		d.ChallengeDesc = "🎯 Precision & Accuracy Check — Slower, methodical pace. Maintain tight sync with 0 mistakes for +50% Precision Strike damage!"
+	}
+}
+
 // CalculateDynamicDemonWPMWithConfig computes dynamic demon WPM using a custom balance config.
 func CalculateDynamicDemonWPMWithConfig(baseWPM, userCharIdx, demonCharIdx, userWPM int, cfg DemonSyncBalanceConfig) int {
 	if baseWPM < cfg.MinDemonWPM {
@@ -1353,11 +1423,16 @@ func initWildDemons() []*WildDemon {
 		},
 	}
 	now := time.Now().UTC()
-	for _, d := range demons {
+	for idx, d := range demons {
 		d.BaseWPM = d.WPM
 		d.SpawnedAt = now.Add(-10 * time.Minute)
 		d.LastEvolve = d.SpawnedAt
 		d.MaxLevel = 5
+		if idx%2 == 0 {
+			assignWildDemonChallengeProfile(d, "precision_check")
+		} else {
+			assignWildDemonChallengeProfile(d, "speed_check")
+		}
 	}
 	return demons
 }
@@ -1503,7 +1578,7 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 				}
 				d.BaseWPM = baseWPM
 				baseWPM += d.EnrageCount * 2
-				d.WPM = CalculateDynamicDemonWPM(baseWPM, playerCharIdx, i, playerWPM)
+				d.WPM = CalculateDynamicDemonWPMForChallenge(baseWPM, playerCharIdx, i, playerWPM, d.ChallengeType)
 			}
 			if d.DebuffStacks > 0 {
 				slowFactor := 1.0 - float64(d.DebuffStacks)*0.20
@@ -1525,21 +1600,23 @@ func (m *DemonManager) runWildDemonLoop(d *WildDemon) {
 			dColor := d.Color
 			dRank := d.Rank
 			dLevel := d.Level
+			dChallengeType := d.ChallengeType
 			m.mu.Unlock()
 
 			if m.hub != nil {
 				m.hub.BroadcastDemonCursor(trans, book, ch, v, GhostCursor{
-					UID:         demonID,
-					DisplayName: dIcon + " " + dName,
-					AvatarColor: dColor,
-					CharIndex:   i,
-					WPM:         curWpm,
-					IsDemon:     true,
-					DemonRank:   dRank,
-					DemonLevel:  dLevel,
-					CurrentHP:   curHP,
-					MaxHP:       maxHP,
-					TrailUpTo:   taintedUpTo,
+					UID:           demonID,
+					DisplayName:   dIcon + " " + dName,
+					AvatarColor:   dColor,
+					CharIndex:     i,
+					WPM:           curWpm,
+					IsDemon:       true,
+					DemonRank:     dRank,
+					DemonLevel:    dLevel,
+					ChallengeType: dChallengeType,
+					CurrentHP:     curHP,
+					MaxHP:         maxHP,
+					TrailUpTo:     taintedUpTo,
 				})
 			}
 
@@ -1903,7 +1980,7 @@ func (m *DemonManager) AdjustWildDemonPaceForPlayer(trans, book string, chapter,
 			}
 			d.BaseWPM = baseWPM
 			baseWPM += d.EnrageCount * 2
-			d.WPM = CalculateDynamicDemonWPM(baseWPM, userCharIdx, d.CharIndex, userWPM)
+			d.WPM = CalculateDynamicDemonWPMForChallenge(baseWPM, userCharIdx, d.CharIndex, userWPM, d.ChallengeType)
 			if d.DebuffStacks > 0 {
 				slowFactor := 1.0 - float64(d.DebuffStacks)*0.20
 				if slowFactor < 0.40 {
@@ -2555,6 +2632,12 @@ func (m *DemonManager) SpawnPeriodicWildDemon() *WildDemon {
 		AgeMinutes:  0,
 	}
 
+	if rand.Intn(2) == 0 {
+		assignWildDemonChallengeProfile(demon, "speed_check")
+	} else {
+		assignWildDemonChallengeProfile(demon, "precision_check")
+	}
+
 	m.wildDemons = append(m.wildDemons, demon)
 	m.wildDemonBases[demon.ID] = demon.WPM
 	go m.runWildDemonLoop(demon)
@@ -2758,7 +2841,7 @@ func (m *DemonManager) createDemonForProgress(trans string, v Verse, progressRat
 	id := fmt.Sprintf("wild-ambush-%d", time.Now().UnixNano()%1000000)
 
 	now := time.Now().UTC()
-	return &WildDemon{
+	d := &WildDemon{
 		ID:          id,
 		Rank:        rank,
 		Level:       level,
@@ -2782,4 +2865,10 @@ func (m *DemonManager) createDemonForProgress(trans string, v Verse, progressRat
 		LastEvolve:  now,
 		AgeMinutes:  0,
 	}
+	if rand.Intn(2) == 0 {
+		assignWildDemonChallengeProfile(d, "speed_check")
+	} else {
+		assignWildDemonChallengeProfile(d, "precision_check")
+	}
+	return d
 }

@@ -1227,6 +1227,17 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if activeHub != nil {
 				activeHub.UpdateCursor(client, msg.CharIndex, msg.WPM)
 			}
+			if activeAngelMgr != nil && client.Book != "" {
+				if gInfo := activeAngelMgr.AdjustGuardianPaceForPlayer(uid, client.Translation, client.Book, client.Chapter, client.Verse, msg.CharIndex, msg.WPM); gInfo != nil {
+					_ = conn.WriteJSON(Message{
+						Type:                 "guardian_trainer_update",
+						Angel:                gInfo,
+						GuardianWPMLocked:    gInfo.WPMLocked,
+						GuardianLockedWPM:    gInfo.LockedWPM,
+						GuardianTrainerState: gInfo.TrainerState,
+					})
+				}
+			}
 			if activeDemonMgr != nil && client.Book != "" {
 				if updated := activeDemonMgr.AdjustWildDemonPaceForPlayer(client.Translation, client.Book, client.Chapter, client.Verse, msg.CharIndex, msg.WPM); updated != nil {
 					_ = conn.WriteJSON(Message{
@@ -1235,6 +1246,39 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					})
 				}
 			}
+
+		case "toggle_guardian_wpm_lock":
+			customs, _ := activeStore.GetCustomizations(ctx, uid)
+			if customs == nil {
+				customs = &SanctuarySettings{GuardianLevel: 1}
+			}
+			locked := msg.GuardianWPMLocked
+			targetWPM := msg.GuardianLockedWPM
+			if targetWPM <= 0 {
+				if msg.WPM > 0 {
+					targetWPM = msg.WPM
+				} else if customs.GuardianLockedWPM > 0 {
+					targetWPM = customs.GuardianLockedWPM
+				} else {
+					targetWPM = 40
+				}
+			}
+			customs.GuardianWPMLocked = locked
+			customs.GuardianLockedWPM = targetWPM
+			_ = activeStore.SaveCustomizations(ctx, uid, *customs)
+
+			var gInfo *AngelInfo
+			if activeAngelMgr != nil {
+				gInfo = activeAngelMgr.SetGuardianWPMLock(uid, locked, targetWPM)
+			}
+			_ = conn.WriteJSON(Message{
+				Type:                 "guardian_trainer_update",
+				Sanctuary:            customs,
+				Angel:                gInfo,
+				GuardianWPMLocked:    locked,
+				GuardianLockedWPM:    targetWPM,
+				GuardianTrainerState: func() string { if locked { return "locked" }; return "in_cadence" }(),
+			})
 
 		case "toggle_spectator":
 			client.IsSpectator = !client.IsSpectator
@@ -1811,6 +1855,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if msg.MichaelTrailActive {
 				damage *= 2
 			}
+			if curDemon := activeDemonMgr.GetWildDemon(demonID); curDemon != nil && curDemon.ChallengeType == "precision_check" && msg.MistakesCount == 0 && (msg.SyncStacks > 0 || msg.GuardianInSync) {
+				damage = max(damage+2, int(float64(damage)*1.50))
+			}
 			updated, defeated := activeDemonMgr.ApplyWildDemonDamage(demonID, damage)
 			if updated != nil {
 				if defeated {
@@ -2039,8 +2086,46 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		case "select_book":
 			bookName := msg.Content
+			// Reconcile any locally cached book progress sent by the client so refreshing never resets progress
+			if len(msg.BookProgressSync) > 0 {
+				for bKey, localBP := range msg.BookProgressSync {
+					vList, ok := transData.VersesByBook[bKey]
+					if !ok || len(vList) == 0 {
+						continue
+					}
+					srvBP, err := activeStore.GetBookProgress(ctx, uid, currentTransID, bKey, len(vList))
+					if err != nil || srvBP == nil {
+						continue
+					}
+					changed := false
+					if localBP.CurrentVerse > srvBP.CurrentVerse && localBP.CurrentVerse <= len(vList) {
+						srvBP.CurrentVerse = localBP.CurrentVerse
+						srvBP.IntroCompleted = true
+						changed = true
+					}
+					if localBP.IntroCompleted && !srvBP.IntroCompleted {
+						srvBP.IntroCompleted = true
+						changed = true
+					}
+					if localBP.ReviewCompleted && !srvBP.ReviewCompleted && srvBP.CurrentVerse >= len(vList) {
+						srvBP.ReviewCompleted = true
+						changed = true
+					}
+					if localBP.CorrectEntries > srvBP.CorrectEntries {
+						srvBP.CorrectEntries = localBP.CorrectEntries
+						changed = true
+					}
+					if changed {
+						_ = activeStore.UpdateBookProgress(ctx, uid, currentTransID, bKey, srvBP)
+					}
+				}
+			}
 			if !ensureBookLoaded(bookName) {
 				continue
+			}
+			// Always refresh bookProgress from store in case BookProgressSync updated the current book
+			if freshBP, err := activeStore.GetBookProgress(ctx, uid, currentTransID, selectedBook, len(bookVerses)); err == nil && freshBP != nil {
+				bookProgress = freshBP
 			}
 
 			sessionID, _ = activeStore.CreateTypingSession(ctx, uid, currentTransID, selectedBook)
@@ -2050,6 +2135,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			client.VerseStartTime = runtimeStats.VerseStartTime
 			activeVerseIdx = bookProgress.CurrentVerse
+			if msg.Number > 0 {
+				reqIdx := msg.Number - 1
+				if reqIdx >= 0 && reqIdx <= bookProgress.CurrentVerse && reqIdx < len(bookVerses) {
+					activeVerseIdx = reqIdx
+				}
+			}
 			sendCurrentVerse()
 
 		case "jump_verse":

@@ -326,6 +326,20 @@ func (h *Hub) GetActivePlayerOnVerse(trans, book string, chapter, verse int) (ch
 	return 0, 0, false
 }
 
+func (h *Hub) GetClientStatusOnVerse(uid, trans, book string, chapter, verse int) (charIndex int, wpm int, onVerse bool) {
+	if uid == "" {
+		return 0, 0, false
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for peer := range h.clients {
+		if peer.UID == uid && (peer.Translation == trans || trans == "") && peer.Book == book && peer.Chapter == chapter && peer.Verse == verse {
+			return peer.CharIndex, peer.WPM, true
+		}
+	}
+	return 0, 0, false
+}
+
 func (h *Hub) BroadcastWildDemonsList(demons []WildDemon) {
 	maxDemons := 666
 	if dm := getGlobalDemonManager(); dm != nil {
