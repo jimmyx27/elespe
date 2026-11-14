@@ -42,6 +42,7 @@ type localData struct {
 	GlobalVerseCompletions map[string]int                     `json:"global_verse_completions"` // key -> count
 	SanctuarySettings      map[string]SanctuarySettings       `json:"sanctuary_settings"`       // uid -> settings
 	BossRaid               *BossRaid                          `json:"boss_raid,omitempty"`
+	BossRaids              map[string]*BossRaid               `json:"boss_raids,omitempty"`
 }
 
 type localStore struct {
@@ -739,8 +740,34 @@ func (s *localStore) mergeUserProgressLocked(targetUID, sourceUID string) {
 		if tgtSanctuary, hasTgtSanctuary := s.data.SanctuarySettings[targetUID]; !hasTgtSanctuary {
 			s.data.SanctuarySettings[targetUID] = srcSanctuary
 		} else {
+			if (tgtSanctuary.TextColor == "" || tgtSanctuary.TextColor == "emerald") && srcSanctuary.TextColor != "" {
+				tgtSanctuary.TextColor = srcSanctuary.TextColor
+			}
+			if (tgtSanctuary.FontFamily == "" || tgtSanctuary.FontFamily == "sans") && srcSanctuary.FontFamily != "" {
+				tgtSanctuary.FontFamily = srcSanctuary.FontFamily
+			}
+			if (tgtSanctuary.CaretAura == "" || tgtSanctuary.CaretAura == "default") && srcSanctuary.CaretAura != "" {
+				tgtSanctuary.CaretAura = srcSanctuary.CaretAura
+			}
+			if (tgtSanctuary.AudioProfile == "" || tgtSanctuary.AudioProfile == "classic") && srcSanctuary.AudioProfile != "" {
+				tgtSanctuary.AudioProfile = srcSanctuary.AudioProfile
+			}
+			if (tgtSanctuary.CelebrateFx == "" || tgtSanctuary.CelebrateFx == "confetti") && srcSanctuary.CelebrateFx != "" {
+				tgtSanctuary.CelebrateFx = srcSanctuary.CelebrateFx
+			}
+			if (tgtSanctuary.GuardianName == "" || tgtSanctuary.GuardianName == "Guardian Angel") && srcSanctuary.GuardianName != "" {
+				tgtSanctuary.GuardianName = srcSanctuary.GuardianName
+			}
+			if srcSanctuary.GuardianWPMLocked {
+				tgtSanctuary.GuardianWPMLocked = true
+			}
+			if srcSanctuary.GuardianLockedWPM > tgtSanctuary.GuardianLockedWPM {
+				tgtSanctuary.GuardianLockedWPM = srcSanctuary.GuardianLockedWPM
+			}
 			if srcSanctuary.GuardianLevel > tgtSanctuary.GuardianLevel {
 				tgtSanctuary.GuardianLevel = srcSanctuary.GuardianLevel
+				tgtSanctuary.GuardianXP = max(tgtSanctuary.GuardianXP, srcSanctuary.GuardianXP)
+			} else if srcSanctuary.GuardianLevel == tgtSanctuary.GuardianLevel {
 				tgtSanctuary.GuardianXP = max(tgtSanctuary.GuardianXP, srcSanctuary.GuardianXP)
 			}
 			tgtSanctuary.DemonsDefeated += srcSanctuary.DemonsDefeated
@@ -750,6 +777,9 @@ func (s *localStore) mergeUserProgressLocked(targetUID, sourceUID string) {
 			tgtSanctuary.SyncedWords += srcSanctuary.SyncedWords
 			tgtSanctuary.SyncedVerses += srcSanctuary.SyncedVerses
 			tgtSanctuary.SyncedBooks += srcSanctuary.SyncedBooks
+			tgtSanctuary.GuardianWards = (tgtSanctuary.GuardianLevel - 1) / 3
+			tgtSanctuary.GuardianPower = 10 + (tgtSanctuary.GuardianLevel-1)*2
+			tgtSanctuary.GuardianRadiance = 100 + (tgtSanctuary.GuardianLevel-1)*5
 			tgtSanctuary.TrackerUnlocked = tgtSanctuary.TrackerUnlocked || srcSanctuary.TrackerUnlocked || tgtSanctuary.DemonsDefeated >= 6
 			s.data.SanctuarySettings[targetUID] = tgtSanctuary
 		}
@@ -1533,17 +1563,37 @@ func (s *localStore) GetBossRaidForLevel(ctx context.Context, level int, isDemon
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.data.BossRaids == nil {
+		s.data.BossRaids = make(map[string]*BossRaid)
+		if s.data.BossRaid != nil && s.data.BossRaid.ID != "" {
+			cp := *s.data.BossRaid
+			s.data.BossRaids[cp.ID] = &cp
+		}
+	}
+
+	def := defaultBossRaidForLevel(level, isDemon)
+	if existing, ok := s.data.BossRaids[def.ID]; ok && existing != nil {
+		if existing.BossName == "Archangel Michael" {
+			existing.BossName = "Big Mike"
+		}
+		s.data.BossRaid = existing
+		res := *existing
+		return &res, nil
+	}
 	if s.data.BossRaid != nil && s.data.BossRaid.Level == level && s.data.BossRaid.IsDemonBoss == isDemon {
 		if s.data.BossRaid.BossName == "Archangel Michael" {
 			s.data.BossRaid.BossName = "Big Mike"
 		}
-		res := *s.data.BossRaid
-		return &res, nil
+		cp := *s.data.BossRaid
+		s.data.BossRaids[def.ID] = &cp
+		s.data.BossRaid = &cp
+		return &cp, nil
 	}
 
-	s.data.BossRaid = defaultBossRaidForLevel(level, isDemon)
+	s.data.BossRaids[def.ID] = def
+	s.data.BossRaid = def
 	_ = s.save()
-	res := *s.data.BossRaid
+	res := *def
 	return &res, nil
 }
 
@@ -1553,6 +1603,9 @@ func (s *localStore) RecordBossStrike(ctx context.Context, uid, displayName, ava
 
 	if s.data.BossRaid == nil {
 		s.data.BossRaid = defaultBossRaid()
+	}
+	if s.data.BossRaids == nil {
+		s.data.BossRaids = make(map[string]*BossRaid)
 	}
 
 	b := s.data.BossRaid
@@ -1577,6 +1630,9 @@ func (s *localStore) RecordBossStrike(ctx context.Context, uid, displayName, ava
 		b.Conquerors = b.Conquerors[:50]
 	}
 	b.UpdatedAt = time.Now().UTC()
+	if b.ID != "" {
+		s.data.BossRaids[b.ID] = b
+	}
 
 	_ = s.save()
 	res := *b
@@ -1587,6 +1643,12 @@ func (s *localStore) ResetBossRaid(ctx context.Context, raid BossRaid) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.data.BossRaids == nil {
+		s.data.BossRaids = make(map[string]*BossRaid)
+	}
+	if raid.ID != "" {
+		s.data.BossRaids[raid.ID] = &raid
+	}
 	s.data.BossRaid = &raid
 	return s.save()
 }

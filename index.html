@@ -3174,6 +3174,9 @@
           id = Date.now().toString(36) + Math.random().toString(36).slice(2);
           localStorage.setItem("uid", id);
         }
+        if (!id.startsWith("acc_")) {
+          localStorage.setItem("anon_uid", id);
+        }
         return id;
       })();
 
@@ -6572,7 +6575,8 @@
       function connect() {
         const protocol = location.protocol === "https:" ? "wss" : "ws";
         const authToken = localStorage.getItem("auth_token") || "";
-        ws = new WebSocket(`${protocol}://${location.host}/ws?uid=${encodeURIComponent(uid)}&trans=${encodeURIComponent(currentTrans)}&token=${encodeURIComponent(authToken)}`);
+        const anonUidParam = localStorage.getItem("anon_uid") || (!uid.startsWith("acc_") ? uid : "");
+        ws = new WebSocket(`${protocol}://${location.host}/ws?uid=${encodeURIComponent(uid)}&trans=${encodeURIComponent(currentTrans)}&token=${encodeURIComponent(authToken)}&anon_uid=${encodeURIComponent(anonUidParam)}`);
 
         ws.onopen = () => {
           resetReconnectDelay();
@@ -6584,6 +6588,15 @@
           const msg = JSON.parse(event.data);
 
           if (msg.type === "translations") {
+            if (msg.content && !msg.content.startsWith("acc_")) {
+              uid = msg.content;
+              localStorage.setItem("uid", uid);
+              localStorage.setItem("anon_uid", uid);
+            }
+            if (msg.auth_token && !uid.startsWith("acc_")) {
+              localStorage.setItem("auth_token", msg.auth_token);
+              localStorage.setItem("anon_token", msg.auth_token);
+            }
             transSelect.innerHTML = "";
             msg.translations.forEach((t) => {
               const opt = document.createElement("option");
@@ -6597,6 +6610,9 @@
           }
 
           if (msg.type === "auth_success" && msg.account) {
+            if (!uid.startsWith("acc_")) {
+              localStorage.setItem("anon_uid", uid);
+            }
             userAccount = msg.account;
             uid = msg.account.uid;
             localStorage.setItem("uid", uid);
@@ -6808,6 +6824,7 @@
             if (msg.wild_demon) {
               setWildDemon(msg.wild_demon, msg.holy_wards);
             } else {
+              window._lastAnnouncedWildDemonId = null;
               clearWildDemon();
             }
             updateRighteousnessUI();
@@ -7042,16 +7059,50 @@
           // Sanctuary Customizations & Unlocks
           if (msg.type === "sanctuary_state" || msg.type === "sanctuary_data") {
             if (msg.sanctuary) {
-              applyCustomizations(msg.sanctuary);
-              currentCustomizations = msg.sanctuary;
-              if (msg.sanctuary.guardian_wpm_locked !== undefined) {
-                guardianWPMLocked = !!msg.sanctuary.guardian_wpm_locked;
+              let mergedSanct = msg.sanctuary;
+              try {
+                const localRaw = localStorage.getItem("sanctuary_settings");
+                if (localRaw) {
+                  const localS = JSON.parse(localRaw);
+                  const srvDefault = (mergedSanct.guardian_level || 1) <= 1 && (mergedSanct.guardian_xp || 0) === 0 && mergedSanct.text_color === "emerald" && mergedSanct.font_family === "sans" && mergedSanct.caret_aura === "default";
+                  const hasLocalCustom = localS && (
+                    (localS.text_color && localS.text_color !== "emerald") ||
+                    (localS.font_family && localS.font_family !== "sans") ||
+                    (localS.caret_aura && localS.caret_aura !== "default") ||
+                    (localS.audio_profile && localS.audio_profile !== "classic") ||
+                    (localS.celebrate_fx && localS.celebrate_fx !== "confetti") ||
+                    (localS.guardian_name && localS.guardian_name !== "Guardian Angel") ||
+                    localS.guardian_wpm_locked
+                  );
+                  if (srvDefault && hasLocalCustom) {
+                    mergedSanct = {
+                      ...mergedSanct,
+                      text_color: localS.text_color || mergedSanct.text_color,
+                      font_family: localS.font_family || mergedSanct.font_family,
+                      caret_aura: localS.caret_aura || mergedSanct.caret_aura,
+                      audio_profile: localS.audio_profile || mergedSanct.audio_profile,
+                      celebrate_fx: localS.celebrate_fx || mergedSanct.celebrate_fx,
+                      guardian_name: localS.guardian_name || mergedSanct.guardian_name,
+                      guardian_pace: localS.guardian_pace !== undefined ? localS.guardian_pace : mergedSanct.guardian_pace,
+                      guardian_wpm_locked: !!localS.guardian_wpm_locked,
+                      guardian_locked_wpm: localS.guardian_locked_wpm || mergedSanct.guardian_locked_wpm
+                    };
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                      ws.send(JSON.stringify({ type: "save_sanctuary", sanctuary: mergedSanct }));
+                    }
+                  }
+                }
+              } catch (_) {}
+              applyCustomizations(mergedSanct);
+              currentCustomizations = mergedSanct;
+              if (mergedSanct.guardian_wpm_locked !== undefined) {
+                guardianWPMLocked = !!mergedSanct.guardian_wpm_locked;
               }
-              if (msg.sanctuary.guardian_locked_wpm !== undefined && msg.sanctuary.guardian_locked_wpm > 0) {
-                guardianLockedWPM = msg.sanctuary.guardian_locked_wpm;
+              if (mergedSanct.guardian_locked_wpm !== undefined && mergedSanct.guardian_locked_wpm > 0) {
+                guardianLockedWPM = mergedSanct.guardian_locked_wpm;
               }
-              trackerUnlocked = !!msg.sanctuary.tracker_unlocked;
-              demonsDefeatedCount = msg.sanctuary.demons_defeated || 0;
+              trackerUnlocked = !!mergedSanct.tracker_unlocked;
+              demonsDefeatedCount = mergedSanct.demons_defeated || 0;
               updateTrackerButtonBadge();
               updateAngelHeaderBadges();
               updateGuardianAndPeerSyncHUD();
@@ -7337,9 +7388,21 @@
             showToast("Adversary Vanquished!", "Faith and speed triumphed over darkness!", "✨");
           }
 
+          if (msg.type === "sync_complete") {
+            if (msg.streak) {
+              userStreak = msg.streak;
+              updateStreakUI();
+            }
+            if (msg.progress) {
+              bookProgress = mergeBookProgressMaps(bookProgress, msg.progress);
+              saveLocalBookProgress(currentTrans, bookProgress);
+            }
+          }
+
           // Wild Roaming Demons & Resonance Combat Messages
           if (msg.type === "wild_demon_present" && msg.wild_demon) {
-            const wasAlreadyFighting = activeWildDemon && activeWildDemon.id === msg.wild_demon.id;
+            const wasAlreadyFighting = window._lastAnnouncedWildDemonId === msg.wild_demon.id;
+            window._lastAnnouncedWildDemonId = msg.wild_demon.id;
             setWildDemon(msg.wild_demon, msg.holy_wards);
             if (msg.demon_tainted_up_to !== undefined && msg.demon_tainted_up_to >= 0) {
               markDemonTaintedRange(msg.demon_tainted_up_to);
@@ -7974,15 +8037,16 @@
           const item = document.createElement("div");
           item.className = "fav-item";
           const favBookDisp = f.translation === "rvr1909" ? (SPANISH_BOOK_NAMES[f.book_name] || f.book_name) : displayBookName(f.book_name);
+          const safeId = Number(f.id) || 0;
           item.innerHTML = `
             <div class="fav-header">
-              <span class="fav-ref">${favBookDisp} ${f.chapter}:${f.verse} (${f.translation.toUpperCase()})</span>
+              <span class="fav-ref">${escapeHtml(favBookDisp)} ${Number(f.chapter) || 1}:${Number(f.verse) || 1} (${escapeHtml(String(f.translation || "").toUpperCase())})</span>
               <div style="display:flex; gap: 0.4rem;">
-                <button class="icon-btn" style="height:30px; font-size:0.75rem;" data-type-fav="${f.id}">✍️ Type</button>
-                <button class="icon-btn" style="height:30px; font-size:0.75rem; color:var(--danger);" data-del-fav="${f.id}">✕</button>
+                <button class="icon-btn" style="height:30px; font-size:0.75rem;" data-type-fav="${safeId}">✍️ Type</button>
+                <button class="icon-btn" style="height:30px; font-size:0.75rem; color:var(--danger);" data-del-fav="${safeId}">✕</button>
               </div>
             </div>
-            <p class="fav-text">"${f.text}"</p>
+            <p class="fav-text">"${escapeHtml(f.text || "")}"</p>
           `;
           item.querySelector("[data-type-fav]").onclick = () => {
             closeModal(favModal);
@@ -8018,6 +8082,7 @@
           { id: "intro_scribe", icon: "✍️", name: "Prologue Scribe", desc: "Typed a Book Introduction" },
           { id: "review_scholar", icon: "🎓", name: "Epilogue Scholar", desc: "Typed a Book Review" },
           { id: "favorite_typist", icon: "🕊️", name: "Heart Inscription", desc: "Practiced a favorite passage" },
+          { id: "fav_collector", icon: "💎", name: "Scripture Treasurer", desc: "Collected 5+ favorite passages!" },
           { id: "daily_racer", icon: "🏆", name: "Daily Champion", desc: "Completed Verse of the Day race" },
           { id: "voice_herald", icon: "🎙️", name: "Voice of the Herald", desc: "Proclaimed Scripture aloud in Voice Mode" },
           { id: "pentateuch_master", icon: "📜", name: "Pentateuch Pioneer", desc: "Completed Genesis to Deuteronomy" },
@@ -8032,9 +8097,9 @@
           const card = document.createElement("div");
           card.className = "badge-card " + (earned ? "unlocked" : "locked");
           card.innerHTML = `
-            <span class="badge-icon">${earned ? earned.icon : cat.icon}</span>
-            <p class="badge-name">${cat.name}</p>
-            <p class="badge-desc">${earned ? earned.description : cat.desc}</p>
+            <span class="badge-icon">${escapeHtml(earned ? earned.icon : cat.icon)}</span>
+            <p class="badge-name">${escapeHtml(cat.name)}</p>
+            <p class="badge-desc">${escapeHtml(earned ? earned.description : cat.desc)}</p>
           `;
           cont.appendChild(card);
         });
@@ -8063,6 +8128,7 @@
           showToast("Validation", "Username and password are required", "⚠️");
           return;
         }
+        const anonId = !uid.startsWith("acc_") ? uid : (localStorage.getItem("anon_uid") || "");
         ws.send(JSON.stringify({
           type: "auth_register",
           username: user,
@@ -8070,7 +8136,8 @@
           password: pass,
           content: user,
           color: "#6366f1",
-          anon_uid: uid
+          anon_uid: anonId,
+          auth_token: localStorage.getItem("anon_token") || localStorage.getItem("auth_token") || ""
         }));
         closeModal(accountModal);
       };
@@ -8082,19 +8149,25 @@
           showToast("Validation", "Username and password are required", "⚠️");
           return;
         }
+        const anonId = !uid.startsWith("acc_") ? uid : (localStorage.getItem("anon_uid") || "");
         ws.send(JSON.stringify({
           type: "auth_login",
           username: user,
           password: pass,
-          anon_uid: uid
+          anon_uid: anonId,
+          auth_token: localStorage.getItem("anon_token") || localStorage.getItem("auth_token") || ""
         }));
         closeModal(accountModal);
       };
 
       document.getElementById("btnSubmitClaim").onclick = () => {
-        const target = document.getElementById("claimUidInput").value.trim();
+        const target = document.getElementById("claimUidInput").value.trim() || localStorage.getItem("anon_uid") || "";
         if (target) {
-          ws.send(JSON.stringify({ type: "claim_progress", anon_uid: target }));
+          ws.send(JSON.stringify({
+            type: "claim_progress",
+            anon_uid: target,
+            auth_token: localStorage.getItem("anon_token") || localStorage.getItem("auth_token") || ""
+          }));
           showToast("Claiming...", "Merging progress from previous ID", "🕊️");
           closeModal(accountModal);
         }

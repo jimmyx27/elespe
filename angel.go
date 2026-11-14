@@ -495,8 +495,8 @@ func (m *AngelManager) GetGlobalAngelStatus() *AngelInfo {
 	info.Chapter = m.globalAngel.Chapter
 	info.Verse = m.globalAngel.Verse
 	info.CharIndex = m.globalAngel.CharIndex
-	if len(m.globalAngel.Text) > 0 {
-		info.Progress = float64(m.globalAngel.CharIndex) / float64(len(m.globalAngel.Text))
+	if rLen := runeLen(m.globalAngel.Text); rLen > 0 {
+		info.Progress = float64(m.globalAngel.CharIndex) / float64(rLen)
 	}
 	return &info
 }
@@ -1298,8 +1298,8 @@ func (m *AngelManager) GetActiveCompanion(uid string) *AngelInfo {
 	info.Chapter = bot.Chapter
 	info.Verse = bot.Verse
 	info.CharIndex = bot.CharIndex
-	if len(bot.Text) > 0 {
-		info.Progress = float64(bot.CharIndex) / float64(len(bot.Text))
+	if rLen := runeLen(bot.Text); rLen > 0 {
+		info.Progress = float64(bot.CharIndex) / float64(rLen)
 	}
 	return &info
 }
@@ -1320,8 +1320,8 @@ func (m *AngelManager) GetPlayerGuardian(uid string) *AngelInfo {
 	info.Chapter = bot.Chapter
 	info.Verse = bot.Verse
 	info.CharIndex = bot.CharIndex
-	if len(bot.Text) > 0 {
-		info.Progress = float64(bot.CharIndex) / float64(len(bot.Text))
+	if rLen := runeLen(bot.Text); rLen > 0 {
+		info.Progress = float64(bot.CharIndex) / float64(rLen)
 	}
 	if m.hub != nil {
 		info.PlayerOnline = m.hub.IsUserConnected(uid)
@@ -1354,8 +1354,8 @@ func (m *AngelManager) GetRoamingGuardians() []AngelInfo {
 		info.Chapter = bot.Chapter
 		info.Verse = bot.Verse
 		info.CharIndex = bot.CharIndex
-		if len(bot.Text) > 0 {
-			info.Progress = float64(bot.CharIndex) / float64(len(bot.Text))
+		if rLen := runeLen(bot.Text); rLen > 0 {
+			info.Progress = float64(bot.CharIndex) / float64(rLen)
 		}
 		bot.mu.RUnlock()
 		if m.hub != nil {

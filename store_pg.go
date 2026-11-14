@@ -58,6 +58,7 @@ type postgresStore struct {
 	leaderboardsCache     map[string]cachedLeaderboards
 	crowdMetricsCache     *CrowdMetrics
 	crowdMetricsAt        time.Time
+	activeBossRaidID      string
 
 	stopFlushChan chan struct{}
 	flushDoneChan chan struct{}
@@ -399,10 +400,14 @@ func (s *postgresStore) initDB(ctx context.Context) error {
 		celebrate_fx TEXT NOT NULL DEFAULT 'confetti',
 		guardian_name TEXT DEFAULT '',
 		guardian_pace INT DEFAULT 5,
+		guardian_wpm_locked BOOLEAN DEFAULT false,
+		guardian_locked_wpm INT DEFAULT 0,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_name TEXT DEFAULT '';
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_pace INT DEFAULT 0;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_wpm_locked BOOLEAN DEFAULT false;
+	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_locked_wpm INT DEFAULT 0;
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_level INT DEFAULT 1;
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS guardian_xp INT DEFAULT 0;
 	ALTER TABLE sanctuary_settings ADD COLUMN IF NOT EXISTS preferred_angel_levels JSONB DEFAULT '{}';
@@ -1220,18 +1225,30 @@ func (s *postgresStore) MergeUserProgress(ctx context.Context, targetUID, source
 	_, _ = tx.Exec(ctx, `
 		INSERT INTO sanctuary_settings (
 			uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
-			guardian_name, guardian_pace, guardian_level, guardian_xp,
+			guardian_name, guardian_pace, guardian_wpm_locked, guardian_locked_wpm,
+			guardian_level, guardian_xp,
 			preferred_angel_levels, preferred_demon_levels, demons_defeated, passage_burst_damage,
-			summon_tokens, tokens_spent, synced_letters, synced_words, synced_verses, synced_books
+			summon_tokens, tokens_spent, synced_letters, synced_words, synced_verses, synced_books,
+			guardian_book_name, guardian_chapter, guardian_verse
 		)
 		SELECT
 			$1, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
-			guardian_name, guardian_pace, guardian_level, guardian_xp,
+			guardian_name, guardian_pace, COALESCE(guardian_wpm_locked, false), COALESCE(guardian_locked_wpm, 0),
+			guardian_level, guardian_xp,
 			preferred_angel_levels, preferred_demon_levels, demons_defeated, passage_burst_damage,
-			summon_tokens, tokens_spent, synced_letters, synced_words, synced_verses, synced_books
+			summon_tokens, tokens_spent, synced_letters, synced_words, synced_verses, synced_books,
+			COALESCE(guardian_book_name, ''), COALESCE(guardian_chapter, 0), COALESCE(guardian_verse, 0)
 		FROM sanctuary_settings
 		WHERE uid = $2
 		ON CONFLICT (uid) DO UPDATE SET
+			text_color = CASE WHEN sanctuary_settings.text_color = 'emerald' THEN EXCLUDED.text_color ELSE sanctuary_settings.text_color END,
+			font_family = CASE WHEN sanctuary_settings.font_family = 'sans' THEN EXCLUDED.font_family ELSE sanctuary_settings.font_family END,
+			caret_aura = CASE WHEN sanctuary_settings.caret_aura = 'default' THEN EXCLUDED.caret_aura ELSE sanctuary_settings.caret_aura END,
+			audio_profile = CASE WHEN sanctuary_settings.audio_profile = 'classic' THEN EXCLUDED.audio_profile ELSE sanctuary_settings.audio_profile END,
+			celebrate_fx = CASE WHEN sanctuary_settings.celebrate_fx = 'confetti' THEN EXCLUDED.celebrate_fx ELSE sanctuary_settings.celebrate_fx END,
+			guardian_name = CASE WHEN sanctuary_settings.guardian_name = '' OR sanctuary_settings.guardian_name = 'Guardian Angel' THEN EXCLUDED.guardian_name ELSE sanctuary_settings.guardian_name END,
+			guardian_wpm_locked = sanctuary_settings.guardian_wpm_locked OR EXCLUDED.guardian_wpm_locked,
+			guardian_locked_wpm = GREATEST(sanctuary_settings.guardian_locked_wpm, EXCLUDED.guardian_locked_wpm),
 			guardian_level = GREATEST(sanctuary_settings.guardian_level, EXCLUDED.guardian_level),
 			guardian_xp = GREATEST(sanctuary_settings.guardian_xp, EXCLUDED.guardian_xp),
 			demons_defeated = sanctuary_settings.demons_defeated + EXCLUDED.demons_defeated,
@@ -1675,6 +1692,15 @@ func (s *postgresStore) RecordVerseCompletion(ctx context.Context, uid, translat
 	uKey := fmt.Sprintf("%s|%s", uid, gKey)
 	isBot := uid == "" || strings.HasPrefix(uid, "angel-")
 
+	// Warm cold cache entries from DB before incrementing so pre-existing counts aren't treated as 0
+	s.mu.RLock()
+	_, hasG := s.globalVerseCompCache[gKey]
+	_, hasU := s.userVerseCompCache[uKey]
+	s.mu.RUnlock()
+	if !hasG || (!isBot && !hasU) {
+		_, _, _ = s.GetVerseCompletions(ctx, uid, translation, bookName, chapter, verse)
+	}
+
 	s.mu.Lock()
 	gCount := s.globalVerseCompCache[gKey] + 1
 	s.globalVerseCompCache[gKey] = gCount
@@ -1717,7 +1743,10 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 	var angelLvlsJSON, demonLvlsJSON []byte
 	err := s.pool.QueryRow(ctx, `
 		SELECT text_color, font_family, caret_aura, audio_profile, celebrate_fx,
-		       guardian_name, guardian_pace, guardian_level, guardian_xp, demons_defeated,
+		       guardian_name, guardian_pace,
+		       COALESCE(guardian_wpm_locked, false),
+		       COALESCE(guardian_locked_wpm, 0),
+		       guardian_level, guardian_xp, demons_defeated,
 		       COALESCE(passage_burst_damage, 30),
 		       COALESCE(summon_tokens, 0),
 		       COALESCE(tokens_spent, 0),
@@ -1733,7 +1762,8 @@ func (s *postgresStore) GetCustomizations(ctx context.Context, uid string) (*San
 		FROM sanctuary_settings WHERE uid = $1
 	`, uid).Scan(
 		&set.TextColor, &set.FontFamily, &set.CaretAura, &set.AudioProfile, &set.CelebrateFx,
-		&set.GuardianName, &set.GuardianPace, &set.GuardianLevel, &set.GuardianXP, &set.DemonsDefeated,
+		&set.GuardianName, &set.GuardianPace, &set.GuardianWPMLocked, &set.GuardianLockedWPM,
+		&set.GuardianLevel, &set.GuardianXP, &set.DemonsDefeated,
 		&set.PassageBurstDamage, &set.SummonTokens, &set.TokensSpent,
 		&set.SyncedLetters, &set.SyncedWords, &set.SyncedVerses, &set.SyncedBooks,
 		&set.GuardianBookName, &set.GuardianChapter, &set.GuardianVerse,
@@ -1828,13 +1858,14 @@ func (s *postgresStore) flushSanctuaryRow(ctx context.Context, uid string, setti
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO sanctuary_settings (
 			uid, text_color, font_family, caret_aura, audio_profile, celebrate_fx,
-			guardian_name, guardian_pace, guardian_level, guardian_xp,
+			guardian_name, guardian_pace, guardian_wpm_locked, guardian_locked_wpm,
+			guardian_level, guardian_xp,
 			demons_defeated, passage_burst_damage, summon_tokens, tokens_spent,
 			synced_letters, synced_words, synced_verses, synced_books,
 			guardian_book_name, guardian_chapter, guardian_verse,
 			preferred_angel_levels, preferred_demon_levels, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, CURRENT_TIMESTAMP)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, CURRENT_TIMESTAMP)
 		ON CONFLICT (uid) DO UPDATE SET
 			text_color = EXCLUDED.text_color,
 			font_family = EXCLUDED.font_family,
@@ -1843,6 +1874,8 @@ func (s *postgresStore) flushSanctuaryRow(ctx context.Context, uid string, setti
 			celebrate_fx = EXCLUDED.celebrate_fx,
 			guardian_name = EXCLUDED.guardian_name,
 			guardian_pace = EXCLUDED.guardian_pace,
+			guardian_wpm_locked = EXCLUDED.guardian_wpm_locked,
+			guardian_locked_wpm = EXCLUDED.guardian_locked_wpm,
 			guardian_level = EXCLUDED.guardian_level,
 			guardian_xp = EXCLUDED.guardian_xp,
 			demons_defeated = EXCLUDED.demons_defeated,
@@ -1860,7 +1893,8 @@ func (s *postgresStore) flushSanctuaryRow(ctx context.Context, uid string, setti
 			preferred_demon_levels = EXCLUDED.preferred_demon_levels,
 			updated_at = CURRENT_TIMESTAMP
 	`, uid, settings.TextColor, settings.FontFamily, settings.CaretAura, settings.AudioProfile, settings.CelebrateFx,
-		settings.GuardianName, settings.GuardianPace, settings.GuardianLevel, settings.GuardianXP,
+		settings.GuardianName, settings.GuardianPace, settings.GuardianWPMLocked, settings.GuardianLockedWPM,
+		settings.GuardianLevel, settings.GuardianXP,
 		settings.DemonsDefeated, settings.PassageBurstDamage, settings.SummonTokens, settings.TokensSpent,
 		settings.SyncedLetters, settings.SyncedWords, settings.SyncedVerses, settings.SyncedBooks,
 		settings.GuardianBookName, settings.GuardianChapter, settings.GuardianVerse,
@@ -2010,6 +2044,9 @@ func (s *postgresStore) GetBossRaidForLevel(ctx context.Context, level int, isDe
 	b.Level = level
 	b.MaxLevel = 4
 	b.IsDemonBoss = isDemon
+	s.mu.Lock()
+	s.activeBossRaidID = b.ID
+	s.mu.Unlock()
 	return &b, nil
 }
 
@@ -2024,21 +2061,42 @@ func (s *postgresStore) RecordBossStrike(ctx context.Context, uid, displayName, 
 	}
 	conqJSON, _ := json.Marshal([]BossConqueror{conq})
 
+	s.mu.RLock()
+	targetID := s.activeBossRaidID
+	s.mu.RUnlock()
+
 	var b BossRaid
 	var rawConquerors []byte
-	err := s.pool.QueryRow(ctx, `
-		UPDATE boss_raids
-		SET current_hp = GREATEST(0, current_hp - $1),
-		    conquered = (current_hp - $1 <= 0),
-		    conquerors = ($2::jsonb || COALESCE(conquerors, '[]'::jsonb)),
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = (SELECT id FROM boss_raids ORDER BY updated_at DESC LIMIT 1)
-		RETURNING id, boss_name, boss_title, boss_rank, boss_wpm, COALESCE(level, 2), COALESCE(max_level, 4), COALESCE(is_demon_boss, false),
-		          max_hp, current_hp, required_wpm, translation, book_name, chapter, verse, text, conquered, conquerors, updated_at
-	`, damage, conqJSON).Scan(
-		&b.ID, &b.BossName, &b.BossTitle, &b.BossRank, &b.BossWPM, &b.Level, &b.MaxLevel, &b.IsDemonBoss,
-		&b.MaxHP, &b.CurrentHP, &b.RequiredWPM, &b.Translation, &b.BookName, &b.Chapter, &b.Verse, &b.Text, &b.Conquered, &rawConquerors, &b.UpdatedAt,
-	)
+	var err error
+	if targetID != "" {
+		err = s.pool.QueryRow(ctx, `
+			UPDATE boss_raids
+			SET current_hp = GREATEST(0, current_hp - $1),
+			    conquered = (current_hp - $1 <= 0),
+			    conquerors = ($2::jsonb || COALESCE(conquerors, '[]'::jsonb)),
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE id = $3
+			RETURNING id, boss_name, boss_title, boss_rank, boss_wpm, COALESCE(level, 2), COALESCE(max_level, 4), COALESCE(is_demon_boss, false),
+			          max_hp, current_hp, required_wpm, translation, book_name, chapter, verse, text, conquered, conquerors, updated_at
+		`, damage, conqJSON, targetID).Scan(
+			&b.ID, &b.BossName, &b.BossTitle, &b.BossRank, &b.BossWPM, &b.Level, &b.MaxLevel, &b.IsDemonBoss,
+			&b.MaxHP, &b.CurrentHP, &b.RequiredWPM, &b.Translation, &b.BookName, &b.Chapter, &b.Verse, &b.Text, &b.Conquered, &rawConquerors, &b.UpdatedAt,
+		)
+	} else {
+		err = s.pool.QueryRow(ctx, `
+			UPDATE boss_raids
+			SET current_hp = GREATEST(0, current_hp - $1),
+			    conquered = (current_hp - $1 <= 0),
+			    conquerors = ($2::jsonb || COALESCE(conquerors, '[]'::jsonb)),
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE id = (SELECT id FROM boss_raids ORDER BY updated_at DESC LIMIT 1)
+			RETURNING id, boss_name, boss_title, boss_rank, boss_wpm, COALESCE(level, 2), COALESCE(max_level, 4), COALESCE(is_demon_boss, false),
+			          max_hp, current_hp, required_wpm, translation, book_name, chapter, verse, text, conquered, conquerors, updated_at
+		`, damage, conqJSON).Scan(
+			&b.ID, &b.BossName, &b.BossTitle, &b.BossRank, &b.BossWPM, &b.Level, &b.MaxLevel, &b.IsDemonBoss,
+			&b.MaxHP, &b.CurrentHP, &b.RequiredWPM, &b.Translation, &b.BookName, &b.Chapter, &b.Verse, &b.Text, &b.Conquered, &rawConquerors, &b.UpdatedAt,
+		)
+	}
 	if err != nil {
 		def := defaultBossRaid()
 		_ = s.ResetBossRaid(ctx, *def)
@@ -2063,6 +2121,9 @@ func (s *postgresStore) ResetBossRaid(ctx context.Context, raid BossRaid) error 
 	if raid.MaxLevel < 1 {
 		raid.MaxLevel = 4
 	}
+	s.mu.Lock()
+	s.activeBossRaidID = raid.ID
+	s.mu.Unlock()
 	raw, _ := json.Marshal(raid.Conquerors)
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO boss_raids (id, boss_name, boss_title, boss_rank, boss_wpm, level, max_level, is_demon_boss,

@@ -252,9 +252,9 @@ func GetAllCustomizationUnlocks(topWPM, totalVerses, longestStreak, booksComplet
 }
 
 // FindNewlyUnlockedCustomizations checks if the latest milestone unlocked any new items
-func FindNewlyUnlockedCustomizations(oldWPM, newWPM, oldVerses, newVerses, oldStreak, newStreak, booksComp int) []CustomizationUnlock {
-	beforeList := GetAllCustomizationUnlocks(oldWPM, oldVerses, oldStreak, booksComp)
-	afterList := GetAllCustomizationUnlocks(newWPM, newVerses, newStreak, booksComp)
+func FindNewlyUnlockedCustomizations(oldWPM, newWPM, oldVerses, newVerses, oldStreak, newStreak, oldBooksComp, newBooksComp int) []CustomizationUnlock {
+	beforeList := GetAllCustomizationUnlocks(oldWPM, oldVerses, oldStreak, oldBooksComp)
+	afterList := GetAllCustomizationUnlocks(newWPM, newVerses, newStreak, newBooksComp)
 
 	beforeMap := make(map[string]bool)
 	for _, u := range beforeList {

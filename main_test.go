@@ -849,7 +849,7 @@ func TestCustomizationsUnlockAndEquip(t *testing.T) {
 	}
 
 	// 4. Test newly unlocked detection
-	newUnlocks := FindNewlyUnlockedCustomizations(79, 82, 10, 11, 1, 1, 0)
+	newUnlocks := FindNewlyUnlockedCustomizations(79, 82, 10, 11, 1, 1, 0, 0)
 	var foundAmethyst bool
 	for _, nu := range newUnlocks {
 		if nu.ID == "color_amethyst" {
@@ -859,6 +859,17 @@ func TestCustomizationsUnlockAndEquip(t *testing.T) {
 	}
 	if !foundAmethyst {
 		t.Errorf("Expected FindNewlyUnlockedCustomizations to report color_amethyst when jumping from 79 to 82 WPM")
+	}
+	bookUnlocks := FindNewlyUnlockedCustomizations(82, 82, 11, 11, 1, 1, 0, 1)
+	var foundGold bool
+	for _, bu := range bookUnlocks {
+		if bu.ID == "color_gold" {
+			foundGold = true
+			break
+		}
+	}
+	if !foundGold {
+		t.Errorf("Expected FindNewlyUnlockedCustomizations to report color_gold when completing first book (0 -> 1)")
 	}
 
 	// 5. Test saving and retrieving equipped customizations in store
@@ -1021,14 +1032,18 @@ func TestWebSocketSanctuaryAndAngelIntegration(t *testing.T) {
 		t.Errorf("Expected 5 angels in angels_list, got %d", len(angelMsg.Angels))
 	}
 
-	// 3. Save sanctuary customization (with 1 Summon Token to test Big Mike summoning)
+	// 3. Save sanctuary customization (grant 1 Summon Token on server store to test Big Mike summoning)
+	srvSanct, _ := ls.GetCustomizations(context.Background(), "sanctuary_tester")
+	srvSanct.SummonTokens = 1
+	_ = ls.SaveCustomizations(context.Background(), "sanctuary_tester", *srvSanct)
+
 	newSettings := SanctuarySettings{
 		TextColor:    "amethyst",
 		FontFamily:   "serif",
 		CaretAura:    "flame",
 		AudioProfile: "chime",
 		CelebrateFx:  "gold",
-		SummonTokens: 1,
+		SummonTokens: 999, // Client attempt to spoof tokens must be ignored!
 	}
 	if err := wsConn.WriteJSON(Message{Type: "save_sanctuary", Sanctuary: &newSettings}); err != nil {
 		t.Fatal(err)
@@ -1039,6 +1054,9 @@ func TestWebSocketSanctuaryAndAngelIntegration(t *testing.T) {
 	}
 	if savedMsg.Sanctuary == nil || savedMsg.Sanctuary.TextColor != "amethyst" {
 		t.Errorf("Expected saved sanctuary to have amethyst, got %+v", savedMsg.Sanctuary)
+	}
+	if savedMsg.Sanctuary.SummonTokens != 1 {
+		t.Errorf("Expected save_sanctuary to preserve server-authoritative SummonTokens=1, got %d", savedMsg.Sanctuary.SummonTokens)
 	}
 
 	// 4. Test angel companion summoning via WebSocket
@@ -3331,6 +3349,236 @@ func TestGuardianTrainerPacingWPMLockDemonChallengesAndProgressSync(t *testing.T
 		t.Errorf("Expected select_book with BookProgressSync to load Genesis verse #4 (not Genesis 0 intro), got type=%q number=%d", respMsg.Type, respMsg.Number)
 	}
 }
+
+func TestBugFixesAndSecurityHardening(t *testing.T) {
+	if len(translations) == 0 {
+		if err := loadTranslationsAndGuides(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tmpDir, err := os.MkdirTemp("", "elespe_bugfix_security_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ls, err := newLocalStore(filepath.Join(tmpDir, "data.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store = ls
+	globalHub = newHub()
+	go globalHub.run()
+	globalAngelManager = newAngelManager(ls, globalHub)
+	defer globalAngelManager.Stop()
+	globalDemonManager = newDemonManager(ls, globalHub)
+	defer globalDemonManager.Stop()
+
+	ctx := context.Background()
+
+	// 1. Multi-tier Boss Raid isolation (Bug 5):
+	// Striking Lv.2 Big Mike and then viewing Lv.3 Big Mike must NOT reset Lv.2 Big Mike's HP!
+	lv2Before, err := ls.GetBossRaidForLevel(ctx, 2, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	struckLv2, err := ls.RecordBossStrike(ctx, "striker", "Striker", "#6366f1", 100, 500)
+	if err != nil || struckLv2.CurrentHP != lv2Before.MaxHP-500 {
+		t.Fatalf("Expected Lv.2 HP to drop by 500, got %+v (err %v)", struckLv2, err)
+	}
+	// View Lv.3 and Demon Boss Lv.1
+	_, _ = ls.GetBossRaidForLevel(ctx, 3, false)
+	_, _ = ls.GetBossRaidForLevel(ctx, 1, true)
+	// Switch back to Lv.2 Big Mike -> HP must still be MaxHP-500!
+	lv2After, err := ls.GetBossRaidForLevel(ctx, 2, false)
+	if err != nil || lv2After.CurrentHP != lv2Before.MaxHP-500 {
+		t.Errorf("Expected Lv.2 Boss Raid HP to be preserved (%d) after viewing other tiers, got %d", lv2Before.MaxHP-500, lv2After.CurrentHP)
+	}
+
+	// 2. UTF-8 Rune Length vs Byte Length in Angel Progress (Bug 10):
+	utf8Text := "¡Bendito el Señor, que oyó mi oración!"
+	rLen := runeLen(utf8Text)
+	if rLen == len(utf8Text) {
+		t.Fatalf("Expected multibyte UTF-8 test string")
+	}
+	globalAngelManager.EnsurePlayerGuardian("utf8_user", "UTF8 Scribe", "#10b981", "rvr1909", "Psalms", 28, 6, utf8Text)
+	globalAngelManager.mu.RLock()
+	bot := globalAngelManager.guardians["utf8_user"]
+	globalAngelManager.mu.RUnlock()
+	bot.mu.Lock()
+	bot.CharIndex = rLen
+	bot.mu.Unlock()
+	gStatus := globalAngelManager.GetPlayerGuardian("utf8_user")
+	if gStatus == nil || gStatus.Progress < 0.999 {
+		t.Errorf("Expected GetPlayerGuardian Progress=1.0 at end of UTF-8 verse, got %+v", gStatus)
+	}
+
+	// 3. Hex color sanitization against CSS injection:
+	if got := sanitizeHexColor("#10b981"); got != "#10b981" {
+		t.Errorf("Expected valid hex color #10b981 to pass, got %q", got)
+	}
+	if got := sanitizeHexColor("#000; position:fixed; inset:0"); got != "#6366f1" {
+		t.Errorf("Expected CSS injection payload to be sanitized to #6366f1, got %q", got)
+	}
+
+	// 4. WebSocket tests for confront_wild_demon (Bug 2), jump_to_guardian (Bug 3),
+	// boss_raid demon dismissal (Bug 7), and fav_collector badge (Bug 11):
+	server := httptest.NewServer(http.HandlerFunc(handleWebSocket))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "?uid=bugfix_ws_tester&trans=kjv"
+	wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial failed: %v", err)
+	}
+	defer wsConn.Close()
+
+	readUntilType := func(targetTypes ...string) (Message, error) {
+		_ = wsConn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		for {
+			var m Message
+			if err := wsConn.ReadJSON(&m); err != nil {
+				return m, err
+			}
+			for _, tt := range targetTypes {
+				if m.Type == tt {
+					return m, nil
+				}
+			}
+		}
+	}
+
+	if _, err := readUntilType("books"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Confront a wild demon on Genesis 3:1 as a fresh user:
+	// Must jump directly to Genesis 3:1 ("verse") AND must NOT grant free progress in Genesis!
+	if err := wsConn.WriteJSON(Message{Type: "confront_wild_demon", DemonID: "wild-imp-1"}); err != nil {
+		t.Fatal(err)
+	}
+	confrontMsg, err := readUntilType("verse", "intro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if confrontMsg.Type != "verse" || confrontMsg.Verse == nil || confrontMsg.Verse.Chapter != 3 || confrontMsg.Verse.Verse != 1 {
+		t.Errorf("Expected confront_wild_demon to land directly on Genesis 3:1 verse, got type=%q verse=%+v", confrontMsg.Type, confrontMsg.Verse)
+	}
+	bpGen, _ := ls.GetBookProgress(ctx, "bugfix_ws_tester", "kjv", "Genesis", 1533)
+	if bpGen.CurrentVerse != 0 || bpGen.IntroCompleted {
+		t.Errorf("confront_wild_demon must NOT grant free permanent book progress! Got CurrentVerse=%d IntroCompleted=%v", bpGen.CurrentVerse, bpGen.IntroCompleted)
+	}
+
+	// Jump to utf8_user's Guardian Angel on Psalms 28:6:
+	// Must jump directly to Psalms 28:6 ("verse") without being blocked by mandatory intro or CurrentVerse clamping!
+	if err := wsConn.WriteJSON(Message{Type: "jump_to_guardian", PeerAngelUID: "utf8_user"}); err != nil {
+		t.Fatal(err)
+	}
+	jumpMsg, err := readUntilType("verse", "intro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jumpMsg.Type != "verse" || jumpMsg.Verse == nil || jumpMsg.Verse.BookName != "Psalms" || jumpMsg.Verse.Chapter != 28 || jumpMsg.Verse.Verse != 6 {
+		t.Errorf("Expected jump_to_guardian to land on Psalms 28:6 verse, got type=%q verse=%+v", jumpMsg.Type, jumpMsg.Verse)
+	}
+
+	// Start Demon Boss Raid and then exit_mode -> must send demon_dismissed!
+	if err := wsConn.WriteJSON(Message{Type: "start_boss_raid", BossLevel: 1, IsDemonBoss: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readUntilType("demon_summoned"); err != nil {
+		t.Fatalf("Expected demon_summoned on demon boss raid start: %v", err)
+	}
+	if err := wsConn.WriteJSON(Message{Type: "exit_mode"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readUntilType("demon_dismissed"); err != nil {
+		t.Fatalf("Expected demon_dismissed when exiting demon boss raid: %v", err)
+	}
+
+	// Favorite 5 verses -> must award fav_collector badge!
+	for vNum := 1; vNum <= 5; vNum++ {
+		if err := wsConn.WriteJSON(Message{
+			Type:  "toggle_favorite",
+			Verse: &Verse{BookName: "Genesis", Chapter: 1, Verse: vNum},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := readUntilType("favoriteToggled"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	badgeMsg, err := readUntilType("badgeUnlocked")
+	if err != nil || badgeMsg.Reward == nil || badgeMsg.Reward.ID != "fav_collector" {
+		t.Errorf("Expected fav_collector badgeUnlocked after favoriting 5 verses, got %+v (err %v)", badgeMsg, err)
+	}
+
+	// 5. Guest persistence via BookProgressSync & seamless merge into a newly created account:
+	// First set some sanctuary stats for the guest user:
+	guestSancInit, _ := ls.GetCustomizations(ctx, "bugfix_ws_tester")
+	guestSancInit.GuardianLevel = 10
+	guestSancInit.GuardianWPMLocked = true
+	guestSancInit.GuardianLockedWPM = 88
+	_ = ls.SaveCustomizations(ctx, "bugfix_ws_tester", *guestSancInit)
+
+	if err := wsConn.WriteJSON(Message{
+		Type:        "select_book",
+		Translation: "kjv",
+		Book:        "Genesis",
+		BookProgressSync: map[string]BookProgress{
+			"Genesis": {
+				CurrentVerse:   25,
+				TotalVerses:    1533,
+				IntroCompleted: true,
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readUntilType("verse"); err != nil {
+		t.Fatal(err)
+	}
+	guestStreak, _ := ls.GetStreak(ctx, "bugfix_ws_tester")
+	if guestStreak.TotalVersesTyped < 24 {
+		t.Errorf("Expected BookProgressSync to reconcile TotalVersesTyped >= 24 for guest, got %d", guestStreak.TotalVersesTyped)
+	}
+
+	// Register an account while connected as guest ("bugfix_ws_tester") -> must merge guest progress & sanctuary settings!
+	if err := wsConn.WriteJSON(Message{
+		Type:     "auth_register",
+		Email:    "guestmerge@example.com",
+		Password: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+		Username: "MergedSaint",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	authMsg, err := readUntilType("auth_success")
+	if err != nil || authMsg.Account == nil {
+		t.Fatalf("Expected auth_success on registration: %v", err)
+	}
+	mergedUID := authMsg.Account.UID
+	mergedBP, _ := ls.GetBookProgress(ctx, mergedUID, "kjv", "Genesis", 1533)
+	if mergedBP == nil || mergedBP.CurrentVerse != 25 || !mergedBP.IntroCompleted {
+		t.Errorf("Expected guest book progress (Genesis verse 25) to merge into new account %s, got %+v", mergedUID, mergedBP)
+	}
+	mergedSanc, _ := ls.GetCustomizations(ctx, mergedUID)
+	if mergedSanc == nil || mergedSanc.GuardianLevel != 10 || !mergedSanc.GuardianWPMLocked || mergedSanc.GuardianLockedWPM != 88 {
+		t.Errorf("Expected guest sanctuary stats & WPM lock to merge into new account %s, got %+v", mergedUID, mergedSanc)
+	}
+	mergedBadges, _ := ls.GetBadges(ctx, mergedUID)
+	hasFavBadge := false
+	for _, b := range mergedBadges {
+		if b.ID == "fav_collector" {
+			hasFavBadge = true
+			break
+		}
+	}
+	if !hasFavBadge {
+		t.Errorf("Expected guest badges (fav_collector) to merge into new account %s", mergedUID)
+	}
+}
+
 
 
 

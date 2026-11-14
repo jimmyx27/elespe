@@ -503,6 +503,16 @@ func checkAndAwardBadges(ctx context.Context, s Store, uid, trans, book string, 
 			EarnedAt:    now,
 		})
 	}
+	if mode == "fav_collect" {
+		tryAward(Badge{
+			ID:          "fav_collector",
+			Type:        "special",
+			Name:        "Scripture Treasurer",
+			Description: "Collected 5+ favorite passages!",
+			Icon:        "💎",
+			EarnedAt:    now,
+		})
+	}
 	if mode == "challenge" {
 		tryAward(Badge{
 			ID:          "daily_racer",
@@ -635,8 +645,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	uid := r.URL.Query().Get("uid")
 	token := r.URL.Query().Get("token")
+	anonQueryUID := strings.TrimSpace(r.URL.Query().Get("anon_uid"))
 	if uid == "" || (strings.HasPrefix(uid, "acc_") && !verifyAuthToken(uid, token)) {
-		uid = fmt.Sprintf("user_%d", time.Now().UnixNano())
+		if anonQueryUID != "" && !strings.HasPrefix(anonQueryUID, "acc_") {
+			uid = anonQueryUID
+		} else {
+			uid = fmt.Sprintf("user_%d", time.Now().UnixNano())
+		}
+	}
+	initialGuestUID := ""
+	if !strings.HasPrefix(uid, "acc_") {
+		initialGuestUID = uid
+	} else if anonQueryUID != "" && !strings.HasPrefix(anonQueryUID, "acc_") {
+		initialGuestUID = anonQueryUID
 	}
 
 	activeStore := store
@@ -691,8 +712,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send initial state to client
+	initGuestToken := ""
+	if account == nil {
+		initGuestToken = signAuthToken(uid)
+	}
 	_ = conn.WriteJSON(Message{
 		Type:         "translations",
+		Content:      uid,
+		AuthToken:    initGuestToken,
 		Translation:  currentTransID,
 		Translations: availableTransList,
 	})
@@ -854,6 +881,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	var activeChallenge *DailyChallenge
 	var activeBossRaid *BossRaid
 	var challengeStartTime time.Time
+	allowTemporaryVerseJump := false
+	bossRaidSummonedDemon := false
+	lastAngelInteract := make(map[string]time.Time)
 
 	runtimeStats := RuntimeStats{
 		StartTime:      time.Now(),
@@ -919,7 +949,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		guide, _ := getBookGuide(currentTransID, selectedBook)
 		stats := currentStats()
 
-		if !bookProgress.IntroCompleted && (getGlobalAdmin() == nil || getGlobalAdmin().GetOptions().MandatoryBookIntro) {
+		if !bookProgress.IntroCompleted && !allowTemporaryVerseJump && (getGlobalAdmin() == nil || getGlobalAdmin().GetOptions().MandatoryBookIntro) {
 			currentMode = "intro"
 			runtimeStats.VerseStartTime = time.Now()
 			client.VerseStartTime = runtimeStats.VerseStartTime
@@ -942,7 +972,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if activeVerseIdx > bookProgress.CurrentVerse {
+		if activeVerseIdx > bookProgress.CurrentVerse && !allowTemporaryVerseJump {
 			activeVerseIdx = bookProgress.CurrentVerse
 		}
 		if activeVerseIdx < 0 {
@@ -1122,6 +1152,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		sendSanctuaryState(allProg)
 		if selectedBook != "" {
 			bookProgress, _ = activeStore.GetBookProgress(ctx, uid, currentTransID, selectedBook, len(bookVerses))
+			if bookProgress != nil && activeVerseIdx < bookProgress.CurrentVerse {
+				activeVerseIdx = bookProgress.CurrentVerse
+			}
 			sendCurrentVerse()
 		}
 	}
@@ -1136,10 +1169,17 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		// ---- Identity & Account Messages ----
 		case "auth_register":
-			acc, err := activeStore.RegisterAccount(ctx, msg.Username, msg.Email, hashPassword(msg.Password), msg.Content, msg.Color, msg.AnonUID)
+			anonToMerge := strings.TrimSpace(msg.AnonUID)
+			if (anonToMerge == "" || strings.HasPrefix(anonToMerge, "acc_")) && initialGuestUID != "" {
+				anonToMerge = initialGuestUID
+			}
+			acc, err := activeStore.RegisterAccount(ctx, msg.Username, msg.Email, hashPassword(msg.Password), msg.Content, sanitizeHexColor(msg.Color), anonToMerge)
 			if err != nil {
 				_ = conn.WriteJSON(Message{Type: "auth_error", Content: err.Error()})
 				continue
+			}
+			if activeAngelMgr != nil && uid != acc.UID {
+				activeAngelMgr.OnUserDisconnect(uid)
 			}
 			uid = acc.UID
 			client.UID = acc.UID
@@ -1152,10 +1192,17 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			syncUserStateAfterAuth()
 
 		case "auth_login":
-			acc, err := activeStore.LoginAccount(ctx, msg.Username, hashPassword(msg.Password), msg.AnonUID)
+			anonToMerge := strings.TrimSpace(msg.AnonUID)
+			if (anonToMerge == "" || strings.HasPrefix(anonToMerge, "acc_")) && initialGuestUID != "" {
+				anonToMerge = initialGuestUID
+			}
+			acc, err := activeStore.LoginAccount(ctx, msg.Username, hashPassword(msg.Password), anonToMerge)
 			if err != nil {
 				_ = conn.WriteJSON(Message{Type: "auth_error", Content: err.Error()})
 				continue
+			}
+			if activeAngelMgr != nil && uid != acc.UID {
+				activeAngelMgr.OnUserDisconnect(uid)
 			}
 			uid = acc.UID
 			client.UID = acc.UID
@@ -1168,7 +1215,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			syncUserStateAfterAuth()
 
 		case "update_profile":
-			acc, err := activeStore.UpdateProfile(ctx, uid, msg.Content, msg.Color)
+			acc, err := activeStore.UpdateProfile(ctx, uid, msg.Content, sanitizeHexColor(msg.Color))
 			if err == nil {
 				client.DisplayName = acc.DisplayName
 				client.AvatarColor = acc.AvatarColor
@@ -1180,8 +1227,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		case "claim_progress":
 			if msg.AnonUID != "" && msg.AnonUID != uid && !strings.HasPrefix(msg.AnonUID, "acc_") {
-				_ = activeStore.MergeUserProgress(ctx, uid, msg.AnonUID)
-				syncUserStateAfterAuth()
+				if msg.AnonUID == initialGuestUID || verifyAuthToken(msg.AnonUID, msg.AuthToken) || (activeHub == nil || !activeHub.IsUserConnected(msg.AnonUID)) {
+					_ = activeStore.MergeUserProgress(ctx, uid, msg.AnonUID)
+					syncUserStateAfterAuth()
+				}
 			}
 
 		// ---- Daily Challenge & Race Messages ----
@@ -1411,10 +1460,56 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		case "save_sanctuary":
 			if msg.Sanctuary != nil {
-				_ = activeStore.SaveCustomizations(ctx, uid, *msg.Sanctuary)
+				existing, err := activeStore.GetCustomizations(ctx, uid)
+				if err != nil || existing == nil {
+					def := DefaultCustomizations()
+					existing = &def
+				}
+				in := msg.Sanctuary
+				if in.TextColor != "" {
+					existing.TextColor = in.TextColor
+				}
+				if in.FontFamily != "" {
+					existing.FontFamily = in.FontFamily
+				}
+				if in.CaretAura != "" {
+					existing.CaretAura = in.CaretAura
+				}
+				if in.AudioProfile != "" {
+					existing.AudioProfile = in.AudioProfile
+				}
+				if in.CelebrateFx != "" {
+					existing.CelebrateFx = in.CelebrateFx
+				}
+				gName := strings.TrimSpace(in.GuardianName)
+				if len(gName) > 40 {
+					gName = gName[:40]
+				}
+				if gName != "" {
+					existing.GuardianName = gName
+				}
+				existing.GuardianPace = clampInt(in.GuardianPace, -10, 10)
+				existing.GuardianWPMLocked = in.GuardianWPMLocked
+				if in.GuardianLockedWPM >= 0 {
+					existing.GuardianLockedWPM = clampInt(in.GuardianLockedWPM, 0, 220)
+				}
+				if in.PassageBurstDamage > 0 {
+					bal := GetDemonSyncBalance()
+					existing.PassageBurstDamage = clampInt(in.PassageBurstDamage, bal.MinPassageBurstDamage, bal.MaxPassageBurstDamage)
+				}
+				if len(in.PreferredAngelLevels) > 0 {
+					existing.PreferredAngelLevels = in.PreferredAngelLevels
+				}
+				if len(in.PreferredDemonLevels) > 0 {
+					existing.PreferredDemonLevels = in.PreferredDemonLevels
+				}
+				_ = activeStore.SaveCustomizations(ctx, uid, *existing)
+				if activeAngelMgr != nil {
+					activeAngelMgr.UpdateCompanionWPM(uid)
+				}
 				_ = conn.WriteJSON(Message{
 					Type:      "sanctuary_saved",
-					Sanctuary: msg.Sanctuary,
+					Sanctuary: existing,
 				})
 			}
 
@@ -1618,6 +1713,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		case "interact_angel":
 			peerUID := strings.TrimPrefix(strings.TrimSpace(msg.PeerAngelUID), "angel-guardian-")
+			cooldownKey := peerUID
+			if cooldownKey == "" {
+				cooldownKey = "_default_"
+			}
+			nowInteract := time.Now()
+			if lastT, ok := lastAngelInteract[cooldownKey]; ok && nowInteract.Sub(lastT) < 10*time.Second {
+				continue
+			}
+			lastAngelInteract[cooldownKey] = nowInteract
 			peerName := "a Fellowship Guardian Angel"
 			var peerAngelInfo *AngelInfo
 			if activeAngelMgr != nil && peerUID != "" {
@@ -1701,6 +1805,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				activeVerseIdx = foundIdx
+				allowTemporaryVerseJump = true
 				currentMode = "verse"
 				sendCurrentVerse()
 			}
@@ -1791,8 +1896,24 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if td, ok := translations[demon.Translation]; ok {
+				transChanged := currentTransID != demon.Translation
 				currentTransID = demon.Translation
 				transData = td
+				client.Translation = currentTransID
+				if transChanged {
+					_ = conn.WriteJSON(Message{
+						Type:         "translations",
+						Translation:  currentTransID,
+						Translations: availableTransList,
+					})
+					allProg, _ := activeStore.GetAllBookProgress(ctx, uid, currentTransID)
+					_ = conn.WriteJSON(Message{
+						Type:        "books",
+						Books:       canonicalOrder,
+						Progress:    allProg,
+						Translation: currentTransID,
+					})
+				}
 				if ensureBookLoaded(demon.BookName) {
 					foundIdx := -1
 					for i, v := range bookVerses {
@@ -1803,15 +1924,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					}
 					if foundIdx >= 0 {
 						activeVerseIdx = foundIdx
+						allowTemporaryVerseJump = true
 						currentMode = "verse"
-						if !bookProgress.IntroCompleted {
-							bookProgress.IntroCompleted = true
-							_ = activeStore.UpdateBookProgress(ctx, uid, currentTransID, selectedBook, bookProgress)
-						}
-						if bookProgress.CurrentVerse < foundIdx {
-							bookProgress.CurrentVerse = foundIdx
-							_ = activeStore.UpdateBookProgress(ctx, uid, currentTransID, selectedBook, bookProgress)
-						}
 						sendCurrentVerse()
 					}
 				}
@@ -2008,6 +2122,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				if b.IsDemonBoss {
 					if activeDemonMgr != nil {
 						dmn := activeDemonMgr.SummonDemon(uid, "apollyon", b.Level, b.Translation, b.BookName, b.Chapter, b.Verse, b.Text)
+						bossRaidSummonedDemon = true
 						_ = conn.WriteJSON(Message{
 							Type:  "demon_summoned",
 							Demon: dmn,
@@ -2029,20 +2144,38 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			for _, item := range msg.SyncItems {
 				if item.BookName != "" && item.Verse > 0 {
 					totalVerses := 100
+					bookVerseNum := item.Verse
+					verseChars := 120
 					if td, ok := translations[item.Translation]; ok {
 						if vl := td.VersesByBook[item.BookName]; len(vl) > 0 {
 							totalVerses = len(vl)
+							if item.Chapter > 0 {
+								for idx, v := range vl {
+									if v.Chapter == item.Chapter && v.Verse == item.Verse {
+										bookVerseNum = idx + 1
+										verseChars = max(10, len(v.Text))
+										break
+									}
+								}
+							} else if item.Verse <= len(vl) {
+								verseChars = max(10, len(vl[item.Verse-1].Text))
+							}
 						}
 					}
 					bp, err := activeStore.GetBookProgress(ctx, uid, item.Translation, item.BookName, totalVerses)
 					if err == nil {
-						if item.Verse > bp.CurrentVerse {
-							bp.CurrentVerse = item.Verse
+						if bookVerseNum > bp.CurrentVerse && bookVerseNum <= totalVerses {
+							bp.CurrentVerse = bookVerseNum
+						}
+						if bookVerseNum > 0 {
+							bp.IntroCompleted = true
 						}
 						bp.CorrectEntries++
 						_ = activeStore.UpdateBookProgress(ctx, uid, item.Translation, item.BookName, bp)
-						_ = activeStore.RecordTypingSession(ctx, uid, item.Translation, item.BookName, item.Verse*30, item.Verse*30, item.WPM, item.Duration)
-						_, _ = activeStore.RecordVerseCompleted(ctx, uid, item.Verse*30, item.Duration)
+						safeWPM := clampInt(item.WPM, 1, 250)
+						safeDur := max(0.5, item.Duration)
+						_ = activeStore.RecordTypingSession(ctx, uid, item.Translation, item.BookName, verseChars, verseChars, safeWPM, safeDur)
+						_, _ = activeStore.RecordVerseCompleted(ctx, uid, verseChars, safeDur)
 					}
 				}
 			}
@@ -2088,6 +2221,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			bookName := msg.Content
 			// Reconcile any locally cached book progress sent by the client so refreshing never resets progress
 			if len(msg.BookProgressSync) > 0 {
+				anySynced := false
+				totalSyncedVerses := 0
 				for bKey, localBP := range msg.BookProgressSync {
 					vList, ok := transData.VersesByBook[bKey]
 					if !ok || len(vList) == 0 {
@@ -2115,8 +2250,28 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						srvBP.CorrectEntries = localBP.CorrectEntries
 						changed = true
 					}
+					if srvBP.CurrentVerse > srvBP.CorrectEntries {
+						srvBP.CorrectEntries = srvBP.CurrentVerse
+						changed = true
+					}
+					totalSyncedVerses += srvBP.CurrentVerse
 					if changed {
+						anySynced = true
 						_ = activeStore.UpdateBookProgress(ctx, uid, currentTransID, bKey, srvBP)
+					}
+				}
+				if anySynced && totalSyncedVerses > 0 {
+					curVerses := 0
+					if streak != nil {
+						curVerses = streak.TotalVersesTyped
+					}
+					if totalSyncedVerses > curVerses {
+						diff := totalSyncedVerses - curVerses
+						for i := 0; i < diff; i++ {
+							streak, _ = activeStore.RecordVerseCompleted(ctx, uid, 100, 4.0)
+						}
+						_ = conn.WriteJSON(Message{Type: "streakUpdate", Streak: streak})
+						sendSanctuaryState(nil)
 					}
 				}
 			}
@@ -2281,6 +2436,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "exit_mode":
+			if bossRaidSummonedDemon {
+				bossRaidSummonedDemon = false
+				if activeDemonMgr != nil {
+					activeDemonMgr.DismissDemon(uid)
+				}
+				_ = conn.WriteJSON(Message{Type: "demon_dismissed"})
+			}
 			currentMode = "verse"
 			sendCurrentVerse()
 
@@ -2288,12 +2450,28 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			var targetVerse Verse
 			if msg.Verse != nil {
 				targetVerse = *msg.Verse
+				if vList, ok := transData.VersesByBook[targetVerse.BookName]; ok {
+					foundCanonical := false
+					for _, cv := range vList {
+						if cv.Chapter == targetVerse.Chapter && cv.Verse == targetVerse.Verse {
+							targetVerse = cv
+							foundCanonical = true
+							break
+						}
+					}
+					if !foundCanonical {
+						continue
+					}
+				} else {
+					continue
+				}
 			} else if selectedBook != "" && bookProgress != nil && activeVerseIdx < len(bookVerses) {
 				targetVerse = bookVerses[activeVerseIdx]
 			} else {
 				continue
 			}
 
+			var favBadges []Badge
 			isFav, _ := activeStore.IsFavorite(ctx, uid, currentTransID, targetVerse.BookName, targetVerse.Chapter, targetVerse.Verse)
 			if isFav {
 				_ = activeStore.RemoveFavorite(ctx, uid, currentTransID, targetVerse.BookName, targetVerse.Chapter, targetVerse.Verse)
@@ -2311,7 +2489,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 				favList, _ := activeStore.GetFavorites(ctx, uid)
 				if len(favList) >= 5 {
-					_ = checkAndAwardBadges(ctx, activeStore, uid, currentTransID, targetVerse.BookName, bookProgress, streak, 0, false, "fav_collect")
+					favBadges = checkAndAwardBadges(ctx, activeStore, uid, currentTransID, targetVerse.BookName, bookProgress, streak, 0, false, "fav_collect")
 				}
 			}
 
@@ -2322,6 +2500,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				Favorites:  favList,
 				Verse:      &targetVerse,
 			})
+			for _, b := range favBadges {
+				bCopy := b
+				_ = conn.WriteJSON(Message{
+					Type:   "badgeUnlocked",
+					Reward: &bCopy,
+				})
+			}
 
 		case "get_favorites":
 			favList, _ := activeStore.GetFavorites(ctx, uid)
@@ -2572,11 +2757,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					if activeAngelMgr != nil {
 						activeAngelMgr.UpdateCompanionWPM(uid)
 					}
+					if bossRaidSummonedDemon {
+						bossRaidSummonedDemon = false
+						if activeDemonMgr != nil {
+							activeDemonMgr.DismissDemon(uid)
+						}
+						_ = conn.WriteJSON(Message{Type: "demon_dismissed"})
+					}
 
 					currentMode = "verse"
 					sendCurrentVerse()
 					continue
 				}
+
+				wasReviewCompleted := bookProgress != nil && bookProgress.ReviewCompleted
 
 				// Check if user finished a passage before a wild demon on this verse
 				var completedTrans, completedBook string
@@ -2627,6 +2821,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					if activeVerseIdx == bookProgress.CurrentVerse {
 						bookProgress.CurrentVerse++
 						activeVerseIdx++
+						allowTemporaryVerseJump = false
+					} else if allowTemporaryVerseJump && activeVerseIdx > bookProgress.CurrentVerse {
+						if activeWildDemonBeforeAdvance != nil && activeWildDemonBeforeAdvance.CurrentHP > 0 {
+							activeVerseIdx++
+						} else {
+							allowTemporaryVerseJump = false
+							activeVerseIdx = bookProgress.CurrentVerse
+						}
 					} else {
 						activeVerseIdx++
 					}
@@ -2862,7 +3064,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					longStreak = streak.LongestStreak
 				}
 				topWPM := max(prevTopWPM, instantWPM)
-				newUnlocks := FindNewlyUnlockedCustomizations(prevTopWPM, topWPM, prevVerses, totVerses, prevLongStreak, longStreak, 0)
+				oldBooksComp := 0
+				newBooksComp := 0
+				if currentMode == "review" && !wasReviewCompleted && bookProgress != nil && bookProgress.ReviewCompleted {
+					newBooksComp = 1
+				}
+				newUnlocks := FindNewlyUnlockedCustomizations(prevTopWPM, topWPM, prevVerses, totVerses, prevLongStreak, longStreak, oldBooksComp, newBooksComp)
 				for _, unl := range newUnlocks {
 					unlCopy := unl
 					_ = conn.WriteJSON(Message{
@@ -3021,9 +3228,16 @@ func main() {
 	initAdminSystem(".elespe")
 	registerAdminRoutes(http.DefaultServeMux)
 
-	http.Handle("/", http.FileServer(http.FS(publicFS{appFS})))
+	fileServer := http.FileServer(http.FS(publicFS{appFS}))
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		fileServer.ServeHTTP(w, r)
+	})
 	http.HandleFunc("/ws", handleWebSocket)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Write([]byte("ok"))
 	})
 

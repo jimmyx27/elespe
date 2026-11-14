@@ -127,9 +127,20 @@ type AdminManager struct {
 }
 
 func hashAdminPassword(password string) string {
+	return saltPasswordHash(hashPassword(password))
+}
+
+func verifyAdminPassword(storedHash, password string) bool {
+	if storedHash == "" || password == "" {
+		return false
+	}
+	if strings.HasPrefix(storedHash, "v2$") {
+		return verifyStoredPassword(storedHash, hashPassword(password))
+	}
 	salt := "elespe-admin-sanctuary-v1-salt:"
 	sum := sha256.Sum256([]byte(salt + password))
-	return hex.EncodeToString(sum[:])
+	legacy := hex.EncodeToString(sum[:])
+	return subtle.ConstantTimeCompare([]byte(legacy), []byte(storedHash)) == 1
 }
 
 func generateSecureToken(numBytes int) string {
@@ -247,11 +258,17 @@ func initAdminSystem(configDir string) *AdminManager {
 	if envPass != "" {
 		mgr.passwordHash = hashAdminPassword(envPass)
 	} else if mgr.passwordHash == "" {
-		defaultPass := "elespe-admin"
-		mgr.passwordHash = hashAdminPassword(defaultPass)
 		passFile := filepath.Join(configDir, "admin_password.txt")
-		_ = os.WriteFile(passFile, []byte(defaultPass+"\n"), 0600)
-		log.Printf("[Admin] Initialized admin console at /admin (username: %q, default password saved to %s; set ADMIN_PASSWORD env var or change in Admin Console -> Security)", mgr.username, passFile)
+		defaultPass := ""
+		if existing, err := os.ReadFile(passFile); err == nil && len(strings.TrimSpace(string(existing))) >= 12 {
+			defaultPass = strings.TrimSpace(string(existing))
+		} else {
+			defaultPass = "elespe-" + generateSecureToken(12)
+			_ = os.WriteFile(passFile, []byte(defaultPass+"\n"), 0600)
+		}
+		mgr.passwordHash = hashAdminPassword(defaultPass)
+		_ = mgr.saveStateLocked()
+		log.Printf("[Admin] Initialized admin console at /admin (username: %q, initial password saved to %s; set ADMIN_PASSWORD env var or change in Admin Console -> Security)", mgr.username, passFile)
 	}
 
 	mgr.applyOptionsToSubsystemsLocked()
@@ -344,15 +361,20 @@ func (m *AdminManager) applyOptionsToSubsystemsLocked() {
 }
 
 func getClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil && host != "" {
-		return host
+	if err != nil || host == "" {
+		host = r.RemoteAddr
 	}
-	return r.RemoteAddr
+	trustProxy := host == "127.0.0.1" || host == "::1" || strings.EqualFold(os.Getenv("TRUST_PROXY"), "true")
+	if trustProxy {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			if candidate := strings.TrimSpace(parts[0]); candidate != "" {
+				return candidate
+			}
+		}
+	}
+	return host
 }
 
 func setAdminSecurityHeaders(w http.ResponseWriter) {
@@ -481,12 +503,17 @@ func (m *AdminManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if inputUser == "" {
 		inputUser = "admin"
 	}
-	inputPassHash := hashAdminPassword(req.Password)
-
 	userMatch := subtle.ConstantTimeCompare([]byte(inputUser), []byte(m.username)) == 1
-	passMatch := subtle.ConstantTimeCompare([]byte(inputPassHash), []byte(m.passwordHash)) == 1
+	passMatch := verifyAdminPassword(m.passwordHash, req.Password)
 
 	if !userMatch || !passMatch {
+		if len(m.failedAttempts) > 1024 {
+			for k, tr := range m.failedAttempts {
+				if now.Sub(tr.FirstFailed) > adminLockoutWindow && now.After(tr.LockedUntil) {
+					delete(m.failedAttempts, k)
+				}
+			}
+		}
 		if tracker == nil {
 			tracker = &loginAttemptTracker{
 				Failures:    1,
@@ -595,8 +622,7 @@ func (m *AdminManager) handleChangePassword(w http.ResponseWriter, r *http.Reque
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	curHash := hashAdminPassword(req.CurrentPassword)
-	if subtle.ConstantTimeCompare([]byte(curHash), []byte(m.passwordHash)) != 1 {
+	if !verifyAdminPassword(m.passwordHash, req.CurrentPassword) {
 		m.recordAuditLocked(sess.Username, getClientIP(r), "password_change_failed", "Current password verification failed")
 		writeAdminJSON(w, http.StatusForbidden, map[string]any{"error": "Current password is incorrect"})
 		return

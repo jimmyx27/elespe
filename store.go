@@ -795,8 +795,36 @@ var authSecretKey = func() []byte {
 	if s := os.Getenv("DATABASE_URL"); s != "" {
 		return []byte("elespe-auth-secret:" + s)
 	}
+	keyPath := ".elespe/auth_secret.key"
+	if raw, err := os.ReadFile(keyPath); err == nil && len(strings.TrimSpace(string(raw))) >= 32 {
+		return []byte(strings.TrimSpace(string(raw)))
+	}
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err == nil {
+		secret := hex.EncodeToString(buf)
+		_ = os.MkdirAll(".elespe", 0755)
+		_ = os.WriteFile(keyPath, []byte(secret+"\n"), 0600)
+		return []byte(secret)
+	}
 	return []byte("elespe-default-hmac-session-secret-key-v1")
 }()
+
+func sanitizeHexColor(c string) string {
+	c = strings.TrimSpace(c)
+	if len(c) != 4 && len(c) != 7 && len(c) != 9 {
+		return "#6366f1"
+	}
+	if c[0] != '#' {
+		return "#6366f1"
+	}
+	for i := 1; i < len(c); i++ {
+		ch := c[i]
+		if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
+			return "#6366f1"
+		}
+	}
+	return c
+}
 
 func signAuthToken(uid string) string {
 	if uid == "" {
